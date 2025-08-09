@@ -17,3 +17,13 @@ add_executable(test_pml test_pml.cpp)
 target_link_libraries(test_pml PRIVATE vectorem)
 add_test(NAME test_pml COMMAND test_pml)
 set_tests_properties(test_pml PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS pml)
+
+add_executable(test_sweep test_sweep.cpp)
+target_link_libraries(test_sweep PRIVATE vectorem)
+add_test(NAME test_sweep COMMAND test_sweep)
+set_tests_properties(test_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+
+add_executable(test_vector_fit test_vector_fit.cpp)
+target_link_libraries(test_vector_fit PRIVATE vectorem)
+add_test(NAME test_vector_fit COMMAND test_vector_fit)
+set_tests_properties(test_vector_fit PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
