@@ -1,7 +1,7 @@
 #pragma once
 
-#include <complex>
 #include <Eigen/Sparse>
+#include <complex>
 
 #include "vectorem/bc.hpp"
 #include "vectorem/mesh.hpp"
@@ -12,13 +12,13 @@ using VecC = Eigen::VectorXcd;
 using SpMatC = Eigen::SparseMatrix<std::complex<double>>;
 
 struct ScalarHelmholtzParams {
-    double k0 = 0.0;   // wavenumber
-    double eps_r = 1.0;
+  double k0 = 0.0; // wavenumber
+  double eps_r = 1.0;
 };
 
 struct ScalarAssembly {
-    SpMatC A;
-    VecC b;
+  SpMatC A;
+  VecC b;
 };
 
 ScalarAssembly assemble_scalar_helmholtz(const Mesh &mesh,
@@ -26,4 +26,3 @@ ScalarAssembly assemble_scalar_helmholtz(const Mesh &mesh,
                                          const BC &bc);
 
 } // namespace vectorem
-
