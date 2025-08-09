@@ -22,6 +22,12 @@ int main() {
   assert(std::abs(s.s11) < 0.1); // |S11| < -20 dB
   assert(std::abs(std::abs(s.s21) - 1.0) < 1e-6);
 
+  // Below cutoff: expect full reflection and no transmission
+  const double freq_low = 5e9; // below cutoff (~6.56 GHz)
+  const auto slow = straight_waveguide_sparams(wg, length, freq_low);
+  assert(std::abs(slow.s11) > 0.99);
+  assert(std::abs(slow.s21) < 1e-6);
+
   std::filesystem::create_directory("out");
   write_touchstone("out/test.s2p", {freq}, {s});
   assert(std::filesystem::exists("out/test.s2p"));
