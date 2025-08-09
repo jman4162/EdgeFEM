@@ -4,6 +4,7 @@ add_library(vectorem
   bc.cpp
   ports/port_eigensolve.cpp
   io/touchstone.cpp
+  post/ntf.cpp
   sweep.cpp
   mor/vector_fit.cpp
 )
