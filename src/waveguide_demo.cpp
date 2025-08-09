@@ -6,7 +6,7 @@
 
 using namespace vectorem;
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   double f0 = 5e9;  // Hz
   double f1 = 10e9; // Hz
   int N = 51;
@@ -21,8 +21,7 @@ int main(int argc, char** argv) {
   for (int i = 0; i < N; ++i) {
     double f = f0 + (f1 - f0) * i / (N - 1);
     auto s = straight_waveguide_sparams(port, length, f);
-    std::cout << f << ',' << std::abs(s.s11) << ',' << std::abs(s.s21)
-              << '\n';
+    std::cout << f << ',' << std::abs(s.s11) << ',' << std::abs(s.s21) << '\n';
   }
   return 0;
 }

@@ -19,5 +19,8 @@ CMakeFiles/
 __pycache__/
 *.pyc
 
+# Example output images
+examples/*.png
+
 # Misc
 *.log

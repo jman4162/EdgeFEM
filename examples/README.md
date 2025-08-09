@@ -31,12 +31,17 @@ Simulate a straight WR-90 rectangular waveguide and sweep S-parameters.
    ```
 
    This writes `examples/waveguide_sparams.csv`.
-
-3. Plot and compare against the analytic solution:
+   
+3. Plot, export Touchstone, and compare against the analytic solution:
 
    ```bash
    python examples/plot_waveguide_sparams.py
    ```
 
-   The plot is saved as `examples/waveguide_sparams.png`.
+   The script generates a plot image (`examples/waveguide_sparams.png`,
+   not tracked in git) and writes a Touchstone file
+   `examples/waveguide_sparams.s2p`.
 
+Sample CSV and Touchstone outputs are included in this repository for
+reference; regenerate them with the commands above to verify the
+results locally.

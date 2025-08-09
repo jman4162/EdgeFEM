@@ -13,6 +13,23 @@ A = 0.02286  # WR-90 width (m)
 fc = c0 / (2.0 * A)
 expected = np.where(freq > fc, 1.0, 0.0)
 
+# Simple Touchstone export with zero s11 phase and
+# analytic propagation phase for s21 above cutoff.
+length = 0.05  # waveguide length (m)
+k = 2 * np.pi * freq / c0
+beta = np.zeros_like(freq)
+mask = freq > fc
+beta[mask] = np.sqrt(k[mask] ** 2 - (np.pi / A) ** 2)
+phase_deg = np.degrees(-beta * length)
+
+with open("examples/waveguide_sparams.s2p", "w") as f:
+    f.write("# Hz S MA R 50\n")
+    for f_hz, s11, s21, ang in zip(freq, s11_mag, s21_mag, phase_deg):
+        f.write(
+            f"{f_hz:.6e} {s11:.6e} 0 {s21:.6e} {ang:.6e} "
+            f"{s21:.6e} {ang:.6e} {s11:.6e} 0\n"
+        )
+
 plt.plot(freq * 1e-9, s21_mag, label="VectorEM |S21|")
 plt.plot(freq * 1e-9, expected, "--", label="Analytic |S21|")
 plt.xlabel("Frequency (GHz)")
