@@ -4,6 +4,8 @@ add_library(vectorem
   bc.cpp
   ports/port_eigensolve.cpp
   io/touchstone.cpp
+  sweep.cpp
+  mor/vector_fit.cpp
 )
 
 if (VECTOREM_BUILD_SCALAR)
@@ -14,6 +16,8 @@ if (VECTOREM_BUILD_VECTOR)
   target_sources(vectorem PRIVATE edge_basis.cpp assemble_maxwell.cpp)
   add_executable(vectorem_waveguide_demo waveguide_demo.cpp)
   target_link_libraries(vectorem_waveguide_demo PRIVATE vectorem)
+  add_executable(vectorem_sweep_demo sweep_demo.cpp)
+  target_link_libraries(vectorem_sweep_demo PRIVATE vectorem)
 endif()
 
 target_include_directories(vectorem PUBLIC ${PROJECT_SOURCE_DIR}/include)
