@@ -27,3 +27,8 @@ add_executable(test_vector_fit test_vector_fit.cpp)
 target_link_libraries(test_vector_fit PRIVATE vectorem)
 add_test(NAME test_vector_fit COMMAND test_vector_fit)
 set_tests_properties(test_vector_fit PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+
+add_executable(test_ntf test_ntf.cpp)
+target_link_libraries(test_ntf PRIVATE vectorem)
+add_test(NAME test_ntf COMMAND test_ntf)
+set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})

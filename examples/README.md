@@ -45,3 +45,14 @@ Simulate a straight WR-90 rectangular waveguide and sweep S-parameters.
 Sample CSV and Touchstone outputs are included in this repository for
 reference; regenerate them with the commands above to verify the
 results locally.
+
+## patch_antenna_pattern
+
+`patch_antenna_pattern.csv` shows a sample 2D far-field pattern exported
+from a patch antenna simulation. Visualize it with the helper script:
+
+```bash
+python ../tools/plot_pattern.py patch_antenna_pattern.csv
+```
+
+This produces a polar plot of the gain pattern in the $xz$-plane.
