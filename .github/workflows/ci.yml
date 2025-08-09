@@ -1,0 +1,31 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-format clang-tidy
+          python -m pip install -r tools/requirements.txt
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build -j
+      - name: Static analysis
+        run: bash tools/lint.sh build
+      - name: Unit tests
+        run: ctest --test-dir build -L smoke -j || (cat build/Testing/Temporary/LastTest.log; exit 1)
+      - name: Mesh QA (agents)
+        run: python tools/agents/mesh_qa.py --in examples --out artifacts/mesh_qa
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vectorem-artifacts
+          path: artifacts
+
