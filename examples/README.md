@@ -31,7 +31,7 @@ Simulate a straight WR-90 rectangular waveguide and sweep S-parameters.
    ```
 
    This writes `examples/waveguide_sparams.csv`.
-
+   
 3. Plot, export Touchstone, and compare against the analytic solution:
 
    ```bash
@@ -45,4 +45,3 @@ Simulate a straight WR-90 rectangular waveguide and sweep S-parameters.
 Sample CSV and Touchstone outputs are included in this repository for
 reference; regenerate them with the commands above to verify the
 results locally.
-
