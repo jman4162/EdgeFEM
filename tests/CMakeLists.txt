@@ -32,3 +32,13 @@ add_executable(test_ntf test_ntf.cpp)
 target_link_libraries(test_ntf PRIVATE vectorem)
 add_test(NAME test_ntf COMMAND test_ntf)
 set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+if (VECTOREM_PYTHON)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  add_test(NAME python_smoke
+           COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/python_smoke.py)
+  set_tests_properties(python_smoke PROPERTIES
+                       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+                       ENVIRONMENT "PYTHONPATH=${PROJECT_BINARY_DIR}/python"
+                       LABELS smoke)
+endif()

@@ -9,6 +9,8 @@ add_library(vectorem
   mor/vector_fit.cpp
 )
 
+set_target_properties(vectorem PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 if (VECTOREM_BUILD_SCALAR)
   target_sources(vectorem PRIVATE fem_scalar.cpp)
 endif()
