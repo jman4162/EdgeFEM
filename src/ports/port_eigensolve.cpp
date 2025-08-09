@@ -30,14 +30,22 @@ SParams2 straight_waveguide_sparams(const RectWaveguidePort &port,
                                     double length, double freq) {
   const double k = 2.0 * M_PI * freq / c0;
   const double kc = M_PI / port.a;
-  const double beta = std::sqrt(std::max(0.0, k * k - kc * kc));
-  const std::complex<double> phase =
-      std::exp(std::complex<double>(0.0, -beta * length));
   SParams2 s{};
-  s.s11 = 0.0;
-  s.s22 = 0.0;
-  s.s21 = phase;
-  s.s12 = phase;
+  if (k <= kc) {
+    // Below cutoff: mode is evanescent, full reflection
+    s.s11 = 1.0;
+    s.s22 = 1.0;
+    s.s21 = 0.0;
+    s.s12 = 0.0;
+  } else {
+    const double beta = std::sqrt(k * k - kc * kc);
+    const std::complex<double> phase =
+        std::exp(std::complex<double>(0.0, -beta * length));
+    s.s11 = 0.0;
+    s.s22 = 0.0;
+    s.s21 = phase;
+    s.s12 = phase;
+  }
   return s;
 }
 
