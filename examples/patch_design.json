@@ -1,0 +1,12 @@
+{
+  "freq_hz": 2450000000.0,
+  "substrate": {
+    "er": 4.4,
+    "h_m": 0.0016
+  },
+  "patch_width_m": 0.03723426118288438,
+  "patch_length_m": 0.028809290261854397,
+  "inset_depth_m": 0.004,
+  "feed_width_m": 0.00308,
+  "quality_factor": 30.625
+}
