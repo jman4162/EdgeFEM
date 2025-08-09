@@ -12,6 +12,7 @@ std::vector<FFPoint2D> stratton_chu_2d(
     const std::vector<Eigen::Vector3d> &n,
     const std::vector<Eigen::Vector3cd> &E,
     const std::vector<Eigen::Vector3cd> &H,
+    const std::vector<double> &area,
     const std::vector<double> &theta_rad,
     double phi_rad, double k0) {
   std::vector<FFPoint2D> out;
@@ -30,11 +31,10 @@ std::vector<FFPoint2D> stratton_chu_2d(
     for (size_t i = 0; i < r.size(); ++i) {
       Eigen::Vector3cd J = n[i].cross(H[i]);
       Eigen::Vector3cd M = -n[i].cross(E[i]);
-      // assume unit area for each sample; user should provide with repeated points
       std::complex<double> phase = std::exp(-j * k0 * rhat.dot(r[i]));
       Eigen::Vector3cd term = j * k0 * (rhat.cross(M)).cross(rhat) -
                               Z0 * rhat.cross(J);
-      Efar += term * phase;
+      Efar += term * phase * area[i];
     }
 
     FFPoint2D p;

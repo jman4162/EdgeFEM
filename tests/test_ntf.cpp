@@ -13,8 +13,9 @@ int main() {
     std::vector<Eigen::Vector3d> n = {Eigen::Vector3d::UnitZ()};
     std::vector<Eigen::Vector3cd> E = {Eigen::Vector3cd::Zero()};
     std::vector<Eigen::Vector3cd> H = {Eigen::Vector3cd::Zero()};
+    std::vector<double> area = {1.0};
     std::vector<double> theta = {0.0, M_PI / 2};
-    auto pat = stratton_chu_2d(r, n, E, H, theta, 0.0, 2 * M_PI);
+    auto pat = stratton_chu_2d(r, n, E, H, area, theta, 0.0, 2 * M_PI);
     assert(pat.size() == 2);
     assert(std::abs(pat[0].e_theta) < 1e-12);
   }
@@ -26,8 +27,9 @@ int main() {
     std::vector<Eigen::Vector3d> n(2, Eigen::Vector3d::UnitZ());
     std::vector<Eigen::Vector3cd> E(2, Eigen::Vector3cd::UnitX());
     std::vector<Eigen::Vector3cd> H(2, Eigen::Vector3cd::UnitY());
+    std::vector<double> area = {1.0, 1.0};
     std::vector<double> theta = {0.0, M_PI / 2, M_PI};
-    auto pat = stratton_chu_2d(r, n, E, H, theta, 0.0, 2 * M_PI);
+    auto pat = stratton_chu_2d(r, n, E, H, area, theta, 0.0, 2 * M_PI);
     assert(pat.size() == 3);
 
     // Far field should be purely phi-polarized

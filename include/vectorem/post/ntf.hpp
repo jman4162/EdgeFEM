@@ -28,6 +28,7 @@ std::vector<FFPoint2D> stratton_chu_2d(
     const std::vector<Eigen::Vector3d> &n,
     const std::vector<Eigen::Vector3cd> &E,
     const std::vector<Eigen::Vector3cd> &H,
+    const std::vector<double> &area,
     const std::vector<double> &theta_rad,
     double phi_rad, double k0);
 
