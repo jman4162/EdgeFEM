@@ -5,9 +5,9 @@
 namespace vectorem {
 
 namespace {
-constexpr double c0 = 299792458.0;       // speed of light in vacuum (m/s)
-constexpr double eta0 = 376.730313668;   // impedance of free space (ohms)
-}
+constexpr double c0 = 299792458.0;     // speed of light in vacuum (m/s)
+constexpr double eta0 = 376.730313668; // impedance of free space (ohms)
+} // namespace
 
 PortMode solve_te10_mode(const RectWaveguidePort &port, double freq) {
   PortMode mode{};
@@ -42,4 +42,3 @@ SParams2 straight_waveguide_sparams(const RectWaveguidePort &port,
 }
 
 } // namespace vectorem
-

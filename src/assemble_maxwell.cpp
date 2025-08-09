@@ -1,13 +1,12 @@
-#include "vectorem/maxwell.hpp"
 #include "vectorem/edge_basis.hpp"
+#include "vectorem/maxwell.hpp"
 
 #include <Eigen/SparseCore>
 #include <vector>
 
 namespace vectorem {
 
-MaxwellAssembly assemble_maxwell(const Mesh &mesh,
-                                 const MaxwellParams &p,
+MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
                                  const BC &bc) {
   const int m = static_cast<int>(mesh.edges.size());
   MaxwellAssembly asmbl;
@@ -32,8 +31,7 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh,
         int gj = tet.edges[j];
         int sj = tet.edge_orient[j];
         std::complex<double> val =
-            (Kloc(i, j) / p.mu_r) -
-            (p.omega * p.omega * p.eps_r * Mloc(i, j));
+            (Kloc(i, j) / p.mu_r) - (p.omega * p.omega * p.eps_r * Mloc(i, j));
         val *= static_cast<double>(si * sj);
         trips.emplace_back(gi, gj, val);
       }
@@ -42,7 +40,8 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh,
   asmbl.A.setFromTriplets(trips.begin(), trips.end());
 
   for (int e : bc.dirichlet_edges) {
-    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(asmbl.A, e);
+    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(asmbl.A,
+                                                                     e);
          it; ++it) {
       it.valueRef() = (it.row() == e && it.col() == e)
                           ? std::complex<double>(1.0, 0.0)

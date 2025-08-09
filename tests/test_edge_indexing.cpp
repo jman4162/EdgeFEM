@@ -1,5 +1,5 @@
-#include <cassert>
 #include <array>
+#include <cassert>
 
 #include "vectorem/mesh.hpp"
 

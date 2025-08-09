@@ -2,8 +2,8 @@
 #include <cmath>
 #include <filesystem>
 
-#include "vectorem/ports/port_eigensolve.hpp"
 #include "vectorem/io/touchstone.hpp"
+#include "vectorem/ports/port_eigensolve.hpp"
 
 using namespace vectorem;
 
@@ -28,4 +28,3 @@ int main() {
 
   return 0;
 }
-

@@ -39,7 +39,7 @@ struct Mesh {
   std::vector<Element> tets;
   std::vector<Element> tris; // boundary faces
   // maps for quick lookup
-  std::vector<Edge> edges; // global edges (n0 < n1)
+  std::vector<Edge> edges;                          // global edges (n0 < n1)
   std::unordered_map<std::uint64_t, int> edgeIndex; // key -> edge index
   std::unordered_map<std::int64_t, int> nodeIndex;
 };
@@ -49,8 +49,7 @@ Mesh load_gmsh_v2(const std::string &path);
 inline std::uint64_t make_edge_key(std::int64_t a, std::int64_t b) {
   if (a > b)
     std::swap(a, b);
-  return (static_cast<std::uint64_t>(a) << 32) ^
-         static_cast<std::uint64_t>(b);
+  return (static_cast<std::uint64_t>(a) << 32) ^ static_cast<std::uint64_t>(b);
 }
 
 } // namespace vectorem

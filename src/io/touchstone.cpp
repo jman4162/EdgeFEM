@@ -14,10 +14,8 @@ void write_touchstone(const std::string &path, const std::vector<double> &freq,
     const auto &s = data[i];
     ofs << freq[i] << ' ' << s.s11.real() << ' ' << s.s11.imag() << ' '
         << s.s21.real() << ' ' << s.s21.imag() << ' ' << s.s12.real() << ' '
-        << s.s12.imag() << ' ' << s.s22.real() << ' ' << s.s22.imag()
-        << '\n';
+        << s.s12.imag() << ' ' << s.s22.real() << ' ' << s.s22.imag() << '\n';
   }
 }
 
 } // namespace vectorem
-

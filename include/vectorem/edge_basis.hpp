@@ -1,7 +1,7 @@
 #pragma once
 
-#include <array>
 #include <Eigen/Core>
+#include <array>
 
 namespace vectorem {
 
@@ -14,4 +14,4 @@ whitney_curl_curl_matrix(const std::array<Eigen::Vector3d, 4> &v);
 Eigen::Matrix<double, 6, 6>
 whitney_mass_matrix(const std::array<Eigen::Vector3d, 4> &v);
 
-}
+} // namespace vectorem

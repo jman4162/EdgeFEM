@@ -1,16 +1,14 @@
 #include "vectorem/edge_basis.hpp"
 
-#include <array>
 #include <Eigen/Dense>
+#include <array>
 
 namespace vectorem {
 namespace {
-const std::array<std::array<int, 2>, 6> edge_pairs = {std::array<int,2>{0,1},
-                                                     std::array<int,2>{0,2},
-                                                     std::array<int,2>{0,3},
-                                                     std::array<int,2>{1,2},
-                                                     std::array<int,2>{1,3},
-                                                     std::array<int,2>{2,3}};
+const std::array<std::array<int, 2>, 6> edge_pairs = {
+    std::array<int, 2>{0, 1}, std::array<int, 2>{0, 2},
+    std::array<int, 2>{0, 3}, std::array<int, 2>{1, 2},
+    std::array<int, 2>{1, 3}, std::array<int, 2>{2, 3}};
 
 void gradients_and_volume(const std::array<Eigen::Vector3d, 4> &v,
                           std::array<Eigen::Vector3d, 4> &g, double &V) {

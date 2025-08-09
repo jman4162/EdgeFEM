@@ -28,4 +28,3 @@ SParams2 straight_waveguide_sparams(const RectWaveguidePort &port,
                                     double length, double freq);
 
 } // namespace vectorem
-
