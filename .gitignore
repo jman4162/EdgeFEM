@@ -1,0 +1,23 @@
+# Build directories
+/build/
+/build-*/
+
+# CMake cache
+CMakeCache.txt
+CMakeFiles/
+
+# Compiled outputs
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.dll
+
+# Python artifacts
+__pycache__/
+*.pyc
+
+# Misc
+*.log
