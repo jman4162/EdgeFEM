@@ -7,3 +7,8 @@ add_executable(test_maxwell test_maxwell.cpp)
 target_link_libraries(test_maxwell PRIVATE vectorem)
 add_test(NAME test_maxwell COMMAND test_maxwell)
 set_tests_properties(test_maxwell PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_ports test_ports.cpp)
+target_link_libraries(test_ports PRIVATE vectorem)
+add_test(NAME test_ports COMMAND test_ports)
+set_tests_properties(test_ports PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
