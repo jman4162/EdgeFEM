@@ -56,3 +56,20 @@ python ../tools/plot_pattern.py patch_antenna_pattern.csv
 ```
 
 This produces a polar plot of the gain pattern in the $xz$-plane.
+
+## patch_antenna_design
+
+`patch_antenna_design.py` performs a simple analytic design of a
+2.45 GHz inset‑fed rectangular microstrip patch on FR‑4. It sweeps the
+inset depth and patch length, exporting S‑parameter data and the final
+geometry dimensions.
+
+Run:
+
+```bash
+python patch_antenna_design.py
+```
+
+The script writes `patch_sparams.csv`, a Touchstone file
+`patch_2p45_FR4.s1p`, a `patch_antenna.geo` model, and a
+`patch_design.json` summary in this directory.
