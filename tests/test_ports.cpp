@@ -1,6 +1,8 @@
 #include <cassert>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <string>
 
 #include "vectorem/io/touchstone.hpp"
 #include "vectorem/ports/port_eigensolve.hpp"
@@ -31,6 +33,11 @@ int main() {
   std::filesystem::create_directory("out");
   write_touchstone("out/test.s2p", {freq}, {s});
   assert(std::filesystem::exists("out/test.s2p"));
+
+  std::ifstream ifs("out/test.s2p");
+  std::string header;
+  std::getline(ifs, header);
+  assert(header == "# Hz S RI R 50");
 
   return 0;
 }
