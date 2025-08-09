@@ -11,7 +11,13 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 find_package(Eigen3 3.4 REQUIRED)
 
-add_subdirectory(src)
+option(VECTOREM_BUILD_SCALAR "Build scalar prototype" ON)
+option(VECTOREM_BUILD_VECTOR "Build vector Maxwell path" ON)
 
-add_test(NAME smoke_scalar_demo COMMAND vectorem_scalar_demo ${PROJECT_SOURCE_DIR}/examples/cube_cavity.msh 1)
-set_tests_properties(smoke_scalar_demo PROPERTIES LABELS smoke)
+add_subdirectory(src)
+add_subdirectory(tests)
+
+if (VECTOREM_BUILD_SCALAR)
+  add_test(NAME smoke_scalar_demo COMMAND vectorem_scalar_demo ${PROJECT_SOURCE_DIR}/examples/cube_cavity.msh 1)
+  set_tests_properties(smoke_scalar_demo PROPERTIES LABELS smoke)
+endif()
