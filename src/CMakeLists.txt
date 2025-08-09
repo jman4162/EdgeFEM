@@ -12,6 +12,8 @@ endif()
 
 if (VECTOREM_BUILD_VECTOR)
   target_sources(vectorem PRIVATE edge_basis.cpp assemble_maxwell.cpp)
+  add_executable(vectorem_waveguide_demo waveguide_demo.cpp)
+  target_link_libraries(vectorem_waveguide_demo PRIVATE vectorem)
 endif()
 
 target_include_directories(vectorem PUBLIC ${PROJECT_SOURCE_DIR}/include)
