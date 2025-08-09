@@ -2,6 +2,8 @@ add_library(vectorem
   mesh_gmsh.cpp
   solver.cpp
   bc.cpp
+  ports/port_eigensolve.cpp
+  io/touchstone.cpp
 )
 
 if (VECTOREM_BUILD_SCALAR)

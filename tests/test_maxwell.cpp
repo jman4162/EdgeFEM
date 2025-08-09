@@ -1,5 +1,5 @@
-#include <cassert>
 #include <Eigen/Dense>
+#include <cassert>
 
 #include "vectorem/maxwell.hpp"
 

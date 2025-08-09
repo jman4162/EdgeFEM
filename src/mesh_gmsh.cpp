@@ -70,15 +70,13 @@ Mesh load_gmsh_v2(const std::string &path) {
 
 namespace {
 void build_edges(Mesh &mesh) {
-  const std::array<std::array<int, 2>, 6> tet_pairs = {std::array<int,2>{0,1},
-                                                       std::array<int,2>{0,2},
-                                                       std::array<int,2>{0,3},
-                                                       std::array<int,2>{1,2},
-                                                       std::array<int,2>{1,3},
-                                                       std::array<int,2>{2,3}};
-  const std::array<std::array<int, 2>, 3> tri_pairs = {std::array<int,2>{0,1},
-                                                       std::array<int,2>{1,2},
-                                                       std::array<int,2>{2,0}};
+  const std::array<std::array<int, 2>, 6> tet_pairs = {
+      std::array<int, 2>{0, 1}, std::array<int, 2>{0, 2},
+      std::array<int, 2>{0, 3}, std::array<int, 2>{1, 2},
+      std::array<int, 2>{1, 3}, std::array<int, 2>{2, 3}};
+  const std::array<std::array<int, 2>, 3> tri_pairs = {
+      std::array<int, 2>{0, 1}, std::array<int, 2>{1, 2},
+      std::array<int, 2>{2, 0}};
   for (auto &tet : mesh.tets) {
     for (int e = 0; e < 6; ++e) {
       auto a = tet.conn[tet_pairs[e][0]];

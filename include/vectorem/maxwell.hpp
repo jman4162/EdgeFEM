@@ -22,8 +22,7 @@ struct MaxwellAssembly {
   VecC b;
 };
 
-MaxwellAssembly assemble_maxwell(const Mesh &mesh,
-                                 const MaxwellParams &p,
+MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
                                  const BC &bc);
 
 } // namespace vectorem
