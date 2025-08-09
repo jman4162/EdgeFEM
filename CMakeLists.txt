@@ -13,9 +13,13 @@ find_package(Eigen3 3.4 REQUIRED)
 
 option(VECTOREM_BUILD_SCALAR "Build scalar prototype" ON)
 option(VECTOREM_BUILD_VECTOR "Build vector Maxwell path" ON)
+option(VECTOREM_PYTHON "Build Python bindings" OFF)
 
 add_subdirectory(src)
 add_subdirectory(tests)
+if (VECTOREM_PYTHON)
+  add_subdirectory(python)
+endif()
 
 if (VECTOREM_BUILD_SCALAR)
   add_test(NAME smoke_scalar_demo COMMAND vectorem_scalar_demo ${PROJECT_SOURCE_DIR}/examples/cube_cavity.msh 1)
