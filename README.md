@@ -62,6 +62,8 @@ cmake --build build -j
 
 ```bash
 ctest --test-dir build -j
+# PML absorption tests (skipped by default)
+ctest --test-dir build -L pml
 ```
 
 ## Python SDK (optional)
