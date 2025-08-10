@@ -9,6 +9,7 @@
 #include "vectorem/mesh.hpp"
 #include "vectorem/ports/port_eigensolve.hpp"
 #include "vectorem/solver.hpp"
+#include "vectorem/maxwell.hpp"
 
 namespace py = pybind11;
 using namespace vectorem;
@@ -30,6 +31,8 @@ PYBIND11_MODULE(pyvectorem, m) {
   py::class_<BC>(m, "BC").def(py::init<>());
   m.def("build_scalar_pec", &build_scalar_pec, "Build PEC BC", py::arg("mesh"),
         py::arg("pec_tag"));
+  m.def("build_edge_pec", &build_edge_pec, "Build edge PEC BC", py::arg("mesh"),
+        py::arg("pec_tag"));
 
   py::class_<ScalarHelmholtzParams>(m, "ScalarHelmholtzParams")
       .def(py::init<>())
@@ -50,6 +53,26 @@ PYBIND11_MODULE(pyvectorem, m) {
   m.def("assemble_scalar_helmholtz", &assemble_scalar_helmholtz,
         "Assemble scalar Helmholtz", py::arg("mesh"), py::arg("params"),
         py::arg("bc"));
+
+  py::class_<MaxwellParams>(m, "MaxwellParams")
+      .def(py::init<>())
+      .def_readwrite("omega", &MaxwellParams::omega)
+      .def_readwrite("eps_r", &MaxwellParams::eps_r)
+      .def_readwrite("mu_r", &MaxwellParams::mu_r)
+      .def_readwrite("pml_sigma", &MaxwellParams::pml_sigma)
+      .def_readwrite("pml_regions", &MaxwellParams::pml_regions)
+      .def_readwrite("use_abc", &MaxwellParams::use_abc);
+
+  py::class_<MaxwellAssembly>(m, "MaxwellAssembly")
+      .def_property_readonly(
+          "A", [](MaxwellAssembly &s) -> SpMatC & { return s.A; },
+          py::return_value_policy::reference_internal)
+      .def_property_readonly(
+          "b", [](MaxwellAssembly &s) -> VecC & { return s.b; },
+          py::return_value_policy::reference_internal);
+
+  m.def("assemble_maxwell", &assemble_maxwell, "Assemble Maxwell", py::arg("mesh"),
+        py::arg("params"), py::arg("bc"));
 
   py::class_<SolveOptions>(m, "SolveOptions")
       .def(py::init<>())
