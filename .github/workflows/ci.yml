@@ -15,8 +15,11 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r tools/requirements.txt
           python -m pip install pybind11 matplotlib
+      - name: Get pybind11 CMake dir
+        id: pybind11_dir
+        run: echo "dir=$(python3 -c 'import pybind11; print(pybind11.get_cmake_dir())')" >> $GITHUB_ENV
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVECTOREM_PYTHON=ON
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVECTOREM_PYTHON=ON -Dpybind11_DIR=${{ env.dir }}
       - name: Build
         run: cmake --build build -j
       - name: Static analysis
