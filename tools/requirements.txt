@@ -1,2 +1,2 @@
-# Python dependencies for tooling
-
+# Python dependencies for tooling and examples
+numpy
