@@ -1,0 +1,12 @@
+[project]
+name = "vectorem_cad"
+version = "0.1.0"
+description = "CAD import and meshing utilities for VectorEM"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{name = "VectorEM contributors"}]
+dependencies = []
+
+[project.scripts]
+vectorem-cad = "vectorem_cad.cli:main"
