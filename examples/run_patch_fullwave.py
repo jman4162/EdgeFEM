@@ -19,7 +19,7 @@ def run():
         f.write("freq_hz,residual\n")
         for freq in freqs:
             p.omega = 2 * np.pi * freq
-            asm = em.assemble_maxwell(mesh, p, bc)
+            asm = em.assemble_maxwell(mesh, p, bc, [], -1) # No ports
             res = em.solve_linear(asm.A, asm.b)
             f.write(f"{freq},{abs(res.residual)}\n")
 

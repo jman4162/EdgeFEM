@@ -39,6 +39,13 @@ if (VECTOREM_PYTHON)
            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/python_smoke.py)
   set_tests_properties(python_smoke PROPERTIES
                        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-                       ENVIRONMENT "PYTHONPATH=${PROJECT_BINARY_DIR}/python"
+                       ENVIRONMENT "PYTHONPATH=${PROJECT_BINARY_DIR}/python:${PROJECT_SOURCE_DIR}"
+                       LABELS smoke)
+
+  add_test(NAME python_sdk_demo
+           COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/examples/sdk_demo.py)
+  set_tests_properties(python_sdk_demo PROPERTIES
+                       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+                       ENVIRONMENT "PYTHONPATH=${PROJECT_BINARY_DIR}/python:${PROJECT_SOURCE_DIR}"
                        LABELS smoke)
 endif()

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <complex>
+#include <vector>
+
+#include "vectorem/mesh.hpp"
 
 namespace vectorem {
 
@@ -21,6 +24,10 @@ struct SParams2 {
   std::complex<double> s12;
   std::complex<double> s22;
 };
+
+// Solve for the eigenmodes of a 2D port cross-section.
+// Returns a vector of modes, sorted by cutoff frequency.
+std::vector<PortMode> solve_port_eigens(const Mesh &mesh, int num_modes);
 
 PortMode solve_te10_mode(const RectWaveguidePort &port, double freq);
 

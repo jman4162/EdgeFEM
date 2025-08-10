@@ -51,6 +51,11 @@ Mesh load_gmsh_v2(const std::string &path) {
           for (int k = 0; k < 3; ++k)
             in >> e.conn[k];
           mesh.tris.push_back(e);
+        } else if (type == 1) { // Line2
+          BoundaryLine b;
+          b.phys = e.phys;
+          in >> b.n0 >> b.n1;
+          mesh.boundary_lines.push_back(b);
         } else if (type == 4) { // Tet4
           for (int k = 0; k < 4; ++k)
             in >> e.conn[k];

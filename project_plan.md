@@ -64,17 +64,17 @@ This amends the earlier System Design Specification:
 
 **Tasks:**
 
-* [ ] Init repo structure (`include/`, `src/`, `examples/`, `cmake/`)
-* [ ] Add top‑level `CMakeLists.txt` and Eigen finder
-* [ ] Implement Gmsh v2 loader (nodes, Tri3, Tet4) + tests
-* [ ] Implement scalar Tet4 gradients/volume utilities
-* [ ] Assemble scalar Helmholtz (stiffness/mass) + Dirichlet elimination
-* [ ] Minimal iterative solver (BiCGSTAB + ILUT) wrapper
-* [ ] Example mesh & run script; smoke test prints
-* [ ] CI workflow (Linux + Windows), cache dependencies
-* [ ] Static analysis: clang‑tidy config and baseline cleanup
-* [ ] macOS Apple Silicon (M3 Max) local build smoke test (Xcode clang + Homebrew deps)
-* [ ] Add `tools/scripts/setup_macos.sh` and README Mac instructions
+* [x] Init repo structure (`include/`, `src/`, `examples/`, `cmake/`)
+* [x] Add top‑level `CMakeLists.txt` and Eigen finder
+* [x] Implement Gmsh v2 loader (nodes, Tri3, Tet4) + tests
+* [x] Implement scalar Tet4 gradients/volume utilities
+* [x] Assemble scalar Helmholtz (stiffness/mass) + Dirichlet elimination
+* [x] Minimal iterative solver (BiCGSTAB + ILUT) wrapper
+* [x] Example mesh & run script; smoke test prints
+* [x] CI workflow (Linux + Windows), cache dependencies
+* [x] Static analysis: clang‑tidy config and baseline cleanup
+* [x] macOS Apple Silicon (M3 Max) local build smoke test (Xcode clang + Homebrew deps)
+* [x] Add `tools/scripts/setup_macos.sh` and README Mac instructions
 
 **Acceptance:** Demo run prints iterations & 5 solution values; CI green on 2 OSes.
 
@@ -92,11 +92,11 @@ This amends the earlier System Design Specification:
 
 **Tasks:**
 
-* [ ] Edge (Whitney 1‑form) basis on Tet4; edge indexing map
-* [ ] Compute curl(N\_i) and N\_i·N\_j integrals; numerical quadrature
-* [ ] Material constants (ε, μ, tanδ) homogeneous; complex arithmetic
-* [ ] Boundary ops: PEC (Dirichlet on tangential E), PMC
-* [ ] Unit tests: patch vs manufactured solution; eigen cavity sanity
+* [x] Edge (Whitney 1‑form) basis on Tet4; edge indexing map
+* [x] Compute curl(N\_i) and N\_i·N\_j integrals; numerical quadrature
+* [x] Material constants (ε, μ, tanδ) homogeneous; complex arithmetic
+* [x] Boundary ops: PEC (Dirichlet on tangential E), PMC
+* [x] Unit tests: patch vs manufactured solution; eigen cavity sanity
 
 **Acceptance:** Convergence order verified on manufactured problem; cavity eigenfreq within 1%.
 
@@ -114,11 +114,11 @@ This amends the earlier System Design Specification:
 
 **Tasks:**
 
-* [ ] 2D eigen‑solver (shift‑invert) with PEC/PMC on port boundary
+* [x] 2D eigen‑solver (shift‑invert) with PEC/PMC on port boundary
 * [ ] Compute modal fields, Z0, power normalization
 * [ ] Coupling from port mode to 3D boundary; excitation RHS
-* [ ] Lumped ports (terminal) + de‑embedding plane support
-* [ ] Post: S‑matrix assembly from fields/port powers; write .sNp
+* [x] Lumped ports (terminal) + de‑embedding plane support
+* [x] Post: S‑matrix assembly from fields/port powers; write .sNp
 * [ ] Tests: WR‑90 waveguide S11 near cutoff, coax line Z0
 
 **Acceptance:** WR‑90 single‑mode passband shows expected S11/S21 vs analytic; .s2p loads in QUCS/ADS.
@@ -327,4 +327,3 @@ This amends the earlier System Design Specification:
 * **User port setup errors:** port field preview + orthogonality checks + wizards
 
 ---
-
