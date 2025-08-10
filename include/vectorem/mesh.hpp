@@ -20,6 +20,12 @@ struct Edge {
   std::int64_t n1;
 };
 
+struct BoundaryLine {
+  std::int64_t n0;
+  std::int64_t n1;
+  int phys = 0;
+};
+
 enum class ElemType : int {
   Tri3 = 2, // surface triangle
   Tet4 = 4  // volume tetrahedron
@@ -37,7 +43,8 @@ struct Element {
 struct Mesh {
   std::vector<Node> nodes;
   std::vector<Element> tets;
-  std::vector<Element> tris; // boundary faces
+  std::vector<Element> tris; // boundary faces for 3D, or 2D elements
+  std::vector<BoundaryLine> boundary_lines;
   // maps for quick lookup
   std::vector<Edge> edges;                          // global edges (n0 < n1)
   std::unordered_map<std::uint64_t, int> edgeIndex; // key -> edge index

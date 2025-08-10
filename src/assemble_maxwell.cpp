@@ -5,10 +5,14 @@
 #include <unordered_set>
 #include <vector>
 
+#include "vectorem/solver.hpp"
+
 namespace vectorem {
 
 MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
-                                 const BC &bc) {
+                                 const BC &bc,
+                                 const std::vector<LumpedPort> &ports,
+                                 int active_port_idx) {
   const int m = static_cast<int>(mesh.edges.size());
   MaxwellAssembly asmbl;
   asmbl.A.resize(m, m);
@@ -47,6 +51,18 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   }
   asmbl.A.setFromTriplets(trips.begin(), trips.end());
 
+  // Add port admittances and sources
+  for (size_t i = 0; i < ports.size(); ++i) {
+    const auto &port = ports[i];
+    if (port.edge_id >= 0 && port.edge_id < m) {
+      asmbl.A.coeffRef(port.edge_id, port.edge_id) += 1.0 / port.Z0;
+      if (static_cast<int>(i) == active_port_idx) {
+        const std::complex<double> Is = 2.0 / std::sqrt(port.Z0);
+        asmbl.b(port.edge_id) = Is;
+      }
+    }
+  }
+
   if (p.use_abc) {
     // Simple first-order absorbing boundary: add imaginary damping to
     // diagonal entries of boundary edges not marked as PEC.
@@ -74,6 +90,32 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
     asmbl.b(e) = 0.0;
   }
   return asmbl;
+}
+
+Eigen::MatrixXcd
+calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+                  const std::vector<LumpedPort> &ports) {
+  const int num_ports = ports.size();
+  Eigen::MatrixXcd S(num_ports, num_ports);
+
+  for (int i = 0; i < num_ports; ++i) { // active port
+    auto asmbl = assemble_maxwell(mesh, p, bc, ports, i);
+    auto res = solve_linear(asmbl.A, asmbl.b, {});
+
+    const double Z0_i = ports[i].Z0;
+    const std::complex<double> V_inc_i = std::sqrt(Z0_i);
+
+    for (int j = 0; j < num_ports; ++j) { // passive port
+      const std::complex<double> Vj = res.x(ports[j].edge_id);
+      if (i == j) { // Reflection coefficient S_ii
+        const std::complex<double> V_ref_i = Vj - V_inc_i;
+        S(j, i) = V_ref_i / V_inc_i;
+      } else { // Transmission coefficient S_ji
+        S(j, i) = Vj / V_inc_i;
+      }
+    }
+  }
+  return S;
 }
 
 } // namespace vectorem

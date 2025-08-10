@@ -18,6 +18,6 @@ struct SolveResult {
 };
 
 SolveResult solve_linear(const SpMatC &A, const VecC &b,
-                         const SolveOptions &opt);
+                         const SolveOptions &opt = SolveOptions());
 
 } // namespace vectorem

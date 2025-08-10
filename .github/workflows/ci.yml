@@ -11,10 +11,12 @@ jobs:
           python-version: '3.11'
       - name: Install deps
         run: |
-          sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-format clang-tidy libeigen3-dev
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-format clang-tidy libeigen3-dev gmsh
+          python -m pip install --upgrade pip
           python -m pip install -r tools/requirements.txt
+          python -m pip install pybind11 matplotlib
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVECTOREM_PYTHON=ON
       - name: Build
         run: cmake --build build -j
       - name: Static analysis

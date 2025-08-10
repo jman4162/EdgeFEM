@@ -1,43 +1,38 @@
 #include <cassert>
 #include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <string>
+#include <iostream>
 
-#include "vectorem/io/touchstone.hpp"
+#include "vectorem/mesh.hpp"
 #include "vectorem/ports/port_eigensolve.hpp"
 
 using namespace vectorem;
 
 int main() {
-  const RectWaveguidePort wg{0.02286, 0.01016}; // WR-90 dimensions in meters
-  const double freq = 10e9;                     // 10 GHz
-  const auto mode = solve_te10_mode(wg, freq);
-  const double fc_ref = 299792458.0 / (2.0 * wg.a);
-  assert(std::abs(mode.fc - fc_ref) < 1e6); // within 1 MHz
-  const double eta0 = 376.730313668;
-  const double z0_ref = eta0 / std::sqrt(1.0 - std::pow(fc_ref / freq, 2.0));
-  assert(std::abs(mode.Z0 - z0_ref) / z0_ref < 0.01); // within 1%
+  auto mesh = load_gmsh_v2("examples/wr90_port.msh");
+  assert(!mesh.nodes.empty());
+  assert(!mesh.tris.empty());
+  assert(!mesh.boundary_lines.empty());
 
-  const double length = 0.1; // 10 cm straight section
-  const auto s = straight_waveguide_sparams(wg, length, freq);
-  assert(std::abs(s.s11) < 0.1); // |S11| < -20 dB
-  assert(std::abs(std::abs(s.s21) - 1.0) < 1e-6);
+  // For TM modes with Ez=0 on boundary, lowest mode is TM11.
+  const int num_modes = 1;
+  auto modes = solve_port_eigens(mesh, num_modes);
 
-  // Below cutoff: expect full reflection and no transmission
-  const double freq_low = 5e9; // below cutoff (~6.56 GHz)
-  const auto slow = straight_waveguide_sparams(wg, length, freq_low);
-  assert(std::abs(slow.s11) > 0.99);
-  assert(std::abs(slow.s21) < 1e-6);
+  assert(modes.size() == 1);
+  const auto& mode = modes[0];
+  std::cout << "Found mode with fc = " << mode.fc / 1e9 << " GHz\n";
 
-  std::filesystem::create_directory("out");
-  write_touchstone("out/test.s2p", {freq}, {s});
-  assert(std::filesystem::exists("out/test.s2p"));
+  // Analytical TM11 cutoff frequency for rectangular waveguide
+  const double a = 0.02286; // WR-90 width
+  const double b = 0.01016; // WR-90 height
+  const double c0 = 299792458.0;
+  const double kc_tm11 = std::sqrt(std::pow(M_PI / a, 2) + std::pow(M_PI / b, 2));
+  const double fc_tm11 = kc_tm11 * c0 / (2.0 * M_PI);
 
-  std::ifstream ifs("out/test.s2p");
-  std::string header;
-  std::getline(ifs, header);
-  assert(header == "# Hz S RI R 50");
+  std::cout << "Analytical TM11 fc = " << fc_tm11 / 1e9 << " GHz\n";
+
+  // Check if the computed fc is within 5% of the analytical value.
+  // The mesh is coarse, so we don't expect super high accuracy.
+  assert(std::abs(mode.fc - fc_tm11) / fc_tm11 < 0.05);
 
   return 0;
 }

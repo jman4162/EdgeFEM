@@ -55,8 +55,18 @@ cmake --build build -j
 ### Run the Scalar Demo (Milestone 0)
 
 ```bash
-./build/vectorem_scalar_demo examples/cube_cavity.msh 1
+./build/src/vectorem_scalar_demo examples/cube_cavity.msh 1
 ```
+
+### Run the Waveguide S-Parameter Demo
+
+```bash
+# Run the C++ demo to generate the S-parameter file
+./build/src/vectorem_waveguide_demo
+# Run the Python script to plot the results
+python3 examples/plot_waveguide_sparams.py
+```
+This will create `waveguide_sparams.s2p` and `waveguide_sparams.png`.
 
 ### Run Tests
 

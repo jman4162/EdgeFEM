@@ -18,7 +18,7 @@ int main() {
   p.omega = 1.0;
   p.pml_sigma = 5.0; // strong damping
   p.pml_regions.insert(pml_tag);
-  auto asmbl = assemble_maxwell(mesh, p, bc);
+  auto asmbl = assemble_maxwell(mesh, p, bc, {}, -1); // No ports
 
   // Plane-wave amplitude reduction through PML of thickness 1
   double refl = std::abs(std::exp(-2.0 * p.pml_sigma));
