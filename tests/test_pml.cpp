@@ -1,4 +1,5 @@
 #include <Eigen/Dense>
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 
@@ -16,14 +17,21 @@ int main() {
   BC bc = build_edge_pec(mesh, 1);
   MaxwellParams p;
   p.omega = 1.0;
-  p.pml_sigma = 5.0; // strong damping
-  p.pml_regions.insert(pml_tag);
+  PMLRegionSpec spec;
+  spec.sigma_max = Eigen::Vector3d::Constant(5.0);
+  spec.thickness = Eigen::Vector3d::Constant(1.0);
+  spec.grading_order = 2.0;
+  p.pml_tensor_regions.emplace(pml_tag, spec);
   auto asmbl = assemble_maxwell(mesh, p, bc, {}, -1); // No ports
 
-  // Plane-wave amplitude reduction through PML of thickness 1
-  double refl = std::abs(std::exp(-2.0 * p.pml_sigma));
-  double refl_dB = 20.0 * std::log10(refl);
-  assert(refl_dB <= -40.0);
+  assert(!asmbl.diagnostics.empty());
+  const auto &diag = asmbl.diagnostics.front();
+  for (int axis = 0; axis < 3; ++axis) {
+    double refl = diag.reflection_est[axis];
+    double refl_dB = 20.0 * std::log10(std::max(refl, 1e-12));
+    // Expect at least ~40 dB attenuation per axis
+    assert(refl_dB <= -40.0);
+  }
   // sanity: matrix built with expected size
   assert(asmbl.A.rows() == static_cast<int>(mesh.edges.size()));
   return 0;
