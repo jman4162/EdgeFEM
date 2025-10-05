@@ -23,6 +23,11 @@ target_link_libraries(test_pml PRIVATE vectorem)
 add_test(NAME test_pml COMMAND test_pml)
 set_tests_properties(test_pml PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS pml)
 
+add_executable(test_abc test_abc.cpp)
+target_link_libraries(test_abc PRIVATE vectorem)
+add_test(NAME test_abc COMMAND test_abc)
+set_tests_properties(test_abc PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS abc)
+
 add_executable(test_sweep test_sweep.cpp)
 target_link_libraries(test_sweep PRIVATE vectorem)
 add_test(NAME test_sweep COMMAND test_sweep)
