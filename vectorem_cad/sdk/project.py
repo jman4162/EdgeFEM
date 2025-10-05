@@ -1,3 +1,4 @@
+import numpy as np
 import pyvectorem as em
 
 class Project:
@@ -26,12 +27,15 @@ class Project:
         print(f"PEC boundary defined for tag {tag}.")
 
     def add_lumped_port(self, edge_id, z0=50.0):
-        """Adds a lumped port to the simulation."""
-        port = em.LumpedPort()
-        port.edge_id = edge_id
-        port.Z0 = z0
+        """Adds a simplified edge-based wave port to the simulation."""
+        port = em.WavePort()
+        port.edges = [edge_id]
+        port.weights = np.array([1.0 + 0.0j])
+        mode = em.PortMode()
+        mode.Z0 = z0
+        port.mode = mode
         self.ports.append(port)
-        print(f"Added lumped port on edge {edge_id} with Z0={z0} Ohms.")
+        print(f"Added edge port on edge {edge_id} with Z0={z0} Ohms.")
 
     def solve_s_params(self, freq):
         """Solves for the S-parameters at a given frequency."""

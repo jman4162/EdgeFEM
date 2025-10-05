@@ -15,24 +15,28 @@ int main() {
 
   // For TM modes with Ez=0 on boundary, lowest mode is TM11.
   const int num_modes = 1;
-  auto modes = solve_port_eigens(mesh, num_modes);
+  double omega = 2 * M_PI * 10e9;
+  auto modes =
+      solve_port_eigens(mesh, num_modes, omega, 1.0, 1.0, ModePolarization::TE);
 
-  assert(modes.size() == 1);
-  const auto& mode = modes[0];
+  if (modes.size() != 1) {
+    std::cerr << "Expected 1 mode but found " << modes.size() << "\n";
+    return 1;
+  }
+  const auto &mode = modes[0];
   std::cout << "Found mode with fc = " << mode.fc / 1e9 << " GHz\n";
 
-  // Analytical TM11 cutoff frequency for rectangular waveguide
+  // Analytical TE10 cutoff frequency for rectangular waveguide
   const double a = 0.02286; // WR-90 width
   const double b = 0.01016; // WR-90 height
   const double c0 = 299792458.0;
-  const double kc_tm11 = std::sqrt(std::pow(M_PI / a, 2) + std::pow(M_PI / b, 2));
-  const double fc_tm11 = kc_tm11 * c0 / (2.0 * M_PI);
+  const double kc_te10 = M_PI / a;
+  const double fc_te10 = kc_te10 * c0 / (2.0 * M_PI);
 
-  std::cout << "Analytical TM11 fc = " << fc_tm11 / 1e9 << " GHz\n";
+  std::cout << "Analytical TE10 fc = " << fc_te10 / 1e9 << " GHz\n";
 
   // Check if the computed fc is within 5% of the analytical value.
-  // The mesh is coarse, so we don't expect super high accuracy.
-  assert(std::abs(mode.fc - fc_tm11) / fc_tm11 < 0.05);
+  assert(std::abs(mode.fc - fc_te10) / fc_te10 < 0.05);
 
   return 0;
 }

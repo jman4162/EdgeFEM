@@ -2,6 +2,7 @@
 #include "vectorem/maxwell.hpp"
 
 #include <Eigen/SparseCore>
+#include <complex>
 #include <unordered_set>
 #include <vector>
 
@@ -11,7 +12,7 @@ namespace vectorem {
 
 MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
                                  const BC &bc,
-                                 const std::vector<LumpedPort> &ports,
+                                 const std::vector<WavePort> &ports,
                                  int active_port_idx) {
   const int m = static_cast<int>(mesh.edges.size());
   MaxwellAssembly asmbl;
@@ -51,14 +52,31 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   }
   asmbl.A.setFromTriplets(trips.begin(), trips.end());
 
+  asmbl.A.makeCompressed();
+
   // Add port admittances and sources
   for (size_t i = 0; i < ports.size(); ++i) {
     const auto &port = ports[i];
-    if (port.edge_id >= 0 && port.edge_id < m) {
-      asmbl.A.coeffRef(port.edge_id, port.edge_id) += 1.0 / port.Z0;
-      if (static_cast<int>(i) == active_port_idx) {
-        const std::complex<double> Is = 2.0 / std::sqrt(port.Z0);
-        asmbl.b(port.edge_id) = Is;
+    if (port.weights.size() != static_cast<int>(port.edges.size()))
+      continue;
+    if (port.mode.Z0 == std::complex<double>(0.0))
+      continue;
+
+    for (size_t a = 0; a < port.edges.size(); ++a) {
+      int ga = port.edges[a];
+      const std::complex<double> wa = port.weights[a];
+      for (size_t b = 0; b < port.edges.size(); ++b) {
+        int gb = port.edges[b];
+        const std::complex<double> wb = port.weights[b];
+        asmbl.A.coeffRef(ga, gb) += wa * std::conj(wb) / port.mode.Z0;
+      }
+    }
+
+    if (static_cast<int>(i) == active_port_idx) {
+      const std::complex<double> scale = 2.0 / std::sqrt(port.mode.Z0);
+      for (size_t a = 0; a < port.edges.size(); ++a) {
+        int ga = port.edges[a];
+        asmbl.b(ga) += scale * port.weights[a];
       }
     }
   }
@@ -94,7 +112,7 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
 
 Eigen::MatrixXcd
 calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
-                  const std::vector<LumpedPort> &ports) {
+                  const std::vector<WavePort> &ports) {
   const int num_ports = ports.size();
   Eigen::MatrixXcd S(num_ports, num_ports);
 
@@ -102,11 +120,14 @@ calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
     auto asmbl = assemble_maxwell(mesh, p, bc, ports, i);
     auto res = solve_linear(asmbl.A, asmbl.b, {});
 
-    const double Z0_i = ports[i].Z0;
-    const std::complex<double> V_inc_i = std::sqrt(Z0_i);
+    const std::complex<double> V_inc_i = std::sqrt(ports[i].mode.Z0);
 
     for (int j = 0; j < num_ports; ++j) { // passive port
-      const std::complex<double> Vj = res.x(ports[j].edge_id);
+      std::complex<double> Vj = 0.0;
+      for (size_t k = 0; k < ports[j].edges.size(); ++k) {
+        int edge_idx = ports[j].edges[k];
+        Vj += std::conj(ports[j].weights[k]) * res.x(edge_idx);
+      }
       if (i == j) { // Reflection coefficient S_ii
         const std::complex<double> V_ref_i = Vj - V_inc_i;
         S(j, i) = V_ref_i / V_inc_i;

@@ -8,6 +8,7 @@
 #include "vectorem/io/touchstone.hpp"
 #include "vectorem/mesh.hpp"
 #include "vectorem/ports/port_eigensolve.hpp"
+#include "vectorem/ports/wave_port.hpp"
 #include "vectorem/solver.hpp"
 #include "vectorem/maxwell.hpp"
 
@@ -73,17 +74,51 @@ PYBIND11_MODULE(pyvectorem, m) {
           "b", [](MaxwellAssembly &s) -> VecC & { return s.b; },
           py::return_value_policy::reference_internal, "RHS vector b.");
 
-  py::class_<LumpedPort>(m, "LumpedPort", "Lumped port definition.")
+  py::enum_<ModePolarization>(m, "ModePolarization")
+      .value("TE", ModePolarization::TE)
+      .value("TM", ModePolarization::TM);
+
+  py::class_<PortMode>(m, "PortMode", "Modal solution for a port cross-section.")
       .def(py::init<>())
-      .def_readwrite("edge_id", &LumpedPort::edge_id, "Global edge index of the port.")
-      .def_readwrite("Z0", &LumpedPort::Z0, "Characteristic impedance in Ohms.");
+      .def_readwrite("pol", &PortMode::pol)
+      .def_readwrite("fc", &PortMode::fc)
+      .def_readwrite("kc", &PortMode::kc)
+      .def_readwrite("omega", &PortMode::omega)
+      .def_readwrite("eps", &PortMode::eps)
+      .def_readwrite("mu", &PortMode::mu)
+      .def_readwrite("beta", &PortMode::beta)
+      .def_readwrite("Z0", &PortMode::Z0)
+      .def_readwrite("field", &PortMode::field);
+
+  py::class_<PortSurfaceMesh>(m, "PortSurfaceMesh", "Surface mesh extracted from a volume port.")
+      .def(py::init<>())
+      .def_property_readonly(
+          "mesh",
+          [](PortSurfaceMesh &s) -> Mesh & { return s.mesh; },
+          py::return_value_policy::reference_internal)
+      .def_readonly("volume_tri_indices", &PortSurfaceMesh::volume_tri_indices);
+
+  py::class_<WavePort>(m, "WavePort", "Wave port definition with modal data.")
+      .def(py::init<>())
+      .def_readwrite("surface_tag", &WavePort::surface_tag)
+      .def_readwrite("mode", &WavePort::mode)
+      .def_readwrite("edges", &WavePort::edges)
+      .def_readwrite("weights", &WavePort::weights);
+
+  m.def("extract_surface_mesh", &extract_surface_mesh,
+        "Extract a surface mesh for a port.", py::arg("mesh"),
+        py::arg("surface_tag"));
+
+  m.def("build_wave_port", &build_wave_port, "Project a modal field onto port edges.",
+        py::arg("volume_mesh"), py::arg("surface"), py::arg("mode"));
 
   m.def("assemble_maxwell", &assemble_maxwell, "Assembles the 3D Maxwell system.",
         py::arg("mesh"), py::arg("params"), py::arg("bc"),
-        py::arg("ports") = std::vector<LumpedPort>(),
+        py::arg("ports") = std::vector<WavePort>(),
         py::arg("active_port_idx") = -1);
 
-  m.def("calculate_sparams", &calculate_sparams, "Calculates S-parameters for a set of lumped ports.",
+  m.def("calculate_sparams", &calculate_sparams,
+        "Calculates S-parameters for a set of wave ports.",
         py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
 
   py::class_<SolveOptions>(m, "SolveOptions", "Options for the linear solver.")
