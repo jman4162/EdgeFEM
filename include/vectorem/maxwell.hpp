@@ -7,6 +7,7 @@
 #include "vectorem/bc.hpp"
 #include "vectorem/mesh.hpp"
 #include "vectorem/ports/port_eigensolve.hpp"
+#include "vectorem/ports/wave_port.hpp"
 
 namespace vectorem {
 
@@ -30,18 +31,13 @@ struct MaxwellAssembly {
   VecC b;
 };
 
-struct LumpedPort {
-  int edge_id;
-  double Z0 = 50.0;
-};
-
 MaxwellAssembly
 assemble_maxwell(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
-                 const std::vector<LumpedPort> &ports,
+                 const std::vector<WavePort> &ports,
                  int active_port_idx = -1); // -1 for no active port
 
 Eigen::MatrixXcd
 calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
-                  const std::vector<LumpedPort> &ports);
+                  const std::vector<WavePort> &ports);
 
 } // namespace vectorem

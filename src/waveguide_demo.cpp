@@ -4,16 +4,16 @@
 #include "vectorem/io/touchstone.hpp"
 #include "vectorem/maxwell.hpp"
 #include "vectorem/mesh.hpp"
+#include "vectorem/ports/wave_port.hpp"
 
 using namespace vectorem;
 
 int main(int argc, char **argv) {
-  Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");
+  Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");
   BC bc = build_edge_pec(mesh, 1);
 
-  std::vector<LumpedPort> ports;
-  ports.push_back({10, 50.0}); // Port 1 on edge 10
-  ports.push_back({20, 50.0}); // Port 2 on edge 20
+  PortSurfaceMesh port1_surface = extract_surface_mesh(mesh, 2);
+  PortSurfaceMesh port2_surface = extract_surface_mesh(mesh, 3);
 
   double f0 = 8e9;  // Hz
   double f1 = 12e9; // Hz
@@ -29,6 +29,16 @@ int main(int argc, char **argv) {
 
     MaxwellParams p;
     p.omega = 2 * M_PI * f;
+
+    auto modes1 =
+        solve_port_eigens(port1_surface.mesh, 1, p.omega, 1.0, 1.0,
+                          ModePolarization::TE);
+    auto modes2 =
+        solve_port_eigens(port2_surface.mesh, 1, p.omega, 1.0, 1.0,
+                          ModePolarization::TE);
+    std::vector<WavePort> ports;
+    ports.push_back(build_wave_port(mesh, port1_surface, modes1.at(0)));
+    ports.push_back(build_wave_port(mesh, port2_surface, modes2.at(0)));
 
     auto S = calculate_sparams(mesh, p, bc, ports);
 

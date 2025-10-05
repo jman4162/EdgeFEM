@@ -13,6 +13,11 @@ target_link_libraries(test_ports PRIVATE vectorem)
 add_test(NAME test_ports COMMAND test_ports)
 set_tests_properties(test_ports PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
+add_executable(test_waveguide_modal test_waveguide_modal.cpp)
+target_link_libraries(test_waveguide_modal PRIVATE vectorem)
+add_test(NAME test_waveguide_modal COMMAND test_waveguide_modal)
+set_tests_properties(test_waveguide_modal PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
 add_executable(test_pml test_pml.cpp)
 target_link_libraries(test_pml PRIVATE vectorem)
 add_test(NAME test_pml COMMAND test_pml)

@@ -3,6 +3,7 @@ add_library(vectorem
   solver.cpp
   bc.cpp
   ports/port_eigensolve.cpp
+  ports/wave_port.cpp
   io/touchstone.cpp
   post/ntf.cpp
   sweep.cpp
