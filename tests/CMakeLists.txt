@@ -43,6 +43,31 @@ target_link_libraries(test_ntf PRIVATE vectorem)
 add_test(NAME test_ntf COMMAND test_ntf)
 set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
+add_executable(test_solver_convergence test_solver_convergence.cpp)
+target_link_libraries(test_solver_convergence PRIVATE vectorem)
+add_test(NAME test_solver_convergence COMMAND test_solver_convergence)
+set_tests_properties(test_solver_convergence PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+
+add_executable(test_mesh_quality test_mesh_quality.cpp)
+target_link_libraries(test_mesh_quality PRIVATE vectorem)
+add_test(NAME test_mesh_quality COMMAND test_mesh_quality)
+set_tests_properties(test_mesh_quality PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_touchstone_nport test_touchstone_nport.cpp)
+target_link_libraries(test_touchstone_nport PRIVATE vectorem)
+add_test(NAME test_touchstone_nport COMMAND test_touchstone_nport)
+set_tests_properties(test_touchstone_nport PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_coupling test_coupling.cpp)
+target_link_libraries(test_coupling PRIVATE vectorem)
+add_test(NAME test_coupling COMMAND test_coupling)
+set_tests_properties(test_coupling PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_periodic test_periodic.cpp)
+target_link_libraries(test_periodic PRIVATE vectorem)
+add_test(NAME test_periodic COMMAND test_periodic)
+set_tests_properties(test_periodic PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
 if (VECTOREM_PYTHON)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   add_test(NAME python_smoke

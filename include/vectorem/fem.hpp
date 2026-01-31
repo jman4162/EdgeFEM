@@ -21,6 +21,8 @@ struct ScalarAssembly {
   VecC b;
 };
 
+/// @warning STUB - Demo only. Returns identity matrix.
+/// Use assemble_maxwell() for production simulations.
 ScalarAssembly assemble_scalar_helmholtz(const Mesh &mesh,
                                          const ScalarHelmholtzParams &p,
                                          const BC &bc);

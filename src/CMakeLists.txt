@@ -1,10 +1,18 @@
 add_library(vectorem
   mesh_gmsh.cpp
+  mesh_quality.cpp
   solver.cpp
   bc.cpp
+  coupling.cpp
+  periodic.cpp
   ports/port_eigensolve.cpp
   ports/wave_port.cpp
   io/touchstone.cpp
+  io/json_export.cpp
+  io/array_export.cpp
+  array/embedded_pattern.cpp
+  array/active_impedance.cpp
+  array/coupling_extract.cpp
   post/ntf.cpp
   sweep.cpp
   mor/vector_fit.cpp

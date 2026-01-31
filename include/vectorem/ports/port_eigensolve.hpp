@@ -28,12 +28,27 @@ struct PortMode {
   Eigen::VectorXcd field;                  // scalar modal field samples
 };
 
-struct SParams2 {
+/// @deprecated Use Eigen::MatrixXcd from calculate_sparams() for N-port support.
+struct [[deprecated("Use Eigen::MatrixXcd from calculate_sparams() instead")]]
+SParams2 {
   std::complex<double> s11;
   std::complex<double> s21;
   std::complex<double> s12;
   std::complex<double> s22;
 };
+
+/// Helper to convert 2x2 S-matrix to legacy SParams2 structure.
+inline SParams2 matrix_to_sparams2(const Eigen::Matrix2cd &S) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  SParams2 result;
+  result.s11 = S(0, 0);
+  result.s21 = S(1, 0);
+  result.s12 = S(0, 1);
+  result.s22 = S(1, 1);
+  return result;
+#pragma GCC diagnostic pop
+}
 
 // Solve for the eigenmodes of a 2D port cross-section.
 // Returns a vector of modes, sorted by cutoff frequency.

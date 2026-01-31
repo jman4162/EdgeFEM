@@ -1,5 +1,6 @@
 #include "vectorem/post/ntf.hpp"
 
+#include <Eigen/Geometry>
 #include <cmath>
 #include <fstream>
 

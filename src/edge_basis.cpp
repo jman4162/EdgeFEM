@@ -1,6 +1,7 @@
 #include "vectorem/edge_basis.hpp"
 
 #include <Eigen/Dense>
+#include <Eigen/Geometry>
 #include <array>
 
 namespace vectorem {

@@ -243,4 +243,133 @@ calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
   return S;
 }
 
+MaxwellAssembly
+assemble_maxwell_periodic(const Mesh &mesh, const MaxwellParams &p,
+                          const BC &bc, const PeriodicBC &pbc,
+                          const std::vector<WavePort> &ports,
+                          int active_port_idx) {
+  // First, assemble the standard Maxwell system
+  MaxwellAssembly asmbl = assemble_maxwell(mesh, p, bc, ports, active_port_idx);
+
+  if (pbc.pairs.empty()) {
+    return asmbl;
+  }
+
+  const int m = static_cast<int>(mesh.edges.size());
+  const std::complex<double> phi = pbc.phase_shift;
+  const std::complex<double> phi_conj = std::conj(phi);
+
+  // Build set of slave edges for quick lookup
+  std::unordered_set<int> slave_edges;
+  for (const auto &pair : pbc.pairs) {
+    slave_edges.insert(pair.slave_edge);
+  }
+
+  // Apply periodic constraint by direct elimination:
+  // For each pair, we have: E_slave = phi * orient * E_master
+  // We accumulate slave contributions to master DOFs and zero out slave rows/cols.
+
+  // Copy matrix to dense for easier manipulation (for small systems)
+  // For large systems, a more efficient sparse manipulation would be needed
+  Eigen::MatrixXcd A_dense = Eigen::MatrixXcd(asmbl.A);
+  VecC b_new = asmbl.b;
+
+  for (const auto &pair : pbc.pairs) {
+    int m_edge = pair.master_edge;
+    int s_edge = pair.slave_edge;
+    double orient =
+        static_cast<double>(pair.master_orient * pair.slave_orient);
+    std::complex<double> phase = phi * orient;
+    std::complex<double> phase_conj = phi_conj * orient;
+
+    // Skip if either edge is in PEC BC (already constrained to zero)
+    if (bc.dirichlet_edges.count(m_edge) || bc.dirichlet_edges.count(s_edge)) {
+      continue;
+    }
+
+    // Accumulate slave row to master: A[m,:] += phase * A[s,:]
+    A_dense.row(m_edge) += phase * A_dense.row(s_edge);
+
+    // Accumulate slave column to master: A[:,m] += phase_conj * A[:,s]
+    A_dense.col(m_edge) += phase_conj * A_dense.col(s_edge);
+
+    // Accumulate RHS: b[m] += phase * b[s]
+    b_new(m_edge) += phase * b_new(s_edge);
+  }
+
+  // Zero out slave rows and columns, set diagonal to 1
+  for (const auto &pair : pbc.pairs) {
+    int s_edge = pair.slave_edge;
+
+    if (bc.dirichlet_edges.count(s_edge)) {
+      continue;
+    }
+
+    // Zero row and column
+    A_dense.row(s_edge).setZero();
+    A_dense.col(s_edge).setZero();
+
+    // Set diagonal to 1
+    A_dense(s_edge, s_edge) = std::complex<double>(1.0, 0.0);
+
+    // Set RHS to 0 (slave solution will be computed from master post-solve)
+    b_new(s_edge) = std::complex<double>(0.0, 0.0);
+  }
+
+  // Convert back to sparse
+  asmbl.A = A_dense.sparseView();
+  asmbl.A.makeCompressed();
+  asmbl.b = b_new;
+
+  return asmbl;
+}
+
+Eigen::MatrixXcd
+calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
+                           const BC &bc, const PeriodicBC &pbc,
+                           const std::vector<WavePort> &ports) {
+  const int num_ports = static_cast<int>(ports.size());
+  Eigen::MatrixXcd S(num_ports, num_ports);
+
+  // Build map of slave to master edges for solution recovery
+  std::unordered_map<int, std::pair<int, std::complex<double>>> slave_to_master;
+  for (const auto &pair : pbc.pairs) {
+    double orient =
+        static_cast<double>(pair.master_orient * pair.slave_orient);
+    std::complex<double> phase = pbc.phase_shift * orient;
+    slave_to_master[pair.slave_edge] = {pair.master_edge, phase};
+  }
+
+  for (int i = 0; i < num_ports; ++i) { // active port
+    auto asmbl = assemble_maxwell_periodic(mesh, p, bc, pbc, ports, i);
+    auto res = solve_linear(asmbl.A, asmbl.b, {});
+
+    // Recover slave DOF values from master DOFs
+    VecC x_full = res.x;
+    for (const auto &kv : slave_to_master) {
+      int s_edge = kv.first;
+      int m_edge = kv.second.first;
+      std::complex<double> phase = kv.second.second;
+      x_full(s_edge) = phase * x_full(m_edge);
+    }
+
+    const std::complex<double> V_inc_i = std::sqrt(ports[i].mode.Z0);
+
+    for (int j = 0; j < num_ports; ++j) { // passive port
+      std::complex<double> Vj = 0.0;
+      for (size_t k = 0; k < ports[j].edges.size(); ++k) {
+        int edge_idx = ports[j].edges[k];
+        Vj += std::conj(ports[j].weights[k]) * x_full(edge_idx);
+      }
+      if (i == j) {
+        const std::complex<double> V_ref_i = Vj - V_inc_i;
+        S(j, i) = V_ref_i / V_inc_i;
+      } else {
+        S(j, i) = Vj / V_inc_i;
+      }
+    }
+  }
+  return S;
+}
+
 } // namespace vectorem

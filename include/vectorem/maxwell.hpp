@@ -9,6 +9,7 @@
 
 #include "vectorem/bc.hpp"
 #include "vectorem/mesh.hpp"
+#include "vectorem/periodic.hpp"
 #include "vectorem/ports/port_eigensolve.hpp"
 #include "vectorem/ports/wave_port.hpp"
 
@@ -56,8 +57,32 @@ assemble_maxwell(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
                  const std::vector<WavePort> &ports,
                  int active_port_idx = -1); // -1 for no active port
 
+/// Assemble Maxwell system with periodic boundary conditions.
+/// Enforces phase-shifted periodic constraints via direct elimination:
+/// slave DOFs are eliminated, their contributions accumulated to master DOFs.
+///
+/// @param mesh Volume mesh with periodic surfaces
+/// @param p Maxwell parameters (frequency, materials, PML)
+/// @param bc PEC boundary conditions
+/// @param pbc Periodic boundary conditions with edge pairs and phase shift
+/// @param ports Wave port definitions
+/// @param active_port_idx Index of active port (-1 for no excitation)
+/// @return Assembled system with periodic constraints applied
+MaxwellAssembly
+assemble_maxwell_periodic(const Mesh &mesh, const MaxwellParams &p,
+                          const BC &bc, const PeriodicBC &pbc,
+                          const std::vector<WavePort> &ports,
+                          int active_port_idx = -1);
+
 Eigen::MatrixXcd
 calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
                   const std::vector<WavePort> &ports);
+
+/// Calculate S-parameters with periodic boundary conditions.
+/// Useful for unit cell simulations under Floquet excitation.
+Eigen::MatrixXcd
+calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
+                           const BC &bc, const PeriodicBC &pbc,
+                           const std::vector<WavePort> &ports);
 
 } // namespace vectorem
