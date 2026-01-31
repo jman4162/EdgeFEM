@@ -26,11 +26,41 @@ PYBIND11_MAKE_OPAQUE(VecC);
 PYBIND11_MODULE(pyvectorem, m) {
   m.doc() = "Python bindings for the VectorEM 3D FEM solver.";
 
+  // Node structure
+  py::class_<Node>(m, "Node", "Mesh node with position.")
+      .def(py::init<>())
+      .def_readonly("id", &Node::id, "Node ID")
+      .def_readonly("xyz", &Node::xyz, "Node position (x, y, z)");
+
+  // Element structure
+  py::class_<Element>(m, "Element", "Mesh element (triangle or tetrahedron).")
+      .def(py::init<>())
+      .def_readonly("id", &Element::id, "Element ID")
+      .def_readonly("type", &Element::type, "Element type")
+      .def_readonly("conn", &Element::conn, "Node connectivity")
+      .def_readonly("phys", &Element::phys, "Physical group tag");
+
+  // Element type enum
+  py::enum_<ElemType>(m, "ElemType")
+      .value("Tri3", ElemType::Tri3)
+      .value("Tet4", ElemType::Tet4);
+
   py::class_<Mesh>(m, "Mesh", "Represents a 3D mesh.")
       .def(py::init<>())
       .def_readonly("nodes", &Mesh::nodes, "List of mesh nodes.")
-      .def_readonly("tets", &Mesh::tets)
-      .def_readonly("tris", &Mesh::tris);
+      .def_readonly("tets", &Mesh::tets, "List of tetrahedra.")
+      .def_readonly("tris", &Mesh::tris, "List of triangles.")
+      .def_readonly("edges", &Mesh::edges, "List of edges.")
+      .def("num_nodes", [](const Mesh &m) { return m.nodes.size(); })
+      .def("num_tets", [](const Mesh &m) { return m.tets.size(); })
+      .def("num_tris", [](const Mesh &m) { return m.tris.size(); })
+      .def("num_edges", [](const Mesh &m) { return m.edges.size(); });
+
+  // Edge structure
+  py::class_<Edge>(m, "Edge", "Mesh edge connecting two nodes.")
+      .def(py::init<>())
+      .def_readonly("n0", &Edge::n0, "First node ID")
+      .def_readonly("n1", &Edge::n1, "Second node ID");
 
   m.def("load_gmsh", &load_gmsh_v2, "Loads a mesh from a Gmsh v2 .msh file.");
 
