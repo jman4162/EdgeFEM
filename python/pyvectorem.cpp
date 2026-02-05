@@ -38,7 +38,9 @@ PYBIND11_MODULE(pyvectorem, m) {
       .def_readonly("id", &Element::id, "Element ID")
       .def_readonly("type", &Element::type, "Element type")
       .def_readonly("conn", &Element::conn, "Node connectivity")
-      .def_readonly("phys", &Element::phys, "Physical group tag");
+      .def_readonly("phys", &Element::phys, "Physical group tag")
+      .def_readonly("edges", &Element::edges, "Edge indices")
+      .def_readonly("edge_orient", &Element::edge_orient, "Edge orientations");
 
   // Element type enum
   py::enum_<ElemType>(m, "ElemType")
@@ -51,6 +53,7 @@ PYBIND11_MODULE(pyvectorem, m) {
       .def_readonly("tets", &Mesh::tets, "List of tetrahedra.")
       .def_readonly("tris", &Mesh::tris, "List of triangles.")
       .def_readonly("edges", &Mesh::edges, "List of edges.")
+      .def_readonly("nodeIndex", &Mesh::nodeIndex, "Map from node ID to index.")
       .def("num_nodes", [](const Mesh &m) { return m.nodes.size(); })
       .def("num_tets", [](const Mesh &m) { return m.tets.size(); })
       .def("num_tris", [](const Mesh &m) { return m.tris.size(); })
@@ -65,7 +68,13 @@ PYBIND11_MODULE(pyvectorem, m) {
   m.def("load_gmsh", &load_gmsh_v2, "Loads a mesh from a Gmsh v2 .msh file.");
 
   py::class_<BC>(m, "BC", "Boundary condition definitions.")
-      .def(py::init<>());
+      .def(py::init<>())
+      .def_property_readonly("dirichlet_nodes", [](const BC &b) {
+        return std::vector<int>(b.dirichlet_nodes.begin(), b.dirichlet_nodes.end());
+      })
+      .def_property_readonly("dirichlet_edges", [](const BC &b) {
+        return std::vector<int>(b.dirichlet_edges.begin(), b.dirichlet_edges.end());
+      });
 
   m.def("build_scalar_pec", &build_scalar_pec, "Build scalar PEC BC",
         py::arg("mesh"), py::arg("pec_tag"));
@@ -77,8 +86,51 @@ PYBIND11_MODULE(pyvectorem, m) {
       .def_readwrite("k0", &ScalarHelmholtzParams::k0, "Wavenumber")
       .def_readwrite("eps_r", &ScalarHelmholtzParams::eps_r, "Relative permittivity");
 
-  py::class_<SpMatC>(m, "SpMatC", "Sparse matrix with complex coefficients.");
-  py::class_<VecC>(m, "VecC", "Vector with complex coefficients.");
+  py::class_<SpMatC>(m, "SpMatC", "Sparse matrix with complex coefficients.")
+      .def_property_readonly("shape", [](const SpMatC &m) {
+        return py::make_tuple(m.rows(), m.cols());
+      })
+      .def("coeff", [](const SpMatC &m, int row, int col) {
+        return m.coeff(row, col);
+      })
+      .def("to_dense", [](const SpMatC &m) {
+        Eigen::MatrixXcd dense = m;
+        py::array_t<std::complex<double>> result({m.rows(), m.cols()});
+        auto r = result.mutable_unchecked<2>();
+        for (Eigen::Index i = 0; i < m.rows(); ++i) {
+          for (Eigen::Index j = 0; j < m.cols(); ++j) {
+            r(i, j) = dense(i, j);
+          }
+        }
+        return result;
+      })
+      .def("nnz", [](const SpMatC &m) { return m.nonZeros(); });
+
+  py::class_<VecC>(m, "VecC", "Vector with complex coefficients.")
+      .def("__len__", [](const VecC &v) { return v.size(); })
+      .def("__getitem__", [](const VecC &v, int i) {
+        if (i < 0) i += v.size();
+        if (i < 0 || i >= v.size()) throw py::index_error();
+        return v(i);
+      })
+      .def("__getitem__", [](const VecC &v, const std::vector<int> &indices) {
+        py::array_t<std::complex<double>> result(indices.size());
+        auto r = result.mutable_unchecked<1>();
+        for (size_t k = 0; k < indices.size(); ++k) {
+          int i = indices[k];
+          if (i < 0 || i >= v.size()) throw py::index_error();
+          r(k) = v(i);
+        }
+        return result;
+      })
+      .def("to_numpy", [](const VecC &v) {
+        py::array_t<std::complex<double>> result(v.size());
+        auto r = result.mutable_unchecked<1>();
+        for (Eigen::Index i = 0; i < v.size(); ++i) {
+          r(i) = v(i);
+        }
+        return result;
+      });
 
   py::class_<ScalarAssembly>(m, "ScalarAssembly", "Assembled scalar system (A, b).")
       .def_property_readonly(
@@ -92,6 +144,13 @@ PYBIND11_MODULE(pyvectorem, m) {
         "Assembles the scalar Helmholtz system.", py::arg("mesh"), py::arg("params"),
         py::arg("bc"));
 
+  py::enum_<PortABCType>(m, "PortABCType", "ABC formulation variants for port boundary treatment.")
+      .value("None", PortABCType::None, "No port ABC")
+      .value("Beta", PortABCType::Beta, "j*beta (propagation constant)")
+      .value("BetaNorm", PortABCType::BetaNorm, "j*beta/k0 (dimensionless)")
+      .value("ImpedanceMatch", PortABCType::ImpedanceMatch, "j*beta*sqrt(Z0/eta0)")
+      .value("ModalAdmittance", PortABCType::ModalAdmittance, "j*omega*eps0/Z0");
+
   py::class_<MaxwellParams>(m, "MaxwellParams", "Parameters for Maxwell's equations.")
       .def(py::init<>())
       .def_readwrite("omega", &MaxwellParams::omega, "Angular frequency (rad/s).")
@@ -99,7 +158,12 @@ PYBIND11_MODULE(pyvectorem, m) {
       .def_readwrite("mu_r", &MaxwellParams::mu_r, "Complex relative permeability.")
       .def_readwrite("pml_sigma", &MaxwellParams::pml_sigma, "PML conductivity.")
       .def_readwrite("pml_regions", &MaxwellParams::pml_regions, "Set of physical region tags for PML.")
-      .def_readwrite("use_abc", &MaxwellParams::use_abc, "Flag to enable absorbing boundary condition.");
+      .def_readwrite("use_abc", &MaxwellParams::use_abc, "Flag to enable absorbing boundary condition.")
+      .def_readwrite("use_port_abc", &MaxwellParams::use_port_abc, "Flag to enable port-specific ABC.")
+      .def_readwrite("port_abc_type", &MaxwellParams::port_abc_type, "Port ABC formulation type.")
+      .def_readwrite("port_weight_scale", &MaxwellParams::port_weight_scale, "Port weight scaling factor.")
+      .def_readwrite("port_abc_scale", &MaxwellParams::port_abc_scale, "ABC coefficient scale (0.5 optimal).")
+      .def_readwrite("use_eigenmode_excitation", &MaxwellParams::use_eigenmode_excitation, "Use eigenmode excitation.");
 
   py::class_<MaxwellAssembly>(m, "MaxwellAssembly", "Assembled Maxwell system (A, b).")
       .def_property_readonly(
@@ -125,6 +189,30 @@ PYBIND11_MODULE(pyvectorem, m) {
       .def_readwrite("Z0", &PortMode::Z0)
       .def_readwrite("field", &PortMode::field);
 
+  py::class_<RectWaveguidePort>(m, "RectWaveguidePort", "Rectangular waveguide port dimensions.")
+      .def(py::init<>())
+      .def(py::init([](double a, double b) {
+        RectWaveguidePort p;
+        p.a = a;
+        p.b = b;
+        return p;
+      }), py::arg("a"), py::arg("b"))
+      .def_readwrite("a", &RectWaveguidePort::a, "Width in meters")
+      .def_readwrite("b", &RectWaveguidePort::b, "Height in meters");
+
+  m.def("solve_port_eigens", &solve_port_eigens,
+        "Solve 2D eigenmode problem on port cross-section.",
+        py::arg("mesh"), py::arg("num_modes"), py::arg("omega"),
+        py::arg("eps_r"), py::arg("mu_r"), py::arg("pol"));
+
+  m.def("solve_te10_mode", &solve_te10_mode,
+        "Compute analytical TE10 mode for rectangular waveguide.",
+        py::arg("port"), py::arg("freq"));
+
+  m.def("straight_waveguide_sparams", &straight_waveguide_sparams,
+        "Compute analytical S-parameters for straight waveguide section.",
+        py::arg("port"), py::arg("length"), py::arg("freq"));
+
   py::class_<PortSurfaceMesh>(m, "PortSurfaceMesh", "Surface mesh extracted from a volume port.")
       .def(py::init<>())
       .def_property_readonly(
@@ -147,6 +235,10 @@ PYBIND11_MODULE(pyvectorem, m) {
   m.def("build_wave_port", &build_wave_port, "Project a modal field onto port edges.",
         py::arg("volume_mesh"), py::arg("surface"), py::arg("mode"));
 
+  m.def("populate_te10_field", &populate_te10_field,
+        "Populate TE10 mode field on a surface mesh using analytical formula.",
+        py::arg("surface"), py::arg("port"), py::arg("mode"));
+
   m.def("assemble_maxwell", &assemble_maxwell, "Assembles the 3D Maxwell system.",
         py::arg("mesh"), py::arg("params"), py::arg("bc"),
         py::arg("ports") = std::vector<WavePort>(),
@@ -155,6 +247,23 @@ PYBIND11_MODULE(pyvectorem, m) {
   m.def("calculate_sparams", &calculate_sparams,
         "Calculates S-parameters for a set of wave ports.",
         py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
+
+  m.def("normalize_port_weights", &normalize_port_weights,
+        "Normalize port weights so w^H A^-1 w = Z0 for proper S-parameter extraction.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
+
+  m.def("calculate_sparams_eigenmode", &calculate_sparams_eigenmode,
+        "Calculate S-parameters using direct eigenmode excitation (more accurate).",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
+
+  m.def("compute_te_eigenvector", &compute_te_eigenvector,
+        "Compute 3D FEM eigenvector for a TE mode with given cutoff wavenumber.",
+        py::arg("mesh"), py::arg("pec_edges"), py::arg("target_kc_sq"));
+
+  m.def("build_wave_port_from_eigenvector", &build_wave_port_from_eigenvector,
+        "Build wave port using 3D FEM eigenvector as weights.",
+        py::arg("mesh"), py::arg("surface"), py::arg("eigenvector"),
+        py::arg("mode"), py::arg("pec_edges"));
 
   py::class_<SolveOptions>(m, "SolveOptions", "Options for the linear solver.")
       .def(py::init<>())
