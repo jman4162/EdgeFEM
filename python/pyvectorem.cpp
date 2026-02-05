@@ -3,6 +3,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <iostream>
+
 #include "vectorem/bc.hpp"
 #include "vectorem/coupling.hpp"
 #include "vectorem/fem.hpp"
@@ -16,6 +18,10 @@
 #include "vectorem/maxwell.hpp"
 #include "vectorem/array/active_impedance.hpp"
 #include "vectorem/array/coupling_extract.hpp"
+#include "vectorem/array/embedded_pattern.hpp"
+#include "vectorem/io/array_export.hpp"
+#include "vectorem/io/vtk_export.hpp"
+#include "vectorem/post/ntf.hpp"
 
 namespace py = pybind11;
 using namespace vectorem;
@@ -76,10 +82,33 @@ PYBIND11_MODULE(pyvectorem, m) {
         return std::vector<int>(b.dirichlet_edges.begin(), b.dirichlet_edges.end());
       });
 
-  m.def("build_scalar_pec", &build_scalar_pec, "Build scalar PEC BC",
+  m.def("build_scalar_pec", &build_scalar_pec,
+        "Build scalar PEC BC from mesh surface tag.\n"
+        "Prints a warning if no nodes are found (check tag value).",
         py::arg("mesh"), py::arg("pec_tag"));
-  m.def("build_edge_pec", &build_edge_pec, "Build edge-based PEC BC",
+  m.def("build_edge_pec", &build_edge_pec,
+        "Build edge-based PEC BC from mesh surface tag.\n"
+        "Prints a warning if no edges are found (check tag value).",
         py::arg("mesh"), py::arg("pec_tag"));
+
+  // Physical tag helpers
+  py::class_<PhysicalTagInfo>(m, "PhysicalTagInfo", "Information about physical tags in a mesh.")
+      .def(py::init<>())
+      .def_readonly("volume_tags", &PhysicalTagInfo::volume_tags, "Tags from tetrahedra (3D regions)")
+      .def_readonly("surface_tags", &PhysicalTagInfo::surface_tags, "Tags from triangles (2D surfaces)");
+
+  m.def("list_physical_tags", &list_physical_tags,
+        "List all unique physical tags in the mesh.\n"
+        "Returns PhysicalTagInfo with volume_tags and surface_tags.",
+        py::arg("mesh"));
+
+  m.def("has_surface_tag", &has_surface_tag,
+        "Check if a surface tag exists in the mesh.",
+        py::arg("mesh"), py::arg("tag"));
+
+  m.def("has_volume_tag", &has_volume_tag,
+        "Check if a volume tag exists in the mesh.",
+        py::arg("mesh"), py::arg("tag"));
 
   py::class_<ScalarHelmholtzParams>(m, "ScalarHelmholtzParams", "Parameters for the scalar Helmholtz equation.")
       .def(py::init<>())
@@ -154,8 +183,20 @@ PYBIND11_MODULE(pyvectorem, m) {
   py::class_<MaxwellParams>(m, "MaxwellParams", "Parameters for Maxwell's equations.")
       .def(py::init<>())
       .def_readwrite("omega", &MaxwellParams::omega, "Angular frequency (rad/s).")
-      .def_readwrite("eps_r", &MaxwellParams::eps_r, "Complex relative permittivity.")
-      .def_readwrite("mu_r", &MaxwellParams::mu_r, "Complex relative permeability.")
+      .def_readwrite("eps_r", &MaxwellParams::eps_r, "Complex relative permittivity (global default).")
+      .def_readwrite("mu_r", &MaxwellParams::mu_r, "Complex relative permeability (global default).")
+      .def_readwrite("eps_r_regions", &MaxwellParams::eps_r_regions,
+                     "Region-based permittivity: maps physical tag to complex eps_r.\n"
+                     "Elements with unassigned tags use global eps_r.")
+      .def_readwrite("mu_r_regions", &MaxwellParams::mu_r_regions,
+                     "Region-based permeability: maps physical tag to complex mu_r.\n"
+                     "Elements with unassigned tags use global mu_r.")
+      .def("get_eps_r", &MaxwellParams::get_eps_r,
+           "Get effective permittivity for a physical region tag.",
+           py::arg("phys_tag"))
+      .def("get_mu_r", &MaxwellParams::get_mu_r,
+           "Get effective permeability for a physical region tag.",
+           py::arg("phys_tag"))
       .def_readwrite("pml_sigma", &MaxwellParams::pml_sigma, "PML conductivity.")
       .def_readwrite("pml_regions", &MaxwellParams::pml_regions, "Set of physical region tags for PML.")
       .def_readwrite("use_abc", &MaxwellParams::use_abc, "Flag to enable absorbing boundary condition.")
@@ -269,7 +310,8 @@ PYBIND11_MODULE(pyvectorem, m) {
       .def(py::init<>())
       .def_readwrite("use_bicgstab", &SolveOptions::use_bicgstab, "Use BiCGSTAB solver.")
       .def_readwrite("tolerance", &SolveOptions::tolerance, "Convergence tolerance.")
-      .def_readwrite("max_iterations", &SolveOptions::max_iterations, "Maximum iterations.");
+      .def_readwrite("max_iterations", &SolveOptions::max_iterations, "Maximum iterations.")
+      .def_readwrite("verbose", &SolveOptions::verbose, "Print progress to stderr.");
 
   py::class_<SolveResult>(m, "SolveResult", "Results from a linear solve.")
       .def_readonly("method", &SolveResult::method, "Solver method used.")
@@ -353,6 +395,34 @@ PYBIND11_MODULE(pyvectorem, m) {
   m.def("is_passive", &is_passive,
         "Check if network is passive.",
         py::arg("S"), py::arg("tolerance") = 1e-6);
+
+  // check_passivity: convenience function that prints warning if not passive
+  m.def("check_passivity", [](const Eigen::MatrixXcd &S, double tolerance) {
+    bool passive = is_passive(S, tolerance);
+    if (!passive) {
+      // Compute max singular value to show how much it violates passivity
+      Eigen::JacobiSVD<Eigen::MatrixXcd> svd(S);
+      double max_sv = svd.singularValues()(0);
+      std::cerr << "WARNING: S-parameters violate passivity! "
+                << "Max singular value = " << max_sv
+                << " (should be <= " << (1.0 + tolerance) << ")\n";
+      // Also check individual elements for 2-port case
+      if (S.rows() == 2 && S.cols() == 2) {
+        double s11_mag = std::abs(S(0,0));
+        double s21_mag = std::abs(S(1,0));
+        double s12_mag = std::abs(S(0,1));
+        double s22_mag = std::abs(S(1,1));
+        double power_sum1 = s11_mag*s11_mag + s21_mag*s21_mag;
+        double power_sum2 = s12_mag*s12_mag + s22_mag*s22_mag;
+        std::cerr << "  |S11|=" << s11_mag << ", |S21|=" << s21_mag
+                  << ", |S11|^2+|S21|^2=" << power_sum1 << "\n";
+        std::cerr << "  |S12|=" << s12_mag << ", |S22|=" << s22_mag
+                  << ", |S12|^2+|S22|^2=" << power_sum2 << "\n";
+      }
+    }
+    return passive;
+  }, "Check passivity and print warning if violated.",
+     py::arg("S"), py::arg("tolerance") = 1e-6);
 
   m.def("is_lossless", &is_lossless,
         "Check if network is lossless.",
@@ -464,4 +534,232 @@ PYBIND11_MODULE(pyvectorem, m) {
   m.def("compute_coupling_stats", &compute_coupling_stats,
         "Compute coupling statistics on S-matrix.",
         py::arg("S"));
+
+  // ============================================================
+  // Additional Array Analysis Functions
+  // ============================================================
+
+  // find_scan_blindness
+  m.def("find_scan_blindness", &find_scan_blindness,
+        "Find scan blindness angles where active VSWR exceeds threshold.\n"
+        "Returns a map of element index to vector of blindness angles (radians).",
+        py::arg("scan_results"), py::arg("vswr_threshold") = 10.0);
+
+  // Coupling vs separation analysis
+  m.def("coupling_vs_separation", &coupling_vs_separation,
+        "Compute coupling magnitude vs. element separation distance.\n"
+        "Returns map from distance bin (mm) to average coupling (dB).",
+        py::arg("S"), py::arg("positions"));
+
+  // Extract nearest neighbor coupling
+  m.def("extract_nearest_neighbor_coupling", &extract_nearest_neighbor_coupling,
+        "Extract mutual coupling between nearest neighbors only.",
+        py::arg("S"), py::arg("positions"), py::arg("max_neighbors") = 4);
+
+  // ============================================================
+  // Embedded Pattern Computation
+  // ============================================================
+
+  // FFPoint2D structure (from embedded_pattern.hpp)
+  py::class_<FFPoint2D>(m, "FFPoint2D", "Far-field point in 2D pattern cut.")
+      .def(py::init<>())
+      .def_readwrite("theta", &FFPoint2D::theta, "Angle in radians")
+      .def_readwrite("magnitude", &FFPoint2D::magnitude, "Field magnitude (linear)")
+      .def_readwrite("phase", &FFPoint2D::phase, "Phase in radians");
+
+  // EmbeddedPattern structure
+  py::class_<EmbeddedPattern>(m, "EmbeddedPattern", "Embedded element pattern for one port.")
+      .def(py::init<>())
+      .def_readwrite("port_index", &EmbeddedPattern::port_index, "Index of the active port")
+      .def_readwrite("pattern_phi0", &EmbeddedPattern::pattern_phi0, "E-plane cut (phi=0)")
+      .def_readwrite("pattern_phi90", &EmbeddedPattern::pattern_phi90, "H-plane cut (phi=90)")
+      .def_readwrite("frequency", &EmbeddedPattern::frequency, "Operating frequency (Hz)")
+      .def_readwrite("element_position", &EmbeddedPattern::element_position, "Element position");
+
+  // ArrayPatternConfig structure
+  py::class_<ArrayPatternConfig>(m, "ArrayPatternConfig", "Configuration for embedded pattern computation.")
+      .def(py::init<>())
+      .def_readwrite("theta_rad", &ArrayPatternConfig::theta_rad, "Theta angles for pattern cuts")
+      .def_readwrite("phi_e_plane", &ArrayPatternConfig::phi_e_plane, "Phi angle for E-plane (usually 0)")
+      .def_readwrite("phi_h_plane", &ArrayPatternConfig::phi_h_plane, "Phi angle for H-plane (usually pi/2)")
+      .def_readwrite("k0", &ArrayPatternConfig::k0, "Free-space wavenumber (rad/m)")
+      .def_readwrite("huygens_radius", &ArrayPatternConfig::huygens_radius, "Radius for Huygens surface (0=auto)");
+
+  // Compute embedded patterns (all ports)
+  m.def("compute_embedded_patterns", &compute_embedded_patterns,
+        "Compute embedded element patterns for all ports.\n"
+        "Includes mutual coupling effects from other elements.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"),
+        py::arg("ports"), py::arg("config"));
+
+  // Compute single embedded pattern
+  m.def("compute_single_embedded_pattern", &compute_single_embedded_pattern,
+        "Compute embedded pattern for a single port.\n"
+        "Other ports are properly loaded.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"),
+        py::arg("ports"), py::arg("active_port"), py::arg("config"));
+
+  // Utility functions
+  m.def("to_db", &to_db,
+        "Convert linear magnitude to dB.",
+        py::arg("linear"));
+
+  m.def("normalize_pattern", &normalize_pattern,
+        "Normalize pattern to peak value of 1.0.",
+        py::arg("pattern"));
+
+  // ============================================================
+  // Array Export Functions
+  // ============================================================
+
+  // ArrayPackage structure
+  py::class_<ArrayPackage>(m, "ArrayPackage", "Complete array characterization package.")
+      .def(py::init<>())
+      .def_readwrite("model_name", &ArrayPackage::model_name, "Model name")
+      .def_readwrite("element_positions", &ArrayPackage::element_positions, "Element positions")
+      .def_readwrite("frequencies", &ArrayPackage::frequencies, "Frequencies (Hz)")
+      .def_readwrite("S_matrices", &ArrayPackage::S_matrices, "S-matrices per frequency")
+      .def_readwrite("embedded_patterns", &ArrayPackage::embedded_patterns, "Embedded patterns [freq][port]")
+      .def_readwrite("scan_data", &ArrayPackage::scan_data, "Scan data")
+      .def_readwrite("reference_impedance", &ArrayPackage::reference_impedance, "Reference impedance (ohms)");
+
+  // Export functions
+  m.def("export_array_package_json", &export_array_package_json,
+        "Export complete array package to JSON format.\n"
+        "Compatible with Phased-Array-Antenna-Model.",
+        py::arg("path"), py::arg("pkg"));
+
+  m.def("export_patterns_csv", &export_patterns_csv,
+        "Export embedded element patterns to CSV.\n"
+        "Columns: port_index, theta_deg, phi0_mag, phi0_phase, phi90_mag, phi90_phase",
+        py::arg("path"), py::arg("patterns"));
+
+  m.def("export_coupling_csv", &export_coupling_csv,
+        "Export coupling matrix to CSV.\n"
+        "Columns: port_i, port_j, S_real, S_imag, magnitude_db, phase_deg, distance",
+        py::arg("path"), py::arg("S"),
+        py::arg("positions") = std::vector<Eigen::Vector3d>());
+
+  m.def("export_scan_csv", &export_scan_csv,
+        "Export scan angle sweep results to CSV.\n"
+        "Columns: theta_deg, phi_deg, element_idx, Gamma_real, Gamma_imag, Z_real, Z_imag, VSWR",
+        py::arg("path"), py::arg("scan_results"));
+
+  // ============================================================
+  // Near-to-Far Field (Stratton-Chu)
+  // ============================================================
+
+  // NTFPoint2D from ntf.hpp (renamed from FFPoint2D to avoid conflict)
+  py::class_<NTFPoint2D>(m, "NTFPoint2D",
+      "Far-field point from near-to-far transformation.\n"
+      "Contains E_theta and E_phi complex far-field components.")
+      .def(py::init<>())
+      .def_readwrite("theta_deg", &NTFPoint2D::theta_deg, "Polar angle in degrees")
+      .def_readwrite("e_theta", &NTFPoint2D::e_theta, "E_theta far-field component")
+      .def_readwrite("e_phi", &NTFPoint2D::e_phi, "E_phi far-field component");
+
+  m.def("stratton_chu_2d", &stratton_chu_2d,
+        "Compute far-field pattern using Stratton-Chu integral.\n"
+        "The surface is represented by sample points with normals, E/H fields, and areas.",
+        py::arg("r"), py::arg("n"), py::arg("E"), py::arg("H"),
+        py::arg("area"), py::arg("theta_rad"), py::arg("phi_rad"), py::arg("k0"));
+
+  m.def("write_pattern_csv", &write_pattern_csv,
+        "Write a 2D NTF pattern to CSV for visualization.",
+        py::arg("path"), py::arg("phi_deg"), py::arg("pattern"));
+
+  // ============================================================
+  // 3D Far-Field Patterns
+  // ============================================================
+
+  py::class_<FFPattern3D>(m, "FFPattern3D",
+      "3D far-field pattern over spherical (theta, phi) grid.\n"
+      "Matrices are Ntheta x Nphi where theta varies along rows, phi along columns.")
+      .def(py::init<>())
+      .def_readonly("theta_grid", &FFPattern3D::theta_grid, "Theta angles in radians (Ntheta x Nphi)")
+      .def_readonly("phi_grid", &FFPattern3D::phi_grid, "Phi angles in radians (Ntheta x Nphi)")
+      .def_readonly("E_theta", &FFPattern3D::E_theta, "E_theta far-field component (complex)")
+      .def_readonly("E_phi", &FFPattern3D::E_phi, "E_phi far-field component (complex)")
+      .def("total_magnitude", &FFPattern3D::total_magnitude,
+           "Get total electric field magnitude at each point")
+      .def("power_pattern", &FFPattern3D::power_pattern,
+           "Get total power pattern (|E_theta|^2 + |E_phi|^2)")
+      .def("pattern_dB", &FFPattern3D::pattern_dB,
+           "Get pattern in dB relative to maximum (normalized)");
+
+  m.def("stratton_chu_3d", &stratton_chu_3d,
+        "Compute full 3D far-field pattern using Stratton-Chu integral.\n"
+        "Returns pattern sampled over spherical (theta, phi) grid.\n\n"
+        "Args:\n"
+        "    r: Surface sample point positions\n"
+        "    n: Outward surface normals at each point\n"
+        "    E: Tangential electric field at each point\n"
+        "    H: Tangential magnetic field at each point\n"
+        "    area: Surface patch area at each point\n"
+        "    theta_rad: Vector of theta angles (0 to pi)\n"
+        "    phi_rad: Vector of phi angles (0 to 2*pi)\n"
+        "    k0: Free-space wavenumber (2*pi/lambda)",
+        py::arg("r"), py::arg("n"), py::arg("E"), py::arg("H"),
+        py::arg("area"), py::arg("theta_rad"), py::arg("phi_rad"), py::arg("k0"));
+
+  m.def("compute_directivity", &compute_directivity,
+        "Compute directivity from 3D far-field pattern.\n"
+        "D = 4*pi * U_max / P_rad where U is radiation intensity.\n\n"
+        "Returns: Directivity (dimensionless, linear scale)",
+        py::arg("pattern"));
+
+  m.def("compute_max_gain", &compute_max_gain,
+        "Compute maximum gain from 3D pattern with radiation efficiency.\n"
+        "G_max = efficiency * D_max\n\n"
+        "Args:\n"
+        "    pattern: 3D far-field pattern\n"
+        "    efficiency: Radiation efficiency (0 to 1, default 1.0)\n\n"
+        "Returns: Maximum gain (dimensionless, linear scale)",
+        py::arg("pattern"), py::arg("efficiency") = 1.0);
+
+  m.def("compute_hpbw", &compute_hpbw,
+        "Compute half-power beamwidth in E-plane and H-plane.\n\n"
+        "Returns: Tuple of (E-plane HPBW, H-plane HPBW) in degrees",
+        py::arg("pattern"));
+
+  m.def("write_pattern_3d_csv", &write_pattern_3d_csv,
+        "Export 3D pattern to CSV file.\n"
+        "Columns: theta_deg, phi_deg, E_theta_mag, E_theta_phase, E_phi_mag, E_phi_phase, total_dB",
+        py::arg("path"), py::arg("pattern"));
+
+  m.def("write_pattern_3d_vtk", &write_pattern_3d_vtk,
+        "Export 3D pattern to VTK file for ParaView visualization.\n"
+        "Creates a spherical surface colored by pattern magnitude.",
+        py::arg("path"), py::arg("pattern"), py::arg("radius") = 1.0);
+
+  // ============================================================
+  // VTK Field Export for ParaView Visualization
+  // ============================================================
+
+  py::class_<VTKExportOptions>(m, "VTKExportOptions",
+      "Options for VTK field export.")
+      .def(py::init<>())
+      .def_readwrite("export_magnitude", &VTKExportOptions::export_magnitude,
+                     "Export E-field magnitude (default: true)")
+      .def_readwrite("export_phase", &VTKExportOptions::export_phase,
+                     "Export E-field phase in radians (default: true)")
+      .def_readwrite("export_real", &VTKExportOptions::export_real,
+                     "Export E-field real part (default: false)")
+      .def_readwrite("export_imag", &VTKExportOptions::export_imag,
+                     "Export E-field imaginary part (default: false)")
+      .def_readwrite("export_vector", &VTKExportOptions::export_vector,
+                     "Export E-field as 3D vector (default: true)");
+
+  m.def("export_fields_vtk", &export_fields_vtk,
+        "Export E-field solution to VTK XML Unstructured Grid (.vtu) format.\n"
+        "The field is computed at element centroids from edge solution.\n"
+        "Open the output file in ParaView to visualize fields.",
+        py::arg("mesh"), py::arg("solution"), py::arg("filename"),
+        py::arg("options") = VTKExportOptions());
+
+  m.def("export_fields_vtk_legacy", &export_fields_vtk_legacy,
+        "Export E-field solution to legacy VTK format (.vtk).\n"
+        "Compatible with older visualization tools.",
+        py::arg("mesh"), py::arg("solution"), py::arg("filename"),
+        py::arg("options") = VTKExportOptions());
 }
