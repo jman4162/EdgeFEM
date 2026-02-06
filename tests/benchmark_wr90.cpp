@@ -6,13 +6,13 @@
 // 2. Multiple frequencies across TE10 passband (7-12 GHz)
 // 3. Mesh convergence check (results should be stable)
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <cassert>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cassert>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <vector>
 
 using namespace edgefem;
 
@@ -32,8 +32,8 @@ struct BenchmarkResult {
 BenchmarkResult run_benchmark(const Mesh &mesh, const BC &bc,
                               const PortSurfaceMesh &port1_surf,
                               const PortSurfaceMesh &port2_surf,
-                              const RectWaveguidePort &dims,
-                              double freq, double L) {
+                              const RectWaveguidePort &dims, double freq,
+                              double L) {
   BenchmarkResult r;
   r.freq_ghz = freq / 1e9;
 
@@ -50,22 +50,25 @@ BenchmarkResult run_benchmark(const Mesh &mesh, const BC &bc,
     r.s21_phase_deg = 0.0;
     r.expected_phase_deg = 0.0;
     r.passivity = 1.0;
-    r.passed = true;  // Evanescent mode is expected to have zero transmission
+    r.passed = true; // Evanescent mode is expected to have zero transmission
     return r;
   }
 
   double beta = std::sqrt(beta_sq);
 
   // Compute eigenvector
-  Eigen::VectorXd v_te10 = compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
+  Eigen::VectorXd v_te10 =
+      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
 
   // Create mode parameters
   PortMode mode1 = solve_te10_mode(dims, freq);
   PortMode mode2 = solve_te10_mode(dims, freq);
 
   // Build ports
-  WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-  WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+  WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                  mode1, bc.dirichlet_edges);
+  WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                  mode2, bc.dirichlet_edges);
 
   // Calculate S-parameters
   MaxwellParams p;
@@ -82,12 +85,15 @@ BenchmarkResult run_benchmark(const Mesh &mesh, const BC &bc,
 
   // Expected phase (normalized to -180 to 180)
   r.expected_phase_deg = -beta * L * 180.0 / M_PI;
-  while (r.expected_phase_deg < -180) r.expected_phase_deg += 360;
-  while (r.expected_phase_deg > 180) r.expected_phase_deg -= 360;
+  while (r.expected_phase_deg < -180)
+    r.expected_phase_deg += 360;
+  while (r.expected_phase_deg > 180)
+    r.expected_phase_deg -= 360;
 
   // Pass criteria
   double phase_error = std::abs(r.s21_phase_deg - r.expected_phase_deg);
-  if (phase_error > 180) phase_error = 360 - phase_error;
+  if (phase_error > 180)
+    phase_error = 360 - phase_error;
 
   r.passed = (r.s11_mag < 0.15) && (r.s21_mag > 0.90) &&
              (r.passivity <= 1.05) && (phase_error < 15);
@@ -98,26 +104,29 @@ BenchmarkResult run_benchmark(const Mesh &mesh, const BC &bc,
 int main() {
   std::cout << std::setprecision(4) << std::fixed;
 
-  std::cout << "======================================================" << std::endl;
+  std::cout << "======================================================"
+            << std::endl;
   std::cout << "EdgeFEM WR-90 Waveguide Benchmark" << std::endl;
-  std::cout << "======================================================" << std::endl;
+  std::cout << "======================================================"
+            << std::endl;
 
   // Load mesh
   Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");
   BC bc = build_edge_pec(mesh, 1);
 
-  std::cout << "Mesh: " << mesh.tets.size() << " tets, "
-            << mesh.edges.size() << " edges" << std::endl;
+  std::cout << "Mesh: " << mesh.tets.size() << " tets, " << mesh.edges.size()
+            << " edges" << std::endl;
 
   // WR-90 dimensions
   RectWaveguidePort dims{0.02286, 0.01016};
-  double L = 0.05;  // 50mm length
+  double L = 0.05; // 50mm length
 
   // Cutoff frequency
   double fc = c0 / (2 * dims.a);
-  std::cout << "WR-90: a=" << dims.a*1000 << "mm, b=" << dims.b*1000 << "mm" << std::endl;
-  std::cout << "TE10 cutoff: " << fc/1e9 << " GHz" << std::endl;
-  std::cout << "Waveguide length: " << L*1000 << " mm" << std::endl;
+  std::cout << "WR-90: a=" << dims.a * 1000 << "mm, b=" << dims.b * 1000 << "mm"
+            << std::endl;
+  std::cout << "TE10 cutoff: " << fc / 1e9 << " GHz" << std::endl;
+  std::cout << "Waveguide length: " << L * 1000 << " mm" << std::endl;
   std::cout << std::endl;
 
   // Extract port surfaces
@@ -129,19 +138,19 @@ int main() {
   auto r10 = run_benchmark(mesh, bc, port1_surf, port2_surf, dims, 10e9, L);
   std::cout << "  |S11| = " << r10.s11_mag << " (target < 0.15)" << std::endl;
   std::cout << "  |S21| = " << r10.s21_mag << " (target > 0.90)" << std::endl;
-  std::cout << "  Phase(S21) = " << r10.s21_phase_deg << "° (expected " << r10.expected_phase_deg << "°)" << std::endl;
-  std::cout << "  Passivity = " << r10.passivity << " (target ≤ 1.05)" << std::endl;
+  std::cout << "  Phase(S21) = " << r10.s21_phase_deg << "° (expected "
+            << r10.expected_phase_deg << "°)" << std::endl;
+  std::cout << "  Passivity = " << r10.passivity << " (target ≤ 1.05)"
+            << std::endl;
   std::cout << "  Result: " << (r10.passed ? "PASS" : "FAIL") << std::endl;
   std::cout << std::endl;
 
   // Test 2: Frequency sweep
   std::cout << "=== Test 2: Frequency Sweep (7-12 GHz) ===" << std::endl;
-  std::cout << std::setw(10) << "Freq(GHz)"
-            << std::setw(10) << "|S11|"
-            << std::setw(10) << "|S21|"
-            << std::setw(12) << "Phase(°)"
-            << std::setw(12) << "Expected(°)"
-            << std::setw(10) << "Result" << std::endl;
+  std::cout << std::setw(10) << "Freq(GHz)" << std::setw(10) << "|S11|"
+            << std::setw(10) << "|S21|" << std::setw(12) << "Phase(°)"
+            << std::setw(12) << "Expected(°)" << std::setw(10) << "Result"
+            << std::endl;
   std::cout << std::string(64, '-') << std::endl;
 
   std::vector<double> test_freqs = {7e9, 8e9, 9e9, 10e9, 11e9, 12e9};
@@ -149,27 +158,33 @@ int main() {
 
   for (double freq : test_freqs) {
     auto r = run_benchmark(mesh, bc, port1_surf, port2_surf, dims, freq, L);
-    std::cout << std::setw(10) << r.freq_ghz
-              << std::setw(10) << r.s11_mag
-              << std::setw(10) << r.s21_mag
-              << std::setw(12) << r.s21_phase_deg
-              << std::setw(12) << r.expected_phase_deg
-              << std::setw(10) << (r.passed ? "PASS" : "FAIL") << std::endl;
-    if (r.passed) sweep_passes++;
+    std::cout << std::setw(10) << r.freq_ghz << std::setw(10) << r.s11_mag
+              << std::setw(10) << r.s21_mag << std::setw(12) << r.s21_phase_deg
+              << std::setw(12) << r.expected_phase_deg << std::setw(10)
+              << (r.passed ? "PASS" : "FAIL") << std::endl;
+    if (r.passed)
+      sweep_passes++;
   }
 
   std::cout << std::endl;
-  std::cout << "Frequency sweep: " << sweep_passes << "/" << test_freqs.size() << " passed" << std::endl;
+  std::cout << "Frequency sweep: " << sweep_passes << "/" << test_freqs.size()
+            << " passed" << std::endl;
   std::cout << std::endl;
 
   // Summary
-  std::cout << "======================================================" << std::endl;
+  std::cout << "======================================================"
+            << std::endl;
   std::cout << "BENCHMARK SUMMARY" << std::endl;
-  std::cout << "======================================================" << std::endl;
-  std::cout << "Center frequency test: " << (r10.passed ? "PASS" : "FAIL") << std::endl;
-  std::cout << "Frequency sweep: " << sweep_passes << "/" << test_freqs.size() << " passed" << std::endl;
+  std::cout << "======================================================"
+            << std::endl;
+  std::cout << "Center frequency test: " << (r10.passed ? "PASS" : "FAIL")
+            << std::endl;
+  std::cout << "Frequency sweep: " << sweep_passes << "/" << test_freqs.size()
+            << " passed" << std::endl;
 
-  bool overall_pass = r10.passed && (sweep_passes >= test_freqs.size() - 1);  // Allow 1 fail in sweep
+  bool overall_pass =
+      r10.passed &&
+      (sweep_passes >= test_freqs.size() - 1); // Allow 1 fail in sweep
   std::cout << std::endl;
   std::cout << "OVERALL: " << (overall_pass ? "PASS" : "FAIL") << std::endl;
 

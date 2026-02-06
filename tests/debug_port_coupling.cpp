@@ -1,15 +1,16 @@
 // Debug why port weights don't couple to the propagating mode
-// Key question: Does the port weight vector w align with the FEM eigenvector for TE10?
+// Key question: Does the port weight vector w align with the FEM eigenvector
+// for TE10?
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <algorithm>
-#include <Eigen/Dense>
-#include <Eigen/Eigenvalues>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <vector>
 
 using namespace edgefem;
 
@@ -45,17 +46,23 @@ int main() {
   // Count PEC vs free edges
   int pec_count1 = 0, free_count1 = 0;
   for (int e : wp1.edges) {
-    if (bc.dirichlet_edges.count(e)) pec_count1++;
-    else free_count1++;
+    if (bc.dirichlet_edges.count(e))
+      pec_count1++;
+    else
+      free_count1++;
   }
-  std::cout << "Port 1: " << pec_count1 << " PEC edges, " << free_count1 << " free edges" << std::endl;
+  std::cout << "Port 1: " << pec_count1 << " PEC edges, " << free_count1
+            << " free edges" << std::endl;
 
   int pec_count2 = 0, free_count2 = 0;
   for (int e : wp2.edges) {
-    if (bc.dirichlet_edges.count(e)) pec_count2++;
-    else free_count2++;
+    if (bc.dirichlet_edges.count(e))
+      pec_count2++;
+    else
+      free_count2++;
   }
-  std::cout << "Port 2: " << pec_count2 << " PEC edges, " << free_count2 << " free edges" << std::endl;
+  std::cout << "Port 2: " << pec_count2 << " PEC edges, " << free_count2
+            << " free edges" << std::endl;
 
   // Analyze port weight pattern
   std::cout << "\n=== Port Weight Pattern ===" << std::endl;
@@ -92,7 +99,7 @@ int main() {
   p.omega = omega;
 
   std::vector<WavePort> ports{wp1, wp2};
-  auto asmbl = assemble_maxwell(mesh, p, bc, ports, 0);  // Port 1 excited
+  auto asmbl = assemble_maxwell(mesh, p, bc, ports, 0); // Port 1 excited
   auto res = solve_linear(asmbl.A, asmbl.b, {});
 
   // Check solution norm
@@ -112,7 +119,8 @@ int main() {
     if (!bc.dirichlet_edges.count(e)) {
       std::complex<double> x_e = res.x(e);
       std::complex<double> w_e = wp1.weights(i);
-      std::cout << "  edge " << e << ": x = " << x_e << ", w*x = " << std::conj(w_e)*x_e << std::endl;
+      std::cout << "  edge " << e << ": x = " << x_e
+                << ", w*x = " << std::conj(w_e) * x_e << std::endl;
       shown++;
     }
   }
@@ -124,7 +132,8 @@ int main() {
     if (!bc.dirichlet_edges.count(e)) {
       std::complex<double> x_e = res.x(e);
       std::complex<double> w_e = wp2.weights(i);
-      std::cout << "  edge " << e << ": x = " << x_e << ", w*x = " << std::conj(w_e)*x_e << std::endl;
+      std::cout << "  edge " << e << ": x = " << x_e
+                << ", w*x = " << std::conj(w_e) * x_e << std::endl;
       shown++;
     }
   }
@@ -152,20 +161,24 @@ int main() {
   std::cout << "V_inc = " << V_inc << std::endl;
   std::cout << "V1 = " << V1 << std::endl;
   std::cout << "V2 = " << V2 << std::endl;
-  std::cout << "S11 = " << S11 << " (|S11| = " << std::abs(S11) << ")" << std::endl;
-  std::cout << "S21 = " << S21 << " (|S21| = " << std::abs(S21) << ")" << std::endl;
+  std::cout << "S11 = " << S11 << " (|S11| = " << std::abs(S11) << ")"
+            << std::endl;
+  std::cout << "S21 = " << S21 << " (|S21| = " << std::abs(S21) << ")"
+            << std::endl;
 
   // Expected values
   double beta = std::real(mode1.beta);
   double L = 0.05;
-  std::complex<double> S21_expected = std::exp(std::complex<double>(0, -beta * L));
+  std::complex<double> S21_expected =
+      std::exp(std::complex<double>(0, -beta * L));
   std::cout << "\nExpected: S11 = 0, S21 = " << S21_expected << std::endl;
 
   // Ratio analysis
   std::cout << "\n=== Ratio Analysis ===" << std::endl;
   std::cout << "V1 / V_inc = " << V1 / V_inc << std::endl;
   std::cout << "V2 / V1 = " << V2 / V1 << std::endl;
-  std::cout << "||w||² / Z0 = " << w1_norm_sq / std::real(wp1.mode.Z0) << std::endl;
+  std::cout << "||w||² / Z0 = " << w1_norm_sq / std::real(wp1.mode.Z0)
+            << std::endl;
 
   // Check the source term distribution
   std::cout << "\n=== Source Term Analysis ===" << std::endl;
@@ -183,7 +196,8 @@ int main() {
   b_port_norm = std::sqrt(b_port_norm);
   std::cout << "||b_port|| = " << b_port_norm << std::endl;
   std::cout << "||b_total|| = " << b_norm << std::endl;
-  std::cout << "Ratio ||b_port||/||b_total|| = " << b_port_norm / b_norm << std::endl;
+  std::cout << "Ratio ||b_port||/||b_total|| = " << b_port_norm / b_norm
+            << std::endl;
 
   // Compare with matrix diagonal
   std::cout << "\n=== Matrix Diagonal at Port Edges ===" << std::endl;
@@ -196,7 +210,8 @@ int main() {
       avg_diag += diag;
       diag_count++;
       if (diag_count <= 5) {
-        std::cout << "  A(" << e << "," << e << ") = " << asmbl.A.coeff(e, e) << std::endl;
+        std::cout << "  A(" << e << "," << e << ") = " << asmbl.A.coeff(e, e)
+                  << std::endl;
       }
     }
   }
@@ -205,8 +220,10 @@ int main() {
 
   // The key ratio: source / diagonal determines solution magnitude
   std::cout << "\n=== Expected Solution Magnitude ===" << std::endl;
-  std::cout << "If x ~ b/A_ii, then |x| ~ " << b_port_norm / avg_diag << std::endl;
-  std::cout << "And V ~ ||w|| * |x| ~ " << std::sqrt(w1_norm_sq) * b_port_norm / avg_diag << std::endl;
+  std::cout << "If x ~ b/A_ii, then |x| ~ " << b_port_norm / avg_diag
+            << std::endl;
+  std::cout << "And V ~ ||w|| * |x| ~ "
+            << std::sqrt(w1_norm_sq) * b_port_norm / avg_diag << std::endl;
 
   return 0;
 }

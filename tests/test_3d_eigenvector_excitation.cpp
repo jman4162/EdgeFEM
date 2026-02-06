@@ -2,14 +2,14 @@
 // Hypothesis: if we excite with a source that matches the 3D eigenvector,
 // the wave should propagate correctly
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <Eigen/Dense>
-#include <Eigen/Eigenvalues>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <vector>
 
 using namespace edgefem;
 
@@ -26,7 +26,7 @@ int main() {
   double k0 = omega / c0;
   double kc = M_PI / 0.02286;
   double kc_sq = kc * kc;
-  double beta = std::sqrt(k0*k0 - kc_sq);
+  double beta = std::sqrt(k0 * k0 - kc_sq);
 
   // Compute 3D FEM eigenvector
   MaxwellParams p_low;
@@ -34,9 +34,9 @@ int main() {
   auto asmbl_low = assemble_maxwell(mesh, p_low, bc, {}, -1);
 
   double f_test = 1e9;
-  double k0_test = 2*M_PI*f_test/c0;
+  double k0_test = 2 * M_PI * f_test / c0;
   MaxwellParams p_test;
-  p_test.omega = 2*M_PI*f_test;
+  p_test.omega = 2 * M_PI * f_test;
   auto asmbl_test = assemble_maxwell(mesh, p_test, bc, {}, -1);
 
   int n = asmbl_low.A.rows();
@@ -69,11 +69,15 @@ int main() {
   for (int i = 0; i < n_free; ++i) {
     if (eigenvalues(i) > 100) {
       double diff = std::abs(eigenvalues(i) - kc_sq);
-      if (diff < min_diff) { min_diff = diff; te10_idx = i; }
+      if (diff < min_diff) {
+        min_diff = diff;
+        te10_idx = i;
+      }
     }
   }
 
-  std::cout << "TE10 eigenvalue: " << eigenvalues(te10_idx) << " (expected: " << kc_sq << ")" << std::endl;
+  std::cout << "TE10 eigenvalue: " << eigenvalues(te10_idx)
+            << " (expected: " << kc_sq << ")" << std::endl;
 
   // Create full eigenvector
   Eigen::VectorXd v_te10_real = Eigen::VectorXd::Zero(n);
@@ -137,7 +141,7 @@ int main() {
   }
   v_port_norm = std::sqrt(v_port_norm);
 
-  double source_scale = 1.0 / v_port_norm;  // Normalize port source
+  double source_scale = 1.0 / v_port_norm; // Normalize port source
   for (int e : wp1.edges) {
     if (!bc.dirichlet_edges.count(e)) {
       b(e) = source_scale * v_te10(e);
@@ -173,10 +177,13 @@ int main() {
   // For a traveling wave, proj2/proj1 should be exp(-jβL)
   std::complex<double> ratio = proj2 / proj1;
   double L = 0.05;
-  std::complex<double> expected_ratio = std::exp(std::complex<double>(0, -beta * L));
+  std::complex<double> expected_ratio =
+      std::exp(std::complex<double>(0, -beta * L));
 
-  std::cout << "\nRatio proj2/proj1 = " << ratio << " (|ratio| = " << std::abs(ratio) << ")" << std::endl;
-  std::cout << "Expected ratio = " << expected_ratio << " (|·| = 1)" << std::endl;
+  std::cout << "\nRatio proj2/proj1 = " << ratio
+            << " (|ratio| = " << std::abs(ratio) << ")" << std::endl;
+  std::cout << "Expected ratio = " << expected_ratio << " (|·| = 1)"
+            << std::endl;
 
   // Also check using analytical weights
   std::cout << "\n=== Using Analytical Weights ===" << std::endl;
@@ -197,14 +204,15 @@ int main() {
 
   std::cout << "V1 (analytical weights) = " << V1 << std::endl;
   std::cout << "V2 (analytical weights) = " << V2 << std::endl;
-  std::cout << "V2/V1 = " << V2/V1 << std::endl;
+  std::cout << "V2/V1 = " << V2 / V1 << std::endl;
 
   // Examine solution magnitude along z
   std::cout << "\n=== Solution Magnitude vs Z ===" << std::endl;
 
-  std::map<int, std::pair<double, int>> z_sum;  // z_mm -> (sum|x|, count)
+  std::map<int, std::pair<double, int>> z_sum; // z_mm -> (sum|x|, count)
   for (int e = 0; e < n; ++e) {
-    if (bc.dirichlet_edges.count(e)) continue;
+    if (bc.dirichlet_edges.count(e))
+      continue;
 
     const auto &edge = mesh.edges[e];
     const auto &p0 = mesh.nodes.at(mesh.nodeIndex.at(edge.n0)).xyz;
@@ -218,7 +226,8 @@ int main() {
   std::cout << "z(mm)\tmean|x|" << std::endl;
   for (const auto &kv : z_sum) {
     if (kv.first % 10 == 0 || kv.first == 0 || kv.first == 50) {
-      std::cout << kv.first << "\t" << kv.second.first / kv.second.second << std::endl;
+      std::cout << kv.first << "\t" << kv.second.first / kv.second.second
+                << std::endl;
     }
   }
 

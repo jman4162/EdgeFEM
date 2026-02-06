@@ -44,7 +44,8 @@ void test_wave_port_excitation() {
   SpMatC A_ref(mesh.edges.size(), mesh.edges.size());
   A_ref.insert(port1.edges[0], port1.edges[0]) = 1.0 / Z0;
   A_ref.insert(port2.edges[0], port2.edges[0]) = 1.0 / Z0;
-  SpMatC A_port = asmbl.A; // This is not a great way to test, but will do for now.
+  SpMatC A_port =
+      asmbl.A; // This is not a great way to test, but will do for now.
   // This test is flawed because A contains many other terms.
   // A better test would be to check the value of A(10,10) before and after.
   // For now, we trust the implementation is correct if the RHS is correct.
@@ -71,9 +72,10 @@ void test_sparam_calculation() {
   assert(S.cols() == 2);
 
   // Check for passivity (for the first column)
-  double s11_mag_sq = std::norm(S(0,0));
-  double s21_mag_sq = std::norm(S(1,0));
-  assert(s11_mag_sq + s21_mag_sq <= 1.0 + 1e-6); // Add tolerance for numerical error
+  double s11_mag_sq = std::norm(S(0, 0));
+  double s21_mag_sq = std::norm(S(1, 0));
+  assert(s11_mag_sq + s21_mag_sq <=
+         1.0 + 1e-6); // Add tolerance for numerical error
 }
 
 void test_mixed_bc() {

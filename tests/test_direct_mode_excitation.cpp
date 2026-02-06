@@ -2,12 +2,12 @@
 // Instead of using port weights, directly excite the 3D FEM eigenvector
 // and compute S-parameters from the overlap integral
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <unordered_set>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <unordered_set>
 
 using namespace edgefem;
 
@@ -17,14 +17,10 @@ constexpr double eps0 = 1.0 / (mu0 * c0 * c0);
 
 // Compute the overlap integral of two edge fields on a port surface
 // Returns ∫∫_S (E1 × H2*) · n dS which represents power flow
-std::complex<double> compute_power_overlap(
-    const Mesh &mesh,
-    const PortSurfaceMesh &port_surf,
-    const Eigen::VectorXcd &E1,
-    const Eigen::VectorXcd &E2,
-    const BC &bc,
-    double omega,
-    double mu) {
+std::complex<double>
+compute_power_overlap(const Mesh &mesh, const PortSurfaceMesh &port_surf,
+                      const Eigen::VectorXcd &E1, const Eigen::VectorXcd &E2,
+                      const BC &bc, double omega, double mu) {
 
   std::complex<double> overlap = 0.0;
 
@@ -35,7 +31,8 @@ std::complex<double> compute_power_overlap(
 
     for (int e = 0; e < 3; ++e) {
       int edge_idx = tri3d.edges[e];
-      if (bc.dirichlet_edges.count(edge_idx)) continue;
+      if (bc.dirichlet_edges.count(edge_idx))
+        continue;
 
       // Get edge length
       const auto &edge = mesh.edges.at(edge_idx);
@@ -65,15 +62,16 @@ int main() {
 
   RectWaveguidePort dims{0.02286, 0.01016};
   double kc = M_PI / dims.a;
-  double beta = std::sqrt(k0*k0 - kc*kc);
-  double Z0_te10 = omega * mu0 / beta;  // TE mode impedance
+  double beta = std::sqrt(k0 * k0 - kc * kc);
+  double Z0_te10 = omega * mu0 / beta; // TE mode impedance
 
   std::cout << "=== Direct Eigenmode Excitation Test ===" << std::endl;
-  std::cout << "Frequency: " << freq/1e9 << " GHz" << std::endl;
-  std::cout << "Waveguide length: " << L*1000 << " mm" << std::endl;
+  std::cout << "Frequency: " << freq / 1e9 << " GHz" << std::endl;
+  std::cout << "Waveguide length: " << L * 1000 << " mm" << std::endl;
   std::cout << "TE10 beta = " << beta << " rad/m" << std::endl;
   std::cout << "TE10 Z0 = " << Z0_te10 << " ohms" << std::endl;
-  std::cout << "Expected phase shift: " << -beta*L*180/M_PI << " deg" << std::endl;
+  std::cout << "Expected phase shift: " << -beta * L * 180 / M_PI << " deg"
+            << std::endl;
 
   // Extract port surfaces
   PortSurfaceMesh port1_surf = extract_surface_mesh(mesh, 2);
@@ -99,7 +97,8 @@ int main() {
 
   // Compute 3D FEM eigenvector for TE10 mode
   double kc_sq = kc * kc;
-  Eigen::VectorXd v_te10 = compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
+  Eigen::VectorXd v_te10 =
+      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
 
   std::cout << "\nTE10 eigenvector norm: " << v_te10.norm() << std::endl;
 
@@ -109,7 +108,7 @@ int main() {
 
   for (int e : port1_edges) {
     if (!bc.dirichlet_edges.count(e)) {
-      v1(e) = std::complex<double>(0.0, v_te10(e));  // Multiply by j for TE mode
+      v1(e) = std::complex<double>(0.0, v_te10(e)); // Multiply by j for TE mode
     }
   }
   for (int e : port2_edges) {
@@ -123,8 +122,10 @@ int main() {
   std::cout << "||v1|| = " << v1_norm << ", ||v2|| = " << v2_norm << std::endl;
 
   // Normalize eigenvector for unit amplitude
-  if (v1_norm > 1e-10) v1 /= v1_norm;
-  if (v2_norm > 1e-10) v2 /= v2_norm;
+  if (v1_norm > 1e-10)
+    v1 /= v1_norm;
+  if (v2_norm > 1e-10)
+    v2 /= v2_norm;
 
   // Assemble Maxwell system without ports
   MaxwellParams p;
@@ -169,7 +170,7 @@ int main() {
   // Port voltages via eigenvector overlap
   std::complex<double> V1 = v1.dot(res.x);
   std::complex<double> V2 = v2.dot(res.x);
-  std::complex<double> V_inc = v1.dot(v1);  // = 1 since normalized
+  std::complex<double> V_inc = v1.dot(v1); // = 1 since normalized
 
   std::cout << "\nV1 = " << V1 << std::endl;
   std::cout << "V2 = " << V2 << std::endl;
@@ -180,16 +181,19 @@ int main() {
   std::complex<double> S21 = V2 / V_inc;
 
   std::cout << "\n=== S-Parameters ===" << std::endl;
-  std::cout << "S11 = " << S11 << " (|S11| = " << std::abs(S11) << ")" << std::endl;
+  std::cout << "S11 = " << S11 << " (|S11| = " << std::abs(S11) << ")"
+            << std::endl;
   std::cout << "S21 = " << S21 << " (|S21| = " << std::abs(S21)
-            << ", phase = " << std::arg(S21)*180/M_PI << "°)" << std::endl;
+            << ", phase = " << std::arg(S21) * 180 / M_PI << "°)" << std::endl;
 
   // Expected
-  std::complex<double> S21_expected = std::exp(std::complex<double>(0, -beta * L));
+  std::complex<double> S21_expected =
+      std::exp(std::complex<double>(0, -beta * L));
   std::cout << "\nExpected:" << std::endl;
   std::cout << "S11 = 0" << std::endl;
-  std::cout << "S21 = " << S21_expected << " (|S21| = 1, phase = "
-            << std::arg(S21_expected)*180/M_PI << "°)" << std::endl;
+  std::cout << "S21 = " << S21_expected
+            << " (|S21| = 1, phase = " << std::arg(S21_expected) * 180 / M_PI
+            << "°)" << std::endl;
 
   // Passivity check
   double passivity = std::norm(S11) + std::norm(S21);
@@ -213,7 +217,8 @@ int main() {
     std::complex<double> E_sum = 0.0;
     int count = 0;
     for (size_t i = 0; i < mesh.edges.size(); ++i) {
-      if (bc.dirichlet_edges.count(i)) continue;
+      if (bc.dirichlet_edges.count(i))
+        continue;
 
       const auto &edge = mesh.edges[i];
       const auto &p0 = mesh.nodes.at(mesh.nodeIndex.at(edge.n0)).xyz;
@@ -228,8 +233,10 @@ int main() {
 
     if (count > 0) {
       E_sum /= count;
-      std::cout << "z=" << z_target*1000 << "mm: avg |E| = " << std::abs(E_sum)
-                << ", phase = " << std::arg(E_sum)*180/M_PI << "°" << std::endl;
+      std::cout << "z=" << z_target * 1000
+                << "mm: avg |E| = " << std::abs(E_sum)
+                << ", phase = " << std::arg(E_sum) * 180 / M_PI << "°"
+                << std::endl;
     }
   }
 

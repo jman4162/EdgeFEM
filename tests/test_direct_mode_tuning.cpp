@@ -1,12 +1,12 @@
 // Tune the direct eigenmode excitation for better S-parameter accuracy
 // Try different ABC coefficients and normalization approaches
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <unordered_set>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <unordered_set>
 
 using namespace edgefem;
 
@@ -22,10 +22,9 @@ struct TestResult {
   double passivity;
 };
 
-void run_test(const Mesh &mesh, const BC &bc,
-              const PortSurfaceMesh &port1_surf, const PortSurfaceMesh &port2_surf,
-              const Eigen::VectorXcd &v1, const Eigen::VectorXcd &v2,
-              double omega, double beta,
+void run_test(const Mesh &mesh, const BC &bc, const PortSurfaceMesh &port1_surf,
+              const PortSurfaceMesh &port2_surf, const Eigen::VectorXcd &v1,
+              const Eigen::VectorXcd &v2, double omega, double beta,
               double abc_scale, const std::string &name,
               std::vector<TestResult> &results) {
 
@@ -104,12 +103,13 @@ int main() {
 
   RectWaveguidePort dims{0.02286, 0.01016};
   double kc = M_PI / dims.a;
-  double beta = std::sqrt(k0*k0 - kc*kc);
+  double beta = std::sqrt(k0 * k0 - kc * kc);
   double Z0_te10 = omega * mu0 / beta;
 
   std::cout << "=== ABC Coefficient Tuning Test ===" << std::endl;
   std::cout << "Target: |S11| < 0.1, |S21| > 0.95" << std::endl;
-  std::cout << "Expected phase(S21) = " << -beta*L*180/M_PI << "°" << std::endl;
+  std::cout << "Expected phase(S21) = " << -beta * L * 180 / M_PI << "°"
+            << std::endl;
   std::cout << std::endl;
 
   // Extract port surfaces
@@ -118,7 +118,8 @@ int main() {
 
   // Compute eigenvector
   double kc_sq = kc * kc;
-  Eigen::VectorXd v_te10 = compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
+  Eigen::VectorXd v_te10 =
+      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
 
   // Create port eigenvectors (normalized)
   Eigen::VectorXcd v1 = Eigen::VectorXcd::Zero(m);
@@ -151,48 +152,50 @@ int main() {
 
   double v1_norm = v1.norm();
   double v2_norm = v2.norm();
-  if (v1_norm > 1e-10) v1 /= v1_norm;
-  if (v2_norm > 1e-10) v2 /= v2_norm;
+  if (v1_norm > 1e-10)
+    v1 /= v1_norm;
+  if (v2_norm > 1e-10)
+    v2 /= v2_norm;
 
   std::vector<TestResult> results;
 
   // Try different ABC scaling factors
-  for (double scale : {0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0, 10.0}) {
+  for (double scale :
+       {0.1, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0, 10.0}) {
     std::string name = "ABC scale=" + std::to_string(scale);
-    run_test(mesh, bc, port1_surf, port2_surf, v1, v2, omega, beta, scale, name, results);
+    run_test(mesh, bc, port1_surf, port2_surf, v1, v2, omega, beta, scale, name,
+             results);
   }
 
   // Try with frequency-normalized ABC: j*beta/k0
   for (double scale : {0.5, 1.0, 2.0}) {
     double abc_eff = beta / k0 * scale;
     std::string name = "ABC beta/k0 scale=" + std::to_string(scale);
-    run_test(mesh, bc, port1_surf, port2_surf, v1, v2, omega, beta, abc_eff/beta, name, results);
+    run_test(mesh, bc, port1_surf, port2_surf, v1, v2, omega, beta,
+             abc_eff / beta, name, results);
   }
 
   // Try impedance-matched ABC: j*beta*sqrt(Z0/eta0)
   double imp_scale = std::sqrt(Z0_te10 / eta0);
   for (double scale : {0.5, 1.0, 2.0}) {
     std::string name = "ABC imp-match scale=" + std::to_string(scale);
-    run_test(mesh, bc, port1_surf, port2_surf, v1, v2, omega, beta, imp_scale*scale, name, results);
+    run_test(mesh, bc, port1_surf, port2_surf, v1, v2, omega, beta,
+             imp_scale * scale, name, results);
   }
 
   // Print results
-  std::cout << std::setw(30) << std::left << "Configuration"
-            << std::setw(12) << "|S11|"
-            << std::setw(12) << "|S21|"
-            << std::setw(12) << "phase(S21)"
-            << std::setw(12) << "passivity"
-            << std::endl;
+  std::cout << std::setw(30) << std::left << "Configuration" << std::setw(12)
+            << "|S11|" << std::setw(12) << "|S21|" << std::setw(12)
+            << "phase(S21)" << std::setw(12) << "passivity" << std::endl;
   std::cout << std::string(78, '-') << std::endl;
 
   for (const auto &r : results) {
     double phase_deg = std::arg(r.S21) * 180.0 / M_PI;
-    std::cout << std::setw(30) << std::left << r.name
-              << std::setw(12) << std::abs(r.S11)
-              << std::setw(12) << std::abs(r.S21)
-              << std::setw(12) << phase_deg
-              << std::setw(12) << r.passivity;
-    if (std::abs(r.S11) < 0.1 && std::abs(r.S21) > 0.95 && r.passivity <= 1.01) {
+    std::cout << std::setw(30) << std::left << r.name << std::setw(12)
+              << std::abs(r.S11) << std::setw(12) << std::abs(r.S21)
+              << std::setw(12) << phase_deg << std::setw(12) << r.passivity;
+    if (std::abs(r.S11) < 0.1 && std::abs(r.S21) > 0.95 &&
+        r.passivity <= 1.01) {
       std::cout << " ✓ PASS";
     }
     std::cout << std::endl;
@@ -202,9 +205,11 @@ int main() {
   double best_metric = 0;
   std::string best_name;
   for (const auto &r : results) {
-    // Metric: maximize |S21| while minimizing |S11|, penalize passivity violation
+    // Metric: maximize |S21| while minimizing |S11|, penalize passivity
+    // violation
     double metric = std::abs(r.S21) - std::abs(r.S11);
-    if (r.passivity > 1.01) metric -= (r.passivity - 1.0);
+    if (r.passivity > 1.01)
+      metric -= (r.passivity - 1.0);
     if (metric > best_metric) {
       best_metric = metric;
       best_name = r.name;

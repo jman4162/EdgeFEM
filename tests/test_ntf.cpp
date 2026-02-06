@@ -1,6 +1,6 @@
 #include <cassert>
-#include <vector>
 #include <cmath>
+#include <vector>
 
 #include "edgefem/post/ntf.hpp"
 

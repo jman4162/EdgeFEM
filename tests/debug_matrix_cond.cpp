@@ -1,11 +1,11 @@
 // Debug FEM matrix conditioning and eigenvalue structure
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <Eigen/Dense>
-#include <Eigen/Eigenvalues>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
 
 using namespace edgefem;
 
@@ -76,7 +76,8 @@ int main() {
 
   // Compute some eigenvalues of the system matrix
   // This is expensive but informative
-  std::cout << "\nComputing eigenvalues (this may take a moment)..." << std::endl;
+  std::cout << "\nComputing eigenvalues (this may take a moment)..."
+            << std::endl;
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(A_free);
 
   if (es.info() != Eigen::Success) {
@@ -87,7 +88,8 @@ int main() {
   auto eigenvalues = es.eigenvalues();
 
   // Sort and display
-  std::vector<double> sorted_eigs(eigenvalues.data(), eigenvalues.data() + n_free);
+  std::vector<double> sorted_eigs(eigenvalues.data(),
+                                  eigenvalues.data() + n_free);
   std::sort(sorted_eigs.begin(), sorted_eigs.end());
 
   std::cout << "\nSmallest 10 eigenvalues:" << std::endl;
@@ -107,21 +109,26 @@ int main() {
   // Count positive, negative, and near-zero eigenvalues
   int n_pos = 0, n_neg = 0, n_zero = 0;
   for (double ev : sorted_eigs) {
-    if (ev > 1e-6) n_pos++;
-    else if (ev < -1e-6) n_neg++;
-    else n_zero++;
+    if (ev > 1e-6)
+      n_pos++;
+    else if (ev < -1e-6)
+      n_neg++;
+    else
+      n_zero++;
   }
-  std::cout << "\nEigenvalue signs: " << n_pos << " positive, " << n_neg << " negative, "
-            << n_zero << " near-zero" << std::endl;
+  std::cout << "\nEigenvalue signs: " << n_pos << " positive, " << n_neg
+            << " negative, " << n_zero << " near-zero" << std::endl;
 
   // Expected: For wave propagation at 10 GHz, we need some negative eigenvalues
   // (modes below cutoff) and some positive (modes above cutoff)
   // If all positive, system is in quasi-static regime
   if (n_neg == 0) {
     std::cout << "\nWARNING: No negative eigenvalues found!" << std::endl;
-    std::cout << "This means the system is positive definite, indicating" << std::endl;
+    std::cout << "This means the system is positive definite, indicating"
+              << std::endl;
     std::cout << "no propagating modes at this frequency." << std::endl;
-    std::cout << "Expected negative eigenvalues for modes with kc < k0." << std::endl;
+    std::cout << "Expected negative eigenvalues for modes with kc < k0."
+              << std::endl;
   }
 
   // What k0² eigenvalue would we need for TE10 mode?
@@ -131,8 +138,10 @@ int main() {
   std::cout << "\nTE10 mode kc² = " << kc_te10_sq << std::endl;
   std::cout << "Operating k0² = " << k0_sq << std::endl;
   std::cout << "For FEM matrix A = K - k0²M:" << std::endl;
-  std::cout << "  Need eigenvalue of (K,M) near " << k0_sq << " for resonance" << std::endl;
-  std::cout << "  Equivalently, need A eigenvalue near 0 for k² = k0²" << std::endl;
+  std::cout << "  Need eigenvalue of (K,M) near " << k0_sq << " for resonance"
+            << std::endl;
+  std::cout << "  Equivalently, need A eigenvalue near 0 for k² = k0²"
+            << std::endl;
 
   // Find eigenvalue closest to zero
   double closest_to_zero = 1e100;

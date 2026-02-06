@@ -1,15 +1,15 @@
 // Test if FEM eigenvalues match expected waveguide mode cutoffs
-// The generalized eigenvalue problem K*x = λ*M*x gives λ = kc² (cutoff wavenumber squared)
-// For WR-90: TE10 has kc = π/a = 137.4, so kc² = 18886
+// The generalized eigenvalue problem K*x = λ*M*x gives λ = kc² (cutoff
+// wavenumber squared) For WR-90: TE10 has kc = π/a = 137.4, so kc² = 18886
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <algorithm>
+#include "edgefem/maxwell.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
-#include "edgefem/maxwell.hpp"
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <vector>
 
 using namespace edgefem;
 
@@ -25,15 +25,17 @@ int main() {
   double a = 0.02286, b = 0.01016, L = 0.05;
 
   std::cout << "=== Expected Waveguide Mode Cutoffs ===" << std::endl;
-  std::cout << "WR-90: a=" << a*1000 << "mm, b=" << b*1000 << "mm, L=" << L*1000 << "mm" << std::endl;
+  std::cout << "WR-90: a=" << a * 1000 << "mm, b=" << b * 1000
+            << "mm, L=" << L * 1000 << "mm" << std::endl;
 
   // TE_mn modes: kc = π*sqrt((m/a)² + (n/b)²)
   // TM_mn modes: same formula (but TM01/TM10 don't exist for rect WG)
-  std::vector<std::tuple<int,int,double,std::string>> modes;
+  std::vector<std::tuple<int, int, double, std::string>> modes;
   for (int m = 0; m <= 3; ++m) {
     for (int n = 0; n <= 3; ++n) {
-      if (m == 0 && n == 0) continue;  // No TE00 or TM00
-      double kc = M_PI * std::sqrt(std::pow(m/a, 2) + std::pow(n/b, 2));
+      if (m == 0 && n == 0)
+        continue; // No TE00 or TM00
+      double kc = M_PI * std::sqrt(std::pow(m / a, 2) + std::pow(n / b, 2));
       double fc = kc * c0 / (2 * M_PI);
       std::string name = "TE" + std::to_string(m) + std::to_string(n);
       modes.push_back({m, n, fc, name});
@@ -46,37 +48,45 @@ int main() {
     }
   }
 
-  std::sort(modes.begin(), modes.end(),
-            [](const auto& a, const auto& b) { return std::get<2>(a) < std::get<2>(b); });
+  std::sort(modes.begin(), modes.end(), [](const auto &a, const auto &b) {
+    return std::get<2>(a) < std::get<2>(b);
+  });
 
   std::cout << "\nFirst 10 modes by cutoff frequency:" << std::endl;
   for (int i = 0; i < std::min(10, (int)modes.size()); ++i) {
-    auto& [m, n, fc, name] = modes[i];
-    double kc = 2*M_PI*fc/c0;
-    std::cout << "  " << name << ": fc = " << fc/1e9 << " GHz, kc² = " << kc*kc << std::endl;
+    auto &[m, n, fc, name] = modes[i];
+    double kc = 2 * M_PI * fc / c0;
+    std::cout << "  " << name << ": fc = " << fc / 1e9
+              << " GHz, kc² = " << kc * kc << std::endl;
   }
 
   // Also compute cavity resonances (for waveguide with PEC at both ends)
   std::cout << "\n=== Expected Cavity Resonances ===" << std::endl;
-  std::vector<std::tuple<int,int,int,double,std::string>> cavity_modes;
+  std::vector<std::tuple<int, int, int, double, std::string>> cavity_modes;
   for (int m = 0; m <= 3; ++m) {
     for (int n = 0; n <= 3; ++n) {
       for (int p = 0; p <= 5; ++p) {
-        if (m == 0 && n == 0) continue;
-        double f = (c0/2) * std::sqrt(std::pow(m/a, 2) + std::pow(n/b, 2) + std::pow(p/L, 2));
-        std::string name = "TE" + std::to_string(m) + std::to_string(n) + std::to_string(p);
+        if (m == 0 && n == 0)
+          continue;
+        double f =
+            (c0 / 2) * std::sqrt(std::pow(m / a, 2) + std::pow(n / b, 2) +
+                                 std::pow(p / L, 2));
+        std::string name =
+            "TE" + std::to_string(m) + std::to_string(n) + std::to_string(p);
         cavity_modes.push_back({m, n, p, f, name});
       }
     }
   }
 
   std::sort(cavity_modes.begin(), cavity_modes.end(),
-            [](const auto& a, const auto& b) { return std::get<3>(a) < std::get<3>(b); });
+            [](const auto &a, const auto &b) {
+              return std::get<3>(a) < std::get<3>(b);
+            });
 
   std::cout << "First 10 cavity modes:" << std::endl;
   for (int i = 0; i < std::min(10, (int)cavity_modes.size()); ++i) {
-    auto& [m, n, p, f, name] = cavity_modes[i];
-    std::cout << "  " << name << ": f = " << f/1e9 << " GHz" << std::endl;
+    auto &[m, n, p, f, name] = cavity_modes[i];
+    std::cout << "  " << name << ": f = " << f / 1e9 << " GHz" << std::endl;
   }
 
   // Assemble K and M matrices separately
@@ -88,10 +98,10 @@ int main() {
   auto asmbl_low = assemble_maxwell(mesh, p_low, bc, {}, -1);
 
   // Moderate frequency to get K - k0²M, then extract M
-  double f_test = 1e9;  // 1 GHz
-  double k0_test = 2*M_PI*f_test/c0;
+  double f_test = 1e9; // 1 GHz
+  double k0_test = 2 * M_PI * f_test / c0;
   MaxwellParams p_test;
-  p_test.omega = 2*M_PI*f_test;
+  p_test.omega = 2 * M_PI * f_test;
   auto asmbl_test = assemble_maxwell(mesh, p_test, bc, {}, -1);
 
   int n = asmbl_low.A.rows();
@@ -125,7 +135,8 @@ int main() {
   std::cout << "M trace: " << M_free.trace() << std::endl;
 
   // Solve generalized eigenvalue problem K*x = λ*M*x
-  std::cout << "\nComputing generalized eigenvalues (K*x = λ*M*x)..." << std::endl;
+  std::cout << "\nComputing generalized eigenvalues (K*x = λ*M*x)..."
+            << std::endl;
 
   Eigen::GeneralizedSelfAdjointEigenSolver<Eigen::MatrixXd> ges(K_free, M_free);
 
@@ -139,7 +150,7 @@ int main() {
   // Sort and filter positive eigenvalues (these are kc² values)
   std::vector<double> kc_squared;
   for (int i = 0; i < eigenvalues.size(); ++i) {
-    if (eigenvalues(i) > 100) {  // Filter out near-zero (null space)
+    if (eigenvalues(i) > 100) { // Filter out near-zero (null space)
       kc_squared.push_back(eigenvalues(i));
     }
   }
@@ -162,16 +173,26 @@ int main() {
     double fc = kc * c0 / (2 * M_PI);
 
     std::string expected = "";
-    if (std::abs(kc_sq - kc_te10_sq) / kc_te10_sq < 0.1) expected = "~TE10";
-    else if (std::abs(kc_sq - kc_te20_sq) / kc_te20_sq < 0.1) expected = "~TE20";
-    else if (std::abs(kc_sq - kc_te01_sq) / kc_te01_sq < 0.1) expected = "~TE01";
+    if (std::abs(kc_sq - kc_te10_sq) / kc_te10_sq < 0.1)
+      expected = "~TE10";
+    else if (std::abs(kc_sq - kc_te20_sq) / kc_te20_sq < 0.1)
+      expected = "~TE20";
+    else if (std::abs(kc_sq - kc_te01_sq) / kc_te01_sq < 0.1)
+      expected = "~TE01";
 
-    std::cout << std::setw(12) << kc_sq << "  " << std::setw(10) << fc/1e9 << "  " << expected << std::endl;
+    std::cout << std::setw(12) << kc_sq << "  " << std::setw(10) << fc / 1e9
+              << "  " << expected << std::endl;
   }
 
-  std::cout << "\nExpected TE10: kc² = " << kc_te10_sq << ", fc = " << kc_te10*c0/(2*M_PI)/1e9 << " GHz" << std::endl;
-  std::cout << "Expected TE20: kc² = " << kc_te20_sq << ", fc = " << kc_te20*c0/(2*M_PI)/1e9 << " GHz" << std::endl;
-  std::cout << "Expected TE01: kc² = " << kc_te01_sq << ", fc = " << kc_te01*c0/(2*M_PI)/1e9 << " GHz" << std::endl;
+  std::cout << "\nExpected TE10: kc² = " << kc_te10_sq
+            << ", fc = " << kc_te10 * c0 / (2 * M_PI) / 1e9 << " GHz"
+            << std::endl;
+  std::cout << "Expected TE20: kc² = " << kc_te20_sq
+            << ", fc = " << kc_te20 * c0 / (2 * M_PI) / 1e9 << " GHz"
+            << std::endl;
+  std::cout << "Expected TE01: kc² = " << kc_te01_sq
+            << ", fc = " << kc_te01 * c0 / (2 * M_PI) / 1e9 << " GHz"
+            << std::endl;
 
   // Check if TE10 mode is captured
   double min_diff = 1e100;
@@ -179,10 +200,11 @@ int main() {
     min_diff = std::min(min_diff, std::abs(kc_sq - kc_te10_sq));
   }
   std::cout << "\nClosest FEM eigenvalue to TE10 kc²: diff = " << min_diff
-            << " (" << min_diff/kc_te10_sq*100 << "% error)" << std::endl;
+            << " (" << min_diff / kc_te10_sq * 100 << "% error)" << std::endl;
 
   if (min_diff / kc_te10_sq > 0.1) {
-    std::cout << "WARNING: FEM may not be capturing TE10 mode accurately!" << std::endl;
+    std::cout << "WARNING: FEM may not be capturing TE10 mode accurately!"
+              << std::endl;
   } else {
     std::cout << "TE10 mode is captured with acceptable accuracy." << std::endl;
   }

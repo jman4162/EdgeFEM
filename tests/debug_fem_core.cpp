@@ -18,7 +18,7 @@ namespace {
 constexpr double c0 = 299792458.0;
 constexpr double mu0 = 4.0 * M_PI * 1e-7;
 constexpr double eps0 = 1.0 / (mu0 * c0 * c0);
-}
+} // namespace
 
 int main() {
   std::cout << std::setprecision(8);
@@ -28,9 +28,11 @@ int main() {
   std::cout << "c0 = " << c0 << " m/s" << std::endl;
   std::cout << "mu0 = " << mu0 << " H/m" << std::endl;
   std::cout << "eps0 = " << eps0 << " F/m" << std::endl;
-  std::cout << "mu0 * c0 = " << mu0 * c0 << " (eta0, should be ~377)" << std::endl;
-  std::cout << "1/(mu0*eps0) = " << 1.0/(mu0*eps0) << " (should be c0²)" << std::endl;
-  std::cout << "c0² = " << c0*c0 << std::endl;
+  std::cout << "mu0 * c0 = " << mu0 * c0 << " (eta0, should be ~377)"
+            << std::endl;
+  std::cout << "1/(mu0*eps0) = " << 1.0 / (mu0 * eps0) << " (should be c0²)"
+            << std::endl;
+  std::cout << "c0² = " << c0 * c0 << std::endl;
   std::cout << std::endl;
 
   // At 10 GHz
@@ -42,8 +44,8 @@ int main() {
   std::cout << "=== At 10 GHz ===" << std::endl;
   std::cout << "omega = " << omega << " rad/s" << std::endl;
   std::cout << "k0 = " << k0 << " rad/m" << std::endl;
-  std::cout << "k0² = " << k0*k0 << std::endl;
-  std::cout << "lambda = " << lambda*1000 << " mm" << std::endl;
+  std::cout << "k0² = " << k0 * k0 << std::endl;
+  std::cout << "lambda = " << lambda * 1000 << " mm" << std::endl;
   std::cout << std::endl;
 
   // Element analysis for different sizes
@@ -52,13 +54,10 @@ int main() {
 
   for (double h : sizes) {
     std::array<Eigen::Vector3d, 4> tet = {
-        Eigen::Vector3d(0.0, 0.0, 0.0),
-        Eigen::Vector3d(h, 0.0, 0.0),
-        Eigen::Vector3d(0.0, h, 0.0),
-        Eigen::Vector3d(0.0, 0.0, h)
-    };
+        Eigen::Vector3d(0.0, 0.0, 0.0), Eigen::Vector3d(h, 0.0, 0.0),
+        Eigen::Vector3d(0.0, h, 0.0), Eigen::Vector3d(0.0, 0.0, h)};
 
-    double V = h*h*h / 6.0;  // Volume of regular tet
+    double V = h * h * h / 6.0; // Volume of regular tet
 
     auto K = whitney_curl_curl_matrix(tet);
     auto M = whitney_mass_matrix(tet);
@@ -74,9 +73,10 @@ int main() {
     double K_over_M = K_trace / M_trace;
     double k0_sq = k0 * k0;
 
-    std::cout << "h = " << h*1000 << " mm:" << std::endl;
+    std::cout << "h = " << h * 1000 << " mm:" << std::endl;
     std::cout << "  V = " << V << " m³" << std::endl;
-    std::cout << "  K_trace = " << K_trace << ", M_trace = " << M_trace << std::endl;
+    std::cout << "  K_trace = " << K_trace << ", M_trace = " << M_trace
+              << std::endl;
     std::cout << "  K/M = " << K_over_M << std::endl;
     std::cout << "  k0²*M_trace = " << k0_sq * M_trace << std::endl;
     std::cout << "  K/(k0²*M) = " << K_trace / (k0_sq * M_trace) << std::endl;
@@ -92,7 +92,8 @@ int main() {
       }
     }
     double f_min = std::sqrt(lambda_min) * c0 / (2 * M_PI);
-    std::cout << "  Min element eigenfreq: " << f_min/1e9 << " GHz" << std::endl;
+    std::cout << "  Min element eigenfreq: " << f_min / 1e9 << " GHz"
+              << std::endl;
     std::cout << std::endl;
   }
 
@@ -117,22 +118,22 @@ int main() {
   std::cout << "=== Scaling Analysis ===" << std::endl;
   double h1 = 0.003, h2 = 0.001;
   std::array<Eigen::Vector3d, 4> tet1 = {
-      Eigen::Vector3d(0,0,0), Eigen::Vector3d(h1,0,0),
-      Eigen::Vector3d(0,h1,0), Eigen::Vector3d(0,0,h1)
-  };
+      Eigen::Vector3d(0, 0, 0), Eigen::Vector3d(h1, 0, 0),
+      Eigen::Vector3d(0, h1, 0), Eigen::Vector3d(0, 0, h1)};
   std::array<Eigen::Vector3d, 4> tet2 = {
-      Eigen::Vector3d(0,0,0), Eigen::Vector3d(h2,0,0),
-      Eigen::Vector3d(0,h2,0), Eigen::Vector3d(0,0,h2)
-  };
+      Eigen::Vector3d(0, 0, 0), Eigen::Vector3d(h2, 0, 0),
+      Eigen::Vector3d(0, h2, 0), Eigen::Vector3d(0, 0, h2)};
 
   auto K1 = whitney_curl_curl_matrix(tet1);
   auto K2 = whitney_curl_curl_matrix(tet2);
   auto M1 = whitney_mass_matrix(tet1);
   auto M2 = whitney_mass_matrix(tet2);
 
-  std::cout << "h1/h2 = " << h1/h2 << std::endl;
-  std::cout << "K1(0,0)/K2(0,0) = " << K1(0,0)/K2(0,0) << " (expected h2/h1 = " << h2/h1 << ")" << std::endl;
-  std::cout << "M1(0,0)/M2(0,0) = " << M1(0,0)/M2(0,0) << " (expected h1/h2 = " << h1/h2 << ")" << std::endl;
+  std::cout << "h1/h2 = " << h1 / h2 << std::endl;
+  std::cout << "K1(0,0)/K2(0,0) = " << K1(0, 0) / K2(0, 0)
+            << " (expected h2/h1 = " << h2 / h1 << ")" << std::endl;
+  std::cout << "M1(0,0)/M2(0,0) = " << M1(0, 0) / M2(0, 0)
+            << " (expected h1/h2 = " << h1 / h2 << ")" << std::endl;
 
   // So K scales as 1/h (confirmed: 3mm/1mm = 3, K ratio = 0.333)
   // And M scales as h (confirmed: 3mm/1mm = 3, M ratio = 3)
@@ -155,16 +156,16 @@ int main() {
   Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");
   BC bc = build_edge_pec(mesh, 1);
 
-  std::cout << "Mesh: " << mesh.nodes.size() << " nodes, "
-            << mesh.edges.size() << " edges, "
-            << mesh.tets.size() << " tets" << std::endl;
+  std::cout << "Mesh: " << mesh.nodes.size() << " nodes, " << mesh.edges.size()
+            << " edges, " << mesh.tets.size() << " tets" << std::endl;
   std::cout << "PEC edges: " << bc.dirichlet_edges.size() << std::endl;
-  std::cout << "Free edges: " << mesh.edges.size() - bc.dirichlet_edges.size() << std::endl;
+  std::cout << "Free edges: " << mesh.edges.size() - bc.dirichlet_edges.size()
+            << std::endl;
 
   // Check mesh element sizes
   double min_vol = 1e10, max_vol = 0;
   double total_vol = 0;
-  for (const auto& tet : mesh.tets) {
+  for (const auto &tet : mesh.tets) {
     std::array<Eigen::Vector3d, 4> X;
     for (int i = 0; i < 4; ++i) {
       int idx = mesh.nodeIndex.at(tet.conn[i]);
@@ -180,12 +181,14 @@ int main() {
     total_vol += V;
   }
   double avg_vol = total_vol / mesh.tets.size();
-  double avg_h = std::cbrt(6.0 * avg_vol);  // Characteristic length
+  double avg_h = std::cbrt(6.0 * avg_vol); // Characteristic length
 
   std::cout << "Element volumes: min=" << min_vol << ", max=" << max_vol
             << ", avg=" << avg_vol << std::endl;
-  std::cout << "Characteristic element size h ≈ " << avg_h*1000 << " mm" << std::endl;
-  std::cout << "Elements per wavelength (at 10 GHz): " << lambda / avg_h << std::endl;
+  std::cout << "Characteristic element size h ≈ " << avg_h * 1000 << " mm"
+            << std::endl;
+  std::cout << "Elements per wavelength (at 10 GHz): " << lambda / avg_h
+            << std::endl;
 
   // The real issue: Let's check the port formulation
   std::cout << "\n=== Port Weight Analysis ===" << std::endl;
@@ -193,20 +196,22 @@ int main() {
   // Check WR-90 port dimensions
   double WG_A = 0.02286, WG_B = 0.01016;
   double fc = c0 / (2 * WG_A);
-  double beta = k0 * std::sqrt(1.0 - std::pow(fc/freq, 2));
-  double Z0 = (mu0 * c0) / std::sqrt(1.0 - std::pow(fc/freq, 2));
+  double beta = k0 * std::sqrt(1.0 - std::pow(fc / freq, 2));
+  double Z0 = (mu0 * c0) / std::sqrt(1.0 - std::pow(fc / freq, 2));
 
-  std::cout << "WR-90: a=" << WG_A*1000 << "mm, b=" << WG_B*1000 << "mm" << std::endl;
-  std::cout << "fc = " << fc/1e9 << " GHz" << std::endl;
+  std::cout << "WR-90: a=" << WG_A * 1000 << "mm, b=" << WG_B * 1000 << "mm"
+            << std::endl;
+  std::cout << "fc = " << fc / 1e9 << " GHz" << std::endl;
   std::cout << "beta = " << beta << " rad/m" << std::endl;
   std::cout << "Z0 = " << Z0 << " ohm" << std::endl;
 
   // Port area
   double port_area = WG_A * WG_B;
-  std::cout << "Port area = " << port_area*1e6 << " mm²" << std::endl;
+  std::cout << "Port area = " << port_area * 1e6 << " mm²" << std::endl;
 
   // The port admittance added to the matrix is Y = ww^H/Z0
-  // For proper matching, we need ||w||² / Z0 to be comparable to matrix diagonal
+  // For proper matching, we need ||w||² / Z0 to be comparable to matrix
+  // diagonal
 
   // Build ports
   RectWaveguidePort dims{WG_A, WG_B};
@@ -238,7 +243,8 @@ int main() {
   avg_diag /= count;
 
   std::cout << "Avg matrix diagonal at port edges: " << avg_diag << std::endl;
-  std::cout << "Y_port / A_diag ratio: " << (w_norm_sq / Z0) / avg_diag << std::endl;
+  std::cout << "Y_port / A_diag ratio: " << (w_norm_sq / Z0) / avg_diag
+            << std::endl;
 
   // For proper port matching, Y_port should be comparable to A_diag
   // If Y_port << A_diag, port has no effect
@@ -247,7 +253,8 @@ int main() {
   // The source term is b = 2*w/sqrt(Z0)
   double source_mag = 2.0 / std::sqrt(Z0);
   std::cout << "\nSource scaling 2/sqrt(Z0) = " << source_mag << std::endl;
-  std::cout << "Source magnitude (first w): " << source_mag * std::abs(wp1.weights[0]) << std::endl;
+  std::cout << "Source magnitude (first w): "
+            << source_mag * std::abs(wp1.weights[0]) << std::endl;
 
   // Expected solution scale for matched port:
   // If A*x = b with Y contribution, and V_inc = sqrt(Z0)
@@ -275,14 +282,15 @@ int main() {
     if (!bc.dirichlet_edges.count(i)) {
       // Check if this edge is interior (not on any surface)
       bool on_surface = false;
-      for (const auto& tri : mesh.tris) {
+      for (const auto &tri : mesh.tris) {
         for (int e = 0; e < 3; ++e) {
           if (tri.edges[e] == i) {
             on_surface = true;
             break;
           }
         }
-        if (on_surface) break;
+        if (on_surface)
+          break;
       }
       if (!on_surface) {
         sample_edge = i;
@@ -293,7 +301,8 @@ int main() {
 
   if (sample_edge >= 0) {
     std::complex<double> A_ii = asmbl.A.coeff(sample_edge, sample_edge);
-    std::cout << "Sample interior edge " << sample_edge << ": A_ii = " << A_ii << std::endl;
+    std::cout << "Sample interior edge " << sample_edge << ": A_ii = " << A_ii
+              << std::endl;
 
     // Estimate K_ii and M_ii contributions
     // A_low = K, A_high = K - k0_high² M
@@ -301,12 +310,13 @@ int main() {
     p_low.omega = 1e-10;
     auto asmbl_low = assemble_maxwell(mesh, p_low, bc, {}, -1);
     double K_ii = std::real(asmbl_low.A.coeff(sample_edge, sample_edge));
-    double M_ii = (K_ii - std::real(A_ii)) / (k0*k0);
+    double M_ii = (K_ii - std::real(A_ii)) / (k0 * k0);
 
     std::cout << "Estimated K_ii = " << K_ii << std::endl;
     std::cout << "Estimated M_ii = " << M_ii << std::endl;
-    std::cout << "k0² * M_ii = " << k0*k0 * M_ii << std::endl;
-    std::cout << "K_ii / (k0² * M_ii) = " << K_ii / (k0*k0 * M_ii) << std::endl;
+    std::cout << "k0² * M_ii = " << k0 * k0 * M_ii << std::endl;
+    std::cout << "K_ii / (k0² * M_ii) = " << K_ii / (k0 * k0 * M_ii)
+              << std::endl;
   }
 
   return 0;

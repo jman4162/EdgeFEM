@@ -22,7 +22,8 @@ void test_tet_volume_positive() {
   double expected = 1.0 / (6.0 * std::sqrt(2.0));
   assert(std::abs(vol - expected) < 1e-10);
 
-  std::cout << "  Volume: " << vol << " (expected: " << expected << ")" << std::endl;
+  std::cout << "  Volume: " << vol << " (expected: " << expected << ")"
+            << std::endl;
 }
 
 void test_tet_volume_inverted() {
@@ -32,12 +33,14 @@ void test_tet_volume_inverted() {
   Eigen::Vector3d p0(0, 0, 0);
   Eigen::Vector3d p1(1, 0, 0);
   Eigen::Vector3d p2(0.5, std::sqrt(3.0) / 2.0, 0);
-  Eigen::Vector3d p3(0.5, std::sqrt(3.0) / 6.0, -std::sqrt(2.0 / 3.0));  // Negated z
+  Eigen::Vector3d p3(0.5, std::sqrt(3.0) / 6.0,
+                     -std::sqrt(2.0 / 3.0)); // Negated z
 
   double vol = tet_volume(p0, p1, p2, p3);
 
   assert(vol < 0);
-  std::cout << "  Inverted tet volume: " << vol << " (correctly negative)" << std::endl;
+  std::cout << "  Inverted tet volume: " << vol << " (correctly negative)"
+            << std::endl;
 }
 
 void test_tet_volume_degenerate() {
@@ -47,12 +50,13 @@ void test_tet_volume_degenerate() {
   Eigen::Vector3d p0(0, 0, 0);
   Eigen::Vector3d p1(1, 0, 0);
   Eigen::Vector3d p2(0, 1, 0);
-  Eigen::Vector3d p3(1, 1, 0);  // Coplanar
+  Eigen::Vector3d p3(1, 1, 0); // Coplanar
 
   double vol = tet_volume(p0, p1, p2, p3);
 
   assert(std::abs(vol) < 1e-15);
-  std::cout << "  Degenerate tet volume: " << vol << " (correctly ~0)" << std::endl;
+  std::cout << "  Degenerate tet volume: " << vol << " (correctly ~0)"
+            << std::endl;
 }
 
 void test_validate_mesh_good() {
@@ -72,7 +76,7 @@ void test_validate_mesh_good() {
   assert(report.is_valid());
   assert(report.min_volume > 0);
   assert(report.max_aspect_ratio > 0);
-  assert(report.max_aspect_ratio < 100);  // Reasonable aspect ratio
+  assert(report.max_aspect_ratio < 100); // Reasonable aspect ratio
 }
 
 void test_aspect_ratio() {

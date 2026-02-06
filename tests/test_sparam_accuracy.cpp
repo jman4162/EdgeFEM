@@ -2,13 +2,13 @@
 // Tests different normalization and ABC strategies to find the best approach
 // Target: |S21| > 0.95, |S11| < 0.1 for matched 50mm WR-90 waveguide
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <string>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
 
 using namespace edgefem;
 
@@ -26,9 +26,8 @@ struct TestResult {
 
 void print_result(const TestResult &r, double expected_phase_deg) {
   double phase_deg = std::arg(r.S21) * 180.0 / M_PI;
-  std::cout << std::setw(35) << std::left << r.name
-            << " |S11|=" << std::setw(8) << std::abs(r.S11)
-            << " |S21|=" << std::setw(8) << std::abs(r.S21)
+  std::cout << std::setw(35) << std::left << r.name << " |S11|=" << std::setw(8)
+            << std::abs(r.S11) << " |S21|=" << std::setw(8) << std::abs(r.S21)
             << " phase=" << std::setw(8) << phase_deg << "°"
             << " pass=" << std::setw(6) << r.passivity;
   if (std::abs(r.S21) > 0.5) {
@@ -48,17 +47,18 @@ int main() {
   double freq = 10e9;
   double omega = 2 * M_PI * freq;
   double k0 = omega / c0;
-  double L = 0.05;  // 50mm waveguide
+  double L = 0.05; // 50mm waveguide
 
-  RectWaveguidePort dims{0.02286, 0.01016};  // WR-90
+  RectWaveguidePort dims{0.02286, 0.01016}; // WR-90
   double kc_te10 = M_PI / dims.a;
-  double beta = std::sqrt(k0*k0 - kc_te10*kc_te10);
+  double beta = std::sqrt(k0 * k0 - kc_te10 * kc_te10);
   double expected_phase_deg = -beta * L * 180.0 / M_PI;
 
   std::cout << "=== WR-90 Waveguide S-Parameter Accuracy Test ===" << std::endl;
-  std::cout << "Frequency: " << freq/1e9 << " GHz" << std::endl;
-  std::cout << "Length: " << L*1000 << " mm" << std::endl;
-  std::cout << "Expected: |S11| ≈ 0, |S21| ≈ 1, phase(S21) = " << expected_phase_deg << "°" << std::endl;
+  std::cout << "Frequency: " << freq / 1e9 << " GHz" << std::endl;
+  std::cout << "Length: " << L * 1000 << " mm" << std::endl;
+  std::cout << "Expected: |S11| ≈ 0, |S21| ≈ 1, phase(S21) = "
+            << expected_phase_deg << "°" << std::endl;
   std::cout << std::endl;
 
   // Extract port surfaces
@@ -76,7 +76,8 @@ int main() {
 
   // Compute 3D FEM eigenvector
   double kc_te10_sq = kc_te10 * kc_te10;
-  Eigen::VectorXd v_te10 = compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_te10_sq);
+  Eigen::VectorXd v_te10 =
+      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_te10_sq);
 
   // Build ports with different weight strategies
   std::vector<TestResult> results;
@@ -105,9 +106,9 @@ int main() {
 
     TestResult r;
     r.name = "Analytical (||w||²=sqrt(Z0))";
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
@@ -115,8 +116,10 @@ int main() {
   // Test 2: Eigenvector weights (baseline)
   // ========================================
   {
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
 
     MaxwellParams p;
     p.omega = omega;
@@ -126,9 +129,9 @@ int main() {
 
     TestResult r;
     r.name = "Eigenvector (||w||²=sqrt(Z0))";
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
@@ -136,8 +139,10 @@ int main() {
   // Test 3: Eigenvector + normalize_port_weights
   // ========================================
   {
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
 
     MaxwellParams p;
     p.omega = omega;
@@ -151,9 +156,9 @@ int main() {
 
     TestResult r;
     r.name = "Eigenvector + norm (wAinvw=Z0/2)";
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
@@ -161,15 +166,16 @@ int main() {
   // Test 4-7: Different ABC types with eigenvector
   // ========================================
   std::vector<std::pair<PortABCType, std::string>> abc_types = {
-    {PortABCType::Beta, "ABC: j*beta"},
-    {PortABCType::BetaNorm, "ABC: j*beta/k0"},
-    {PortABCType::ImpedanceMatch, "ABC: j*beta*sqrt(Z0/eta0)"},
-    {PortABCType::ModalAdmittance, "ABC: j*omega*eps0/Z0"}
-  };
+      {PortABCType::Beta, "ABC: j*beta"},
+      {PortABCType::BetaNorm, "ABC: j*beta/k0"},
+      {PortABCType::ImpedanceMatch, "ABC: j*beta*sqrt(Z0/eta0)"},
+      {PortABCType::ModalAdmittance, "ABC: j*omega*eps0/Z0"}};
 
   for (const auto &abc : abc_types) {
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
 
     MaxwellParams p;
     p.omega = omega;
@@ -181,9 +187,9 @@ int main() {
 
     TestResult r;
     r.name = "Eigenvector + " + abc.second;
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
@@ -191,8 +197,10 @@ int main() {
   // Test 8-11: ABC types + normalization
   // ========================================
   for (const auto &abc : abc_types) {
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
 
     MaxwellParams p;
     p.omega = omega;
@@ -206,9 +214,9 @@ int main() {
 
     TestResult r;
     r.name = "Norm + " + abc.second;
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
@@ -217,8 +225,10 @@ int main() {
   // ========================================
   // Test with ||w||² = Z0 instead of sqrt(Z0)
   {
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
 
     // Scale to ||w||² = Z0
     double target_norm_sq = Z0;
@@ -235,16 +245,18 @@ int main() {
 
     TestResult r;
     r.name = "Eigenvector (||w||²=Z0)";
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
   // Test with ||w||² = 1
   {
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
 
     // Scale to ||w||² = 1
     double scale1 = 1.0 / wp1.weights.norm();
@@ -260,9 +272,9 @@ int main() {
 
     TestResult r;
     r.name = "Eigenvector (||w||²=1)";
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
@@ -270,15 +282,16 @@ int main() {
   // Test 14-17: Different power scales with ABC
   // ========================================
   std::vector<std::pair<double, std::string>> power_scales = {
-    {1.0, "||w||²=1"},
-    {Z0, "||w||²=Z0"},
-    {std::sqrt(Z0), "||w||²=sqrt(Z0)"},
-    {Z0/2.0, "||w||²=Z0/2"}
-  };
+      {1.0, "||w||²=1"},
+      {Z0, "||w||²=Z0"},
+      {std::sqrt(Z0), "||w||²=sqrt(Z0)"},
+      {Z0 / 2.0, "||w||²=Z0/2"}};
 
   for (const auto &ps : power_scales) {
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10, mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10, mode2, bc.dirichlet_edges);
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
 
     // Scale to target ||w||²
     double target = ps.first;
@@ -297,9 +310,9 @@ int main() {
 
     TestResult r;
     r.name = "Eig+ABC " + ps.second;
-    r.S11 = S(0,0);
-    r.S21 = S(1,0);
-    r.passivity = std::norm(S(0,0)) + std::norm(S(1,0));
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
     results.push_back(r);
   }
 
@@ -312,11 +325,13 @@ int main() {
   std::cout << std::string(90, '-') << std::endl;
 
   // Summary
-  std::cout << "\nTarget: |S11| < 0.1, |S21| > 0.95, passivity ≤ 1.01" << std::endl;
+  std::cout << "\nTarget: |S11| < 0.1, |S21| > 0.95, passivity ≤ 1.01"
+            << std::endl;
 
   bool any_pass = false;
   for (const auto &r : results) {
-    if (std::abs(r.S21) > 0.95 && std::abs(r.S11) < 0.1 && r.passivity <= 1.01) {
+    if (std::abs(r.S21) > 0.95 && std::abs(r.S11) < 0.1 &&
+        r.passivity <= 1.01) {
       std::cout << "PASS: " << r.name << std::endl;
       any_pass = true;
     }
@@ -334,7 +349,8 @@ int main() {
         best_name = r.name;
       }
     }
-    std::cout << "Best |S21| = " << best_s21 << " from: " << best_name << std::endl;
+    std::cout << "Best |S21| = " << best_s21 << " from: " << best_name
+              << std::endl;
   }
 
   return any_pass ? 0 : 1;

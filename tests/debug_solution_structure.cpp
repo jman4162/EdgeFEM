@@ -1,14 +1,14 @@
 // Examine the FEM solution structure when exciting with port source
 // Key question: Does the solution look like a traveling wave?
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <map>
-#include <Eigen/Dense>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <Eigen/Dense>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <vector>
 
 using namespace edgefem;
 
@@ -23,7 +23,8 @@ int main() {
   double freq = 10e9;
   double omega = 2 * M_PI * freq;
   double k0 = omega / c0;
-  double beta = std::sqrt(k0*k0 - std::pow(M_PI/0.02286, 2));  // Propagation constant
+  double beta =
+      std::sqrt(k0 * k0 - std::pow(M_PI / 0.02286, 2)); // Propagation constant
 
   RectWaveguidePort dims{0.02286, 0.01016};
 
@@ -39,19 +40,22 @@ int main() {
   WavePort wp2 = build_wave_port(mesh, port2_surf, mode2);
 
   std::cout << "=== Waveguide Parameters ===" << std::endl;
-  std::cout << "Frequency: " << freq/1e9 << " GHz" << std::endl;
+  std::cout << "Frequency: " << freq / 1e9 << " GHz" << std::endl;
   std::cout << "k0 = " << k0 << " rad/m" << std::endl;
-  std::cout << "beta = " << beta << " rad/m (expected: " << std::real(mode1.beta) << ")" << std::endl;
-  std::cout << "Wavelength = " << 2*M_PI/beta*1000 << " mm" << std::endl;
+  std::cout << "beta = " << beta
+            << " rad/m (expected: " << std::real(mode1.beta) << ")"
+            << std::endl;
+  std::cout << "Wavelength = " << 2 * M_PI / beta * 1000 << " mm" << std::endl;
   std::cout << "Waveguide length L = 50 mm" << std::endl;
-  std::cout << "Phase shift beta*L = " << beta*0.05 << " rad = " << beta*0.05*180/M_PI << " deg" << std::endl;
+  std::cout << "Phase shift beta*L = " << beta * 0.05
+            << " rad = " << beta * 0.05 * 180 / M_PI << " deg" << std::endl;
 
   // Solve with ports
   MaxwellParams p;
   p.omega = omega;
 
   std::vector<WavePort> ports{wp1, wp2};
-  auto asmbl = assemble_maxwell(mesh, p, bc, ports, 0);  // Excite port 1
+  auto asmbl = assemble_maxwell(mesh, p, bc, ports, 0); // Excite port 1
   auto res = solve_linear(asmbl.A, asmbl.b, {});
 
   std::cout << "\n=== Solution Statistics ===" << std::endl;
@@ -62,7 +66,8 @@ int main() {
   std::map<double, std::vector<std::pair<int, std::complex<double>>>> z_groups;
 
   for (int e = 0; e < (int)mesh.edges.size(); ++e) {
-    if (bc.dirichlet_edges.count(e)) continue;
+    if (bc.dirichlet_edges.count(e))
+      continue;
 
     const auto &edge = mesh.edges[e];
     const auto &p0 = mesh.nodes.at(mesh.nodeIndex.at(edge.n0)).xyz;
@@ -96,7 +101,8 @@ int main() {
 
     // Only show some z-values
     if (z < 0.003 || z > 0.047 || (z > 0.022 && z < 0.028)) {
-      std::cout << z*1000 << "\t\t" << edges.size() << "\t\t" << mean_mag << "\t\t" << phase << std::endl;
+      std::cout << z * 1000 << "\t\t" << edges.size() << "\t\t" << mean_mag
+                << "\t\t" << phase << std::endl;
     }
 
     if (first) {
@@ -111,7 +117,8 @@ int main() {
   int count1 = 0;
   for (size_t i = 0; i < wp1.edges.size(); ++i) {
     int e = wp1.edges[i];
-    if (bc.dirichlet_edges.count(e)) continue;
+    if (bc.dirichlet_edges.count(e))
+      continue;
     sum_x1 += res.x(e);
     sum_w1x1 += std::conj(wp1.weights(i)) * res.x(e);
     count1++;
@@ -124,7 +131,8 @@ int main() {
   int count2 = 0;
   for (size_t i = 0; i < wp2.edges.size(); ++i) {
     int e = wp2.edges[i];
-    if (bc.dirichlet_edges.count(e)) continue;
+    if (bc.dirichlet_edges.count(e))
+      continue;
     sum_x2 += res.x(e);
     sum_w2x2 += std::conj(wp2.weights(i)) * res.x(e);
     count2++;
@@ -133,9 +141,11 @@ int main() {
   std::cout << "V2 = w^H * x = " << sum_w2x2 << std::endl;
 
   // Check if solution at port 2 relates to port 1 by exp(-j*beta*L)
-  std::complex<double> expected_ratio = std::exp(std::complex<double>(0, -beta * 0.05));
-  std::cout << "\nExpected ratio x2/x1 for traveling wave: " << expected_ratio << std::endl;
-  std::cout << "Actual ratio (mean x): " << sum_x2/sum_x1 << std::endl;
+  std::complex<double> expected_ratio =
+      std::exp(std::complex<double>(0, -beta * 0.05));
+  std::cout << "\nExpected ratio x2/x1 for traveling wave: " << expected_ratio
+            << std::endl;
+  std::cout << "Actual ratio (mean x): " << sum_x2 / sum_x1 << std::endl;
 
   // Analyze the source term
   std::cout << "\n=== Source Term Analysis ===" << std::endl;
@@ -168,19 +178,25 @@ int main() {
 
     // Count non-zero entries in row
     int nnz_row = 0;
-    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(asmbl.A, sample_edge); it; ++it) {
-      if (std::abs(it.value()) > 1e-15) nnz_row++;
+    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(
+             asmbl.A, sample_edge);
+         it; ++it) {
+      if (std::abs(it.value()) > 1e-15)
+        nnz_row++;
     }
     std::cout << "Non-zeros in row: " << nnz_row << std::endl;
 
     // Diagonal value
-    std::cout << "Diagonal A(" << sample_edge << "," << sample_edge << ") = " << asmbl.A.coeff(sample_edge, sample_edge) << std::endl;
+    std::cout << "Diagonal A(" << sample_edge << "," << sample_edge
+              << ") = " << asmbl.A.coeff(sample_edge, sample_edge) << std::endl;
 
     // Source value
-    std::cout << "Source b(" << sample_edge << ") = " << asmbl.b(sample_edge) << std::endl;
+    std::cout << "Source b(" << sample_edge << ") = " << asmbl.b(sample_edge)
+              << std::endl;
 
     // Solution value
-    std::cout << "Solution x(" << sample_edge << ") = " << res.x(sample_edge) << std::endl;
+    std::cout << "Solution x(" << sample_edge << ") = " << res.x(sample_edge)
+              << std::endl;
   }
 
   // Key insight: compare the port loading contribution
@@ -197,7 +213,8 @@ int main() {
   double sum_w_sq = 0, sum_diag = 0;
   for (size_t i = 0; i < wp1.edges.size(); ++i) {
     int e = wp1.edges[i];
-    if (bc.dirichlet_edges.count(e)) continue;
+    if (bc.dirichlet_edges.count(e))
+      continue;
     double w_sq = std::norm(wp1.weights(i));
     sum_w_sq += w_sq;
 
@@ -205,7 +222,8 @@ int main() {
     // We can't easily get this, so skip
   }
   std::cout << "Sum |w_e|^2 for port edges = " << sum_w_sq << std::endl;
-  std::cout << "Ratio to ||w||^2: " << sum_w_sq / wp1.weights.squaredNorm() << std::endl;
+  std::cout << "Ratio to ||w||^2: " << sum_w_sq / wp1.weights.squaredNorm()
+            << std::endl;
 
   return 0;
 }

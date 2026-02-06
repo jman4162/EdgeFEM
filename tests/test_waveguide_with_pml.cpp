@@ -2,12 +2,12 @@
 // Instead of wave ports with matched loads, use PML to absorb outgoing waves
 // Then use a source in the interior to excite the TE10 mode
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <complex>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cmath>
+#include <complex>
+#include <iomanip>
+#include <iostream>
 
 using namespace edgefem;
 
@@ -18,7 +18,8 @@ int main() {
 
   // For this test, we need a mesh with PML regions
   // The current rect_waveguide.msh doesn't have PML regions
-  // Let's instead try with the existing mesh and add artificial damping at ports
+  // Let's instead try with the existing mesh and add artificial damping at
+  // ports
 
   Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");
   BC bc = build_edge_pec(mesh, 1);
@@ -41,7 +42,8 @@ int main() {
 
   std::cout << "=== Testing Alternative Formulations ===" << std::endl;
   std::cout << "Operating frequency: 10 GHz" << std::endl;
-  std::cout << "Expected TE10 beta = " << std::real(mode1.beta) << " rad/m" << std::endl;
+  std::cout << "Expected TE10 beta = " << std::real(mode1.beta) << " rad/m"
+            << std::endl;
 
   MaxwellParams p;
   p.omega = omega;
@@ -50,8 +52,10 @@ int main() {
   std::cout << "\n=== Test 1: Standard Wave Port ===" << std::endl;
   std::vector<WavePort> ports{wp1, wp2};
   auto S1 = calculate_sparams(mesh, p, bc, ports);
-  std::cout << "S11 = " << S1(0,0) << " (|S11| = " << std::abs(S1(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S1(1,0) << " (|S21| = " << std::abs(S1(1,0)) << ")" << std::endl;
+  std::cout << "S11 = " << S1(0, 0) << " (|S11| = " << std::abs(S1(0, 0)) << ")"
+            << std::endl;
+  std::cout << "S21 = " << S1(1, 0) << " (|S21| = " << std::abs(S1(1, 0)) << ")"
+            << std::endl;
 
   // Test 2: Add imaginary damping to port edges (like ABC but stronger)
   std::cout << "\n=== Test 2: Port with ABC Damping ===" << std::endl;
@@ -103,14 +107,16 @@ int main() {
   std::complex<double> S11_2 = (V1_2 - V_inc) / V_inc;
   std::complex<double> S21_2 = V2_2 / V_inc;
 
-  std::cout << "S11 = " << S11_2 << " (|S11| = " << std::abs(S11_2) << ")" << std::endl;
-  std::cout << "S21 = " << S21_2 << " (|S21| = " << std::abs(S21_2) << ")" << std::endl;
+  std::cout << "S11 = " << S11_2 << " (|S11| = " << std::abs(S11_2) << ")"
+            << std::endl;
+  std::cout << "S21 = " << S21_2 << " (|S21| = " << std::abs(S21_2) << ")"
+            << std::endl;
 
   // Test 3: Use mass-matrix-based damping (more physical ABC)
   std::cout << "\n=== Test 3: Mass-weighted ABC ===" << std::endl;
 
-  // For a proper first-order ABC, the damping should be proportional to the mass matrix
-  // Add jβ × M_port to the system matrix
+  // For a proper first-order ABC, the damping should be proportional to the
+  // mass matrix Add jβ × M_port to the system matrix
 
   auto asmbl3 = assemble_maxwell(mesh, p, bc, ports, 0);
 
@@ -123,7 +129,7 @@ int main() {
       const auto &p0 = mesh.nodes.at(mesh.nodeIndex.at(edge.n0)).xyz;
       const auto &p1 = mesh.nodes.at(mesh.nodeIndex.at(edge.n1)).xyz;
       double L_edge = (p1 - p0).norm();
-      double M_local = L_edge * L_edge * 0.001;  // Rough estimate
+      double M_local = L_edge * L_edge * 0.001; // Rough estimate
 
       asmbl3.A.coeffRef(e, e) += damping * M_local;
     }
@@ -160,8 +166,10 @@ int main() {
   std::complex<double> S11_3 = (V1_3 - V_inc) / V_inc;
   std::complex<double> S21_3 = V2_3 / V_inc;
 
-  std::cout << "S11 = " << S11_3 << " (|S11| = " << std::abs(S11_3) << ")" << std::endl;
-  std::cout << "S21 = " << S21_3 << " (|S21| = " << std::abs(S21_3) << ")" << std::endl;
+  std::cout << "S11 = " << S11_3 << " (|S11| = " << std::abs(S11_3) << ")"
+            << std::endl;
+  std::cout << "S21 = " << S21_3 << " (|S21| = " << std::abs(S21_3) << ")"
+            << std::endl;
 
   // Test 4: Try scaling the ABC damping
   std::cout << "\n=== Test 4: Scaled ABC Damping (sweep) ===" << std::endl;
@@ -206,13 +214,14 @@ int main() {
     double passivity = std::norm(S11_4) + std::norm(S21_4);
 
     std::cout << "Scale " << scale << ": |S11|=" << std::abs(S11_4)
-              << ", |S21|=" << std::abs(S21_4)
-              << ", passivity=" << passivity << std::endl;
+              << ", |S21|=" << std::abs(S21_4) << ", passivity=" << passivity
+              << std::endl;
   }
 
   // Expected values
   double L = 0.05;
-  std::complex<double> S21_expected = std::exp(std::complex<double>(0, -beta * L));
+  std::complex<double> S21_expected =
+      std::exp(std::complex<double>(0, -beta * L));
   std::cout << "\nExpected: S11 = 0, S21 = " << S21_expected << std::endl;
 
   return 0;

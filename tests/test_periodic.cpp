@@ -10,10 +10,10 @@ using namespace edgefem;
 void test_floquet_phase_from_angle_broadside() {
   std::cout << "test_floquet_phase_from_angle_broadside..." << std::endl;
 
-  Eigen::Vector3d period(0.015, 0.0, 0.0);  // 15mm period in x
-  double theta = 0.0;  // Broadside
+  Eigen::Vector3d period(0.015, 0.0, 0.0); // 15mm period in x
+  double theta = 0.0;                      // Broadside
   double phi = 0.0;
-  double k0 = 2 * M_PI * 10e9 / 299792458.0;  // 10 GHz
+  double k0 = 2 * M_PI * 10e9 / 299792458.0; // 10 GHz
 
   auto phase = floquet_phase_from_angle(period, theta, phi, k0);
 
@@ -26,10 +26,10 @@ void test_floquet_phase_from_angle_broadside() {
 void test_floquet_phase_from_angle_scan() {
   std::cout << "test_floquet_phase_from_angle_scan..." << std::endl;
 
-  Eigen::Vector3d period(0.015, 0.0, 0.0);  // 15mm period in x
-  double theta = M_PI / 6.0;  // 30 degrees from broadside
-  double phi = 0.0;  // E-plane
-  double k0 = 2 * M_PI * 10e9 / 299792458.0;  // 10 GHz
+  Eigen::Vector3d period(0.015, 0.0, 0.0);   // 15mm period in x
+  double theta = M_PI / 6.0;                 // 30 degrees from broadside
+  double phi = 0.0;                          // E-plane
+  double k0 = 2 * M_PI * 10e9 / 299792458.0; // 10 GHz
 
   auto phase = floquet_phase_from_angle(period, theta, phi, k0);
 
@@ -52,7 +52,7 @@ void test_set_floquet_phase() {
   pbc.period_vector = Eigen::Vector3d(0.015, 0.0, 0.0);
 
   double k0 = 2 * M_PI * 10e9 / 299792458.0;
-  double theta = M_PI / 4.0;  // 45 degrees
+  double theta = M_PI / 4.0; // 45 degrees
 
   Eigen::Vector2d k_trans(k0 * std::sin(theta), 0.0);
   set_floquet_phase(pbc, k_trans);
@@ -78,7 +78,7 @@ void test_periodic_pair_structure() {
 
   assert(pair.master_edge == 10);
   assert(pair.slave_edge == 20);
-  assert(pair.master_orient * pair.slave_orient == -1);  // Opposite orientations
+  assert(pair.master_orient * pair.slave_orient == -1); // Opposite orientations
 
   std::cout << "  PeriodicPair structure valid" << std::endl;
 }
@@ -87,7 +87,7 @@ void test_validate_periodic_bc_empty() {
   std::cout << "test_validate_periodic_bc_empty..." << std::endl;
 
   Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");
-  PeriodicBC pbc;  // Empty
+  PeriodicBC pbc; // Empty
 
   assert(!validate_periodic_bc(mesh, pbc));
 
@@ -139,11 +139,11 @@ void test_floquet_phase_grating_lobe() {
   double freq = 10e9;
   double c0 = 299792458.0;
   double lambda = c0 / freq;
-  double period = lambda / 2.0;  // Half-wavelength spacing
+  double period = lambda / 2.0; // Half-wavelength spacing
 
   Eigen::Vector3d period_vec(period, 0.0, 0.0);
   double k0 = 2 * M_PI / lambda;
-  double theta = M_PI / 2.0;  // 90 degrees (horizon)
+  double theta = M_PI / 2.0; // 90 degrees (horizon)
   double phi = 0.0;
 
   auto phase = floquet_phase_from_angle(period_vec, theta, phi, k0);

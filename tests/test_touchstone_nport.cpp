@@ -18,7 +18,8 @@ void test_touchstone_extension() {
   assert(touchstone_extension(4) == ".s4p");
   assert(touchstone_extension(10) == ".s10p");
 
-  std::cout << "  Extension for 4 ports: " << touchstone_extension(4) << std::endl;
+  std::cout << "  Extension for 4 ports: " << touchstone_extension(4)
+            << std::endl;
 }
 
 void test_write_3port() {
@@ -51,9 +52,9 @@ void test_write_3port() {
 
   // Read first few lines
   std::string line;
-  std::getline(ifs, line);  // Comment
-  std::getline(ifs, line);  // Comment
-  std::getline(ifs, line);  // Option line
+  std::getline(ifs, line); // Comment
+  std::getline(ifs, line); // Comment
+  std::getline(ifs, line); // Option line
 
   assert(line.find("Hz S RI R 50") != std::string::npos);
 
@@ -84,7 +85,7 @@ void test_write_4port() {
   }
 
   TouchstoneOptions opts;
-  opts.format = TouchstoneFormat::MA;  // Magnitude/Angle format
+  opts.format = TouchstoneFormat::MA; // Magnitude/Angle format
   opts.z0 = 50.0;
 
   std::string path = "/tmp/test_4port.s4p";
@@ -97,7 +98,7 @@ void test_write_4port() {
   std::string line;
   std::getline(ifs, line);
   std::getline(ifs, line);
-  std::getline(ifs, line);  // Option line
+  std::getline(ifs, line); // Option line
 
   assert(line.find("Hz S MA R 50") != std::string::npos);
 

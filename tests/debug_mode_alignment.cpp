@@ -1,15 +1,15 @@
 // Compare port weights to FEM eigenvector for TE10 mode
 // The hypothesis: port weights w don't align with FEM mode eigenvector
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <algorithm>
-#include <Eigen/Dense>
-#include <Eigen/Eigenvalues>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <Eigen/Dense>
+#include <Eigen/Eigenvalues>
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <vector>
 
 using namespace edgefem;
 
@@ -38,8 +38,9 @@ int main() {
 
   std::cout << "=== Mode Analysis ===" << std::endl;
   std::cout << "Expected TE10 kc² = " << kc_te10_sq << std::endl;
-  std::cout << "k0² = " << k0*k0 << std::endl;
-  std::cout << "Ratio k0²/kc² = " << k0*k0/kc_te10_sq << " (>1 means propagating)" << std::endl;
+  std::cout << "k0² = " << k0 * k0 << std::endl;
+  std::cout << "Ratio k0²/kc² = " << k0 * k0 / kc_te10_sq
+            << " (>1 means propagating)" << std::endl;
 
   // Assemble K and M matrices to find FEM eigenvector for TE10
   MaxwellParams p_low;
@@ -47,9 +48,9 @@ int main() {
   auto asmbl_low = assemble_maxwell(mesh, p_low, bc, {}, -1);
 
   double f_test = 1e9;
-  double k0_test = 2*M_PI*f_test/c0;
+  double k0_test = 2 * M_PI * f_test / c0;
   MaxwellParams p_test;
-  p_test.omega = 2*M_PI*f_test;
+  p_test.omega = 2 * M_PI * f_test;
   auto asmbl_test = assemble_maxwell(mesh, p_test, bc, {}, -1);
 
   int n = asmbl_low.A.rows();
@@ -99,7 +100,7 @@ int main() {
   int te10_idx = -1;
   double min_diff = 1e100;
   for (int i = 0; i < n_free; ++i) {
-    if (eigenvalues(i) > 100) {  // Skip null space
+    if (eigenvalues(i) > 100) { // Skip null space
       double diff = std::abs(eigenvalues(i) - kc_te10_sq);
       if (diff < min_diff) {
         min_diff = diff;
@@ -111,7 +112,7 @@ int main() {
   std::cout << "TE10 eigenvalue index: " << te10_idx << std::endl;
   std::cout << "TE10 eigenvalue: " << eigenvalues(te10_idx) << std::endl;
   std::cout << "Expected: " << kc_te10_sq << std::endl;
-  std::cout << "Error: " << min_diff/kc_te10_sq*100 << "%" << std::endl;
+  std::cout << "Error: " << min_diff / kc_te10_sq * 100 << "%" << std::endl;
 
   // Get the eigenvector
   Eigen::VectorXd v_te10 = eigenvectors.col(te10_idx);
@@ -133,10 +134,12 @@ int main() {
     int e = wp1.edges[i];
     w_port(i) = wp1.weights(i);
     v_port(i) = v_te10_full(e);
-    if (!bc.dirichlet_edges.count(e)) free_port_edges++;
+    if (!bc.dirichlet_edges.count(e))
+      free_port_edges++;
   }
 
-  std::cout << "Port edges: " << wp1.edges.size() << " (" << free_port_edges << " free)" << std::endl;
+  std::cout << "Port edges: " << wp1.edges.size() << " (" << free_port_edges
+            << " free)" << std::endl;
 
   // Normalize both for comparison
   double w_norm = w_port.norm();
@@ -152,10 +155,12 @@ int main() {
     // Compute correlation (inner product of normalized vectors)
     std::complex<double> correlation = w_normalized.dot(v_normalized);
     std::cout << "\nCorrelation <w,v> = " << correlation << std::endl;
-    std::cout << "|<w,v>| = " << std::abs(correlation) << " (1.0 = perfect alignment)" << std::endl;
+    std::cout << "|<w,v>| = " << std::abs(correlation)
+              << " (1.0 = perfect alignment)" << std::endl;
 
     // Also try with conjugate
-    std::complex<double> correlation_conj = w_normalized.conjugate().dot(v_normalized);
+    std::complex<double> correlation_conj =
+        w_normalized.conjugate().dot(v_normalized);
     std::cout << "Correlation <w*,v> = " << correlation_conj << std::endl;
     std::cout << "|<w*,v>| = " << std::abs(correlation_conj) << std::endl;
 
@@ -169,7 +174,8 @@ int main() {
         std::complex<double> w_n = w_normalized(i);
         std::complex<double> v_n = v_normalized(i);
         std::complex<double> ratio = (std::abs(v_n) > 1e-10) ? w_n / v_n : 0.0;
-        std::cout << e << "\t\t" << w_n << "\t" << v_n << "\t" << ratio << std::endl;
+        std::cout << e << "\t\t" << w_n << "\t" << v_n << "\t" << ratio
+                  << std::endl;
         shown++;
       }
     }
@@ -196,7 +202,8 @@ int main() {
   v_weights *= scale_factor;
 
   std::cout << "Target ||w||² = sqrt(Z0) = " << target_norm_sq << std::endl;
-  std::cout << "Scaled ||v_weights||² = " << v_weights.squaredNorm() << std::endl;
+  std::cout << "Scaled ||v_weights||² = " << v_weights.squaredNorm()
+            << std::endl;
 
   // Also create port 2 with scaled eigenvector (need to compute for port 2)
   PortSurfaceMesh port2_surf = extract_surface_mesh(mesh, 3);
@@ -251,16 +258,20 @@ int main() {
   std::cout << "V_inc = " << V_inc_fem << std::endl;
   std::cout << "V1 = " << V1_fem << std::endl;
   std::cout << "V2 = " << V2_fem << std::endl;
-  std::cout << "S11 = " << S11_fem << " (|S11| = " << std::abs(S11_fem) << ")" << std::endl;
-  std::cout << "S21 = " << S21_fem << " (|S21| = " << std::abs(S21_fem) << ")" << std::endl;
+  std::cout << "S11 = " << S11_fem << " (|S11| = " << std::abs(S11_fem) << ")"
+            << std::endl;
+  std::cout << "S21 = " << S21_fem << " (|S21| = " << std::abs(S21_fem) << ")"
+            << std::endl;
 
   // Expected
   double beta = std::real(mode1.beta);
   double L = 0.05;
-  std::cout << "\nExpected: S11 = 0, |S21| = 1, phase(S21) = " << -beta*L*180/M_PI << "°" << std::endl;
+  std::cout << "\nExpected: S11 = 0, |S21| = 1, phase(S21) = "
+            << -beta * L * 180 / M_PI << "°" << std::endl;
 
   // Compare with original weights (properly normalized)
-  std::cout << "\n=== Original Weights (normalized to ||w||² = sqrt(Z0)) ===" << std::endl;
+  std::cout << "\n=== Original Weights (normalized to ||w||² = sqrt(Z0)) ==="
+            << std::endl;
 
   double orig_norm_sq = wp1.weights.squaredNorm();
   double orig_scale = std::sqrt(target_norm_sq / orig_norm_sq);
@@ -291,8 +302,10 @@ int main() {
   std::complex<double> S11_norm = (V1_norm - V_inc_fem) / V_inc_fem;
   std::complex<double> S21_norm = V2_norm / V_inc_fem;
 
-  std::cout << "S11 = " << S11_norm << " (|S11| = " << std::abs(S11_norm) << ")" << std::endl;
-  std::cout << "S21 = " << S21_norm << " (|S21| = " << std::abs(S21_norm) << ")" << std::endl;
+  std::cout << "S11 = " << S11_norm << " (|S11| = " << std::abs(S11_norm) << ")"
+            << std::endl;
+  std::cout << "S21 = " << S21_norm << " (|S21| = " << std::abs(S21_norm) << ")"
+            << std::endl;
 
   return 0;
 }

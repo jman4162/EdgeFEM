@@ -57,7 +57,7 @@ void test_cg_solver() {
   A.setFromTriplets(trips.begin(), trips.end());
 
   SolveOptions opts;
-  opts.use_bicgstab = false;  // Use CG
+  opts.use_bicgstab = false; // Use CG
   opts.tolerance = 1e-8;
 
   auto result = solve_linear(A, b, opts);
@@ -65,7 +65,8 @@ void test_cg_solver() {
   assert(result.converged);
   assert(result.method == "CG");
 
-  std::cout << "  CG converged in " << result.iters << " iterations" << std::endl;
+  std::cout << "  CG converged in " << result.iters << " iterations"
+            << std::endl;
 }
 
 void test_max_iterations_limit() {
@@ -87,16 +88,17 @@ void test_max_iterations_limit() {
   A.setFromTriplets(trips.begin(), trips.end());
 
   SolveOptions opts;
-  opts.tolerance = 1e-15;  // Very tight tolerance
-  opts.max_iterations = 10;  // Very few iterations
+  opts.tolerance = 1e-15;   // Very tight tolerance
+  opts.max_iterations = 10; // Very few iterations
 
   auto result = solve_linear(A, b, opts);
 
   // Should either converge or hit max iterations
   assert(result.iters <= opts.max_iterations || result.converged);
 
-  std::cout << "  Iterations: " << result.iters << ", Converged: "
-            << (result.converged ? "yes" : "no") << std::endl;
+  std::cout << "  Iterations: " << result.iters
+            << ", Converged: " << (result.converged ? "yes" : "no")
+            << std::endl;
 }
 
 void test_tolerance_respected() {
@@ -124,7 +126,7 @@ void test_tolerance_respected() {
 
   assert(result1.converged);
   assert(result2.converged);
-  assert(result1.residual <= opts1.tolerance * 10);  // Allow some slack
+  assert(result1.residual <= opts1.tolerance * 10); // Allow some slack
   assert(result2.residual <= opts2.tolerance * 10);
 
   std::cout << "  Loose tol residual: " << result1.residual << std::endl;

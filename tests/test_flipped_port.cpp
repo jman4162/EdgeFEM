@@ -1,11 +1,11 @@
 // Test S-parameters with manual port sign correction
 // The issue: both ports have +z normals, but port 1 should have -z
 // This causes the weight signs to be wrong for S-parameter extraction
-#include <iostream>
-#include <iomanip>
-#include <cmath>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cmath>
+#include <iomanip>
+#include <iostream>
 
 using namespace edgefem;
 
@@ -38,8 +38,10 @@ int main() {
   p.omega = omega;
   std::vector<WavePort> ports_orig{wp1, wp2};
   auto S_orig = calculate_sparams(mesh, p, bc, ports_orig);
-  std::cout << "S11 = " << S_orig(0,0) << " (|S11| = " << std::abs(S_orig(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S_orig(1,0) << " (|S21| = " << std::abs(S_orig(1,0)) << ")" << std::endl;
+  std::cout << "S11 = " << S_orig(0, 0)
+            << " (|S11| = " << std::abs(S_orig(0, 0)) << ")" << std::endl;
+  std::cout << "S21 = " << S_orig(1, 0)
+            << " (|S21| = " << std::abs(S_orig(1, 0)) << ")" << std::endl;
 
   // Try flipping port 1 weights (should have -z normal)
   std::cout << "\n=== Flipped Port 1 (simulate -z normal) ===" << std::endl;
@@ -48,8 +50,10 @@ int main() {
 
   std::vector<WavePort> ports_flip1{wp1_flip, wp2};
   auto S_flip1 = calculate_sparams(mesh, p, bc, ports_flip1);
-  std::cout << "S11 = " << S_flip1(0,0) << " (|S11| = " << std::abs(S_flip1(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S_flip1(1,0) << " (|S21| = " << std::abs(S_flip1(1,0)) << ")" << std::endl;
+  std::cout << "S11 = " << S_flip1(0, 0)
+            << " (|S11| = " << std::abs(S_flip1(0, 0)) << ")" << std::endl;
+  std::cout << "S21 = " << S_flip1(1, 0)
+            << " (|S21| = " << std::abs(S_flip1(1, 0)) << ")" << std::endl;
 
   // Try flipping port 2 weights instead
   std::cout << "\n=== Flipped Port 2 ===" << std::endl;
@@ -58,30 +62,42 @@ int main() {
 
   std::vector<WavePort> ports_flip2{wp1, wp2_flip};
   auto S_flip2 = calculate_sparams(mesh, p, bc, ports_flip2);
-  std::cout << "S11 = " << S_flip2(0,0) << " (|S11| = " << std::abs(S_flip2(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S_flip2(1,0) << " (|S21| = " << std::abs(S_flip2(1,0)) << ")" << std::endl;
+  std::cout << "S11 = " << S_flip2(0, 0)
+            << " (|S11| = " << std::abs(S_flip2(0, 0)) << ")" << std::endl;
+  std::cout << "S21 = " << S_flip2(1, 0)
+            << " (|S21| = " << std::abs(S_flip2(1, 0)) << ")" << std::endl;
 
   // Try flipping both
   std::cout << "\n=== Flipped Both ===" << std::endl;
   std::vector<WavePort> ports_flip_both{wp1_flip, wp2_flip};
   auto S_flip_both = calculate_sparams(mesh, p, bc, ports_flip_both);
-  std::cout << "S11 = " << S_flip_both(0,0) << " (|S11| = " << std::abs(S_flip_both(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S_flip_both(1,0) << " (|S21| = " << std::abs(S_flip_both(1,0)) << ")" << std::endl;
+  std::cout << "S11 = " << S_flip_both(0, 0)
+            << " (|S11| = " << std::abs(S_flip_both(0, 0)) << ")" << std::endl;
+  std::cout << "S21 = " << S_flip_both(1, 0)
+            << " (|S21| = " << std::abs(S_flip_both(1, 0)) << ")" << std::endl;
 
   // Expected
   double beta = std::real(mode1.beta);
   double L = 0.05;
-  std::complex<double> S21_expected = std::exp(std::complex<double>(0, -beta * L));
+  std::complex<double> S21_expected =
+      std::exp(std::complex<double>(0, -beta * L));
   std::cout << "\n=== Expected (analytical) ===" << std::endl;
   std::cout << "S11 = 0" << std::endl;
-  std::cout << "S21 = " << S21_expected << " (|S21| = 1, phase = " << std::arg(S21_expected)*180/M_PI << "°)" << std::endl;
+  std::cout << "S21 = " << S21_expected
+            << " (|S21| = 1, phase = " << std::arg(S21_expected) * 180 / M_PI
+            << "°)" << std::endl;
 
   // Check passivity for each case
   std::cout << "\n=== Passivity Check ===" << std::endl;
-  std::cout << "Original: |S11|² + |S21|² = " << std::norm(S_orig(0,0)) + std::norm(S_orig(1,0)) << std::endl;
-  std::cout << "Flip1:    |S11|² + |S21|² = " << std::norm(S_flip1(0,0)) + std::norm(S_flip1(1,0)) << std::endl;
-  std::cout << "Flip2:    |S11|² + |S21|² = " << std::norm(S_flip2(0,0)) + std::norm(S_flip2(1,0)) << std::endl;
-  std::cout << "FlipBoth: |S11|² + |S21|² = " << std::norm(S_flip_both(0,0)) + std::norm(S_flip_both(1,0)) << std::endl;
+  std::cout << "Original: |S11|² + |S21|² = "
+            << std::norm(S_orig(0, 0)) + std::norm(S_orig(1, 0)) << std::endl;
+  std::cout << "Flip1:    |S11|² + |S21|² = "
+            << std::norm(S_flip1(0, 0)) + std::norm(S_flip1(1, 0)) << std::endl;
+  std::cout << "Flip2:    |S11|² + |S21|² = "
+            << std::norm(S_flip2(0, 0)) + std::norm(S_flip2(1, 0)) << std::endl;
+  std::cout << "FlipBoth: |S11|² + |S21|² = "
+            << std::norm(S_flip_both(0, 0)) + std::norm(S_flip_both(1, 0))
+            << std::endl;
 
   return 0;
 }

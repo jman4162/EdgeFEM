@@ -1,9 +1,9 @@
 // Debug script to check port weight computation
-#include <iostream>
-#include <iomanip>
-#include <cmath>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cmath>
+#include <iomanip>
+#include <iostream>
 
 using namespace edgefem;
 
@@ -22,7 +22,8 @@ int main() {
 
   std::cout << "=== Mode Properties ===" << std::endl;
   std::cout << "kc = " << mode.kc << std::endl;
-  std::cout << "omega*mu/kc² = " << omega * std::real(mode.mu) / (mode.kc * mode.kc) << std::endl;
+  std::cout << "omega*mu/kc² = "
+            << omega * std::real(mode.mu) / (mode.kc * mode.kc) << std::endl;
 
   populate_te10_field(port1_surf, dims, mode);
 
@@ -73,7 +74,8 @@ int main() {
     b_sum += scale * wp.weights(i);
   }
   std::cout << "Sum of source terms: " << b_sum << std::endl;
-  std::cout << "Expected: purely imaginary if weights are imaginary" << std::endl;
+  std::cout << "Expected: purely imaginary if weights are imaginary"
+            << std::endl;
 
   // Actually assemble and check RHS
   MaxwellParams p;
@@ -110,7 +112,8 @@ int main() {
   std::cout << "\n=== Solution ===" << std::endl;
   std::cout << "Max |real|: " << x_real_max << std::endl;
   std::cout << "Max |imag|: " << x_imag_max << std::endl;
-  std::cout << "Expected: solution should have both real and imag parts" << std::endl;
+  std::cout << "Expected: solution should have both real and imag parts"
+            << std::endl;
 
   // Port voltage
   std::complex<double> V1(0, 0);

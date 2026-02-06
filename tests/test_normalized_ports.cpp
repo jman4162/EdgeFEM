@@ -1,9 +1,9 @@
 // Test S-parameters with port weight normalization
-#include <iostream>
-#include <iomanip>
-#include <cmath>
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include <cmath>
+#include <iomanip>
+#include <iostream>
 
 using namespace edgefem;
 
@@ -46,8 +46,10 @@ int main() {
   auto S_unnorm = calculate_sparams(mesh, p, bc, ports_unnorm);
 
   std::cout << "\nS-parameters (unnormalized):" << std::endl;
-  std::cout << "S11 = " << S_unnorm(0,0) << " (|S11| = " << std::abs(S_unnorm(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S_unnorm(1,0) << " (|S21| = " << std::abs(S_unnorm(1,0)) << ")" << std::endl;
+  std::cout << "S11 = " << S_unnorm(0, 0)
+            << " (|S11| = " << std::abs(S_unnorm(0, 0)) << ")" << std::endl;
+  std::cout << "S21 = " << S_unnorm(1, 0)
+            << " (|S21| = " << std::abs(S_unnorm(1, 0)) << ")" << std::endl;
 
   // Apply normalization
   std::cout << "\n=== Applying normalize_port_weights() ===" << std::endl;
@@ -57,21 +59,27 @@ int main() {
   double w1_norm_sq_after = 0;
   for (int i = 0; i < ports_norm[0].weights.size(); ++i)
     w1_norm_sq_after += std::norm(ports_norm[0].weights(i));
-  std::cout << "\n||w1||² after normalization = " << w1_norm_sq_after << std::endl;
-  std::cout << "Scale factor = " << std::sqrt(w1_norm_sq_after / w1_norm_sq) << std::endl;
+  std::cout << "\n||w1||² after normalization = " << w1_norm_sq_after
+            << std::endl;
+  std::cout << "Scale factor = " << std::sqrt(w1_norm_sq_after / w1_norm_sq)
+            << std::endl;
 
   // Calculate S-params with normalization
   auto S_norm = calculate_sparams(mesh, p, bc, ports_norm);
 
   std::cout << "\nS-parameters (normalized):" << std::endl;
-  std::cout << "S11 = " << S_norm(0,0) << " (|S11| = " << std::abs(S_norm(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S_norm(1,0) << " (|S21| = " << std::abs(S_norm(1,0)) << ")" << std::endl;
-  std::cout << "|S11|² + |S21|² = " << std::norm(S_norm(0,0)) + std::norm(S_norm(1,0)) << std::endl;
+  std::cout << "S11 = " << S_norm(0, 0)
+            << " (|S11| = " << std::abs(S_norm(0, 0)) << ")" << std::endl;
+  std::cout << "S21 = " << S_norm(1, 0)
+            << " (|S21| = " << std::abs(S_norm(1, 0)) << ")" << std::endl;
+  std::cout << "|S11|² + |S21|² = "
+            << std::norm(S_norm(0, 0)) + std::norm(S_norm(1, 0)) << std::endl;
 
   // Expected analytical
   double beta = std::real(mode1.beta);
   double L = 0.05;
-  std::complex<double> S21_expected = std::exp(std::complex<double>(0, -beta * L));
+  std::complex<double> S21_expected =
+      std::exp(std::complex<double>(0, -beta * L));
   std::cout << "\nExpected:" << std::endl;
   std::cout << "S11 = 0 (matched)" << std::endl;
   std::cout << "S21 = " << S21_expected << " (|S21| = 1)" << std::endl;
@@ -82,7 +90,8 @@ int main() {
 
   for (double f : {7e9, 8e9, 10e9, 15e9, 20e9, 25e9, 30e9}) {
     double fc = c0 / (2 * dims.a);
-    if (f <= fc) continue;
+    if (f <= fc)
+      continue;
 
     double w = 2 * M_PI * f;
 
@@ -102,11 +111,11 @@ int main() {
 
     auto S = calculate_sparams(mesh, params, bc, ports);
 
-    double s11 = std::abs(S(0,0));
-    double s21 = std::abs(S(1,0));
-    double power = s11*s11 + s21*s21;
+    double s11 = std::abs(S(0, 0));
+    double s21 = std::abs(S(1, 0));
+    double power = s11 * s11 + s21 * s21;
 
-    std::cout << f/1e9 << " GHz:   " << s11 << "   " << s21 << "   "
+    std::cout << f / 1e9 << " GHz:   " << s11 << "   " << s21 << "   "
               << (power <= 1.01 ? "PASS" : "FAIL") << std::endl;
   }
 

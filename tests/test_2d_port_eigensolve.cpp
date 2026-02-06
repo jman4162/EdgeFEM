@@ -1,17 +1,17 @@
 // Test solving 2D eigenvalue problem on port surface
 // This gives the correct discrete mode pattern for port weights
 
-#include <iostream>
-#include <iomanip>
-#include <cmath>
-#include <vector>
-#include <map>
-#include <unordered_set>
+#include "edgefem/maxwell.hpp"
+#include "edgefem/solver.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
 #include <Eigen/Sparse>
-#include "edgefem/maxwell.hpp"
-#include "edgefem/solver.hpp"
+#include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <unordered_set>
+#include <vector>
 
 using namespace edgefem;
 
@@ -21,8 +21,8 @@ constexpr double c0 = 299792458.0;
 // For TE modes, we solve: ∇t²Hz + kc²Hz = 0 (scalar Helmholtz on surface)
 // With Neumann BC: ∂Hz/∂n = 0 on PEC walls
 void build_2d_fem_matrices(const Mesh &mesh, const PortSurfaceMesh &surface,
-                           const BC &bc,
-                           Eigen::MatrixXd &K, Eigen::MatrixXd &M) {
+                           const BC &bc, Eigen::MatrixXd &K,
+                           Eigen::MatrixXd &M) {
   // Get node count for surface mesh
   int num_nodes = surface.mesh.nodes.size();
 
@@ -34,23 +34,28 @@ void build_2d_fem_matrices(const Mesh &mesh, const PortSurfaceMesh &surface,
     const auto &tri2d = surface.mesh.tris[tri_idx];
 
     // Get node positions (using 2D coordinates from surface.mesh)
-    Eigen::Vector2d p0(surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[0])].xyz.x(),
-                       surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[0])].xyz.y());
-    Eigen::Vector2d p1(surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[1])].xyz.x(),
-                       surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[1])].xyz.y());
-    Eigen::Vector2d p2(surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[2])].xyz.x(),
-                       surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[2])].xyz.y());
+    Eigen::Vector2d p0(
+        surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[0])].xyz.x(),
+        surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[0])].xyz.y());
+    Eigen::Vector2d p1(
+        surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[1])].xyz.x(),
+        surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[1])].xyz.y());
+    Eigen::Vector2d p2(
+        surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[2])].xyz.x(),
+        surface.mesh.nodes[surface.mesh.nodeIndex.at(tri2d.conn[2])].xyz.y());
 
     // Triangle area
     double area = 0.5 * std::abs((p1.x() - p0.x()) * (p2.y() - p0.y()) -
-                                  (p2.x() - p0.x()) * (p1.y() - p0.y()));
+                                 (p2.x() - p0.x()) * (p1.y() - p0.y()));
 
-    if (area < 1e-15) continue;
+    if (area < 1e-15)
+      continue;
 
     // Shape function gradients for linear triangular elements
     // For node i in triangle: N_i = (a_i + b_i*x + c_i*y) / (2*area)
     // grad N_i = (b_i, c_i) / (2*area)
-    Eigen::Matrix<double, 3, 2> grad_N;  // Each row is gradient of one shape function
+    Eigen::Matrix<double, 3, 2>
+        grad_N; // Each row is gradient of one shape function
 
     double b0 = p1.y() - p2.y();
     double c0 = p2.x() - p1.x();
@@ -59,9 +64,12 @@ void build_2d_fem_matrices(const Mesh &mesh, const PortSurfaceMesh &surface,
     double b2 = p0.y() - p1.y();
     double c2 = p1.x() - p0.x();
 
-    grad_N(0, 0) = b0 / (2 * area);  grad_N(0, 1) = c0 / (2 * area);
-    grad_N(1, 0) = b1 / (2 * area);  grad_N(1, 1) = c1 / (2 * area);
-    grad_N(2, 0) = b2 / (2 * area);  grad_N(2, 1) = c2 / (2 * area);
+    grad_N(0, 0) = b0 / (2 * area);
+    grad_N(0, 1) = c0 / (2 * area);
+    grad_N(1, 0) = b1 / (2 * area);
+    grad_N(1, 1) = c1 / (2 * area);
+    grad_N(2, 0) = b2 / (2 * area);
+    grad_N(2, 1) = c2 / (2 * area);
 
     // Local stiffness: K_ij = ∫ (∇N_i · ∇N_j) dA = area * (∇N_i · ∇N_j)
     // Local mass: M_ij = ∫ N_i N_j dA = area/12 * (1 + δ_ij)
@@ -75,7 +83,7 @@ void build_2d_fem_matrices(const Mesh &mesh, const PortSurfaceMesh &surface,
         K(gi, gj) += k_ij;
 
         // Mass contribution (lumped mass would be area/3 on diagonal)
-        double m_ij = area * (i == j ? 1.0/6.0 : 1.0/12.0);
+        double m_ij = area * (i == j ? 1.0 / 6.0 : 1.0 / 12.0);
         M(gi, gj) += m_ij;
       }
     }
@@ -98,7 +106,8 @@ int main() {
   std::cout << "=== 2D Port Surface Mesh ===" << std::endl;
   std::cout << "Nodes: " << port1_surf.mesh.nodes.size() << std::endl;
   std::cout << "Triangles: " << port1_surf.mesh.tris.size() << std::endl;
-  std::cout << "Boundary lines: " << port1_surf.mesh.boundary_lines.size() << std::endl;
+  std::cout << "Boundary lines: " << port1_surf.mesh.boundary_lines.size()
+            << std::endl;
 
   // Build 2D FEM matrices
   Eigen::MatrixXd K_2d, M_2d;
@@ -124,9 +133,9 @@ int main() {
   auto eigenvectors = ges.eigenvectors();
 
   // Expected kc² values for rectangular waveguide TE modes
-  double kc_te10_sq = std::pow(M_PI / dims.a, 2);  // TE10
-  double kc_te20_sq = std::pow(2*M_PI / dims.a, 2);  // TE20
-  double kc_te01_sq = std::pow(M_PI / dims.b, 2);  // TE01
+  double kc_te10_sq = std::pow(M_PI / dims.a, 2);     // TE10
+  double kc_te20_sq = std::pow(2 * M_PI / dims.a, 2); // TE20
+  double kc_te01_sq = std::pow(M_PI / dims.b, 2);     // TE01
 
   std::cout << "\nExpected kc² values:" << std::endl;
   std::cout << "  TE10: " << kc_te10_sq << std::endl;
@@ -158,8 +167,9 @@ int main() {
     }
   }
 
-  std::cout << "\nTE10 mode: index " << te10_idx << ", kc² = " << eigenvalues(te10_idx)
-            << " (error: " << min_diff/kc_te10_sq*100 << "%)" << std::endl;
+  std::cout << "\nTE10 mode: index " << te10_idx
+            << ", kc² = " << eigenvalues(te10_idx)
+            << " (error: " << min_diff / kc_te10_sq * 100 << "%)" << std::endl;
 
   // Get TE10 eigenvector (Hz pattern on port surface)
   Eigen::VectorXd Hz_te10 = eigenvectors.col(te10_idx);
@@ -173,8 +183,9 @@ int main() {
     const auto &node = port1_surf.mesh.nodes[i];
     double x = node.xyz.x();
     double expected = std::cos(M_PI * x / dims.a);
-    std::cout << "  Node " << i << " at x=" << x*1000 << "mm: Hz=" << Hz_te10(i)
-              << ", expected cos=" << expected << std::endl;
+    std::cout << "  Node " << i << " at x=" << x * 1000
+              << "mm: Hz=" << Hz_te10(i) << ", expected cos=" << expected
+              << std::endl;
   }
 
   // Now compute port weights using 2D FEM eigenvector
@@ -182,7 +193,8 @@ int main() {
   // For TE10 with Hz = cos(πx/a): ∂Hz/∂x = -π/a sin(πx/a), ∂Hz/∂y = 0
   // So Et = jωμ/kc² × (0, π/a sin(πx/a), 0) = jωμ/(akc²) × (0, π sin(πx/a), 0)
 
-  // For the FEM eigenvector, we compute ∇Hz at each triangle, then integrate Et along edges
+  // For the FEM eigenvector, we compute ∇Hz at each triangle, then integrate Et
+  // along edges
   std::cout << "\n=== Computing FEM-based Port Weights ===" << std::endl;
 
   PortMode mode1 = solve_te10_mode(dims, freq);
@@ -216,8 +228,10 @@ int main() {
   // Build wave port with FEM Hz field
   WavePort wp_fem_actual = build_wave_port(mesh, port1_surf, mode1_fem);
 
-  std::cout << "Analytical weights ||w||² = " << wp_analytical.weights.squaredNorm() << std::endl;
-  std::cout << "FEM-based weights ||w||² = " << wp_fem_actual.weights.squaredNorm() << std::endl;
+  std::cout << "Analytical weights ||w||² = "
+            << wp_analytical.weights.squaredNorm() << std::endl;
+  std::cout << "FEM-based weights ||w||² = "
+            << wp_fem_actual.weights.squaredNorm() << std::endl;
 
   // Check correlation between analytical and FEM weights
   Eigen::VectorXcd w_ana = wp_analytical.weights;
@@ -237,8 +251,10 @@ int main() {
     if (!bc.dirichlet_edges.count(e)) {
       auto w_a = wp_analytical.weights(i);
       auto w_f = wp_fem_actual.weights(i);
-      auto ratio = (std::abs(w_a) > 1e-10) ? w_f / w_a : std::complex<double>(0);
-      std::cout << e << "\t\t" << w_a << "\t\t" << w_f << "\t\t" << ratio << std::endl;
+      auto ratio =
+          (std::abs(w_a) > 1e-10) ? w_f / w_a : std::complex<double>(0);
+      std::cout << e << "\t\t" << w_a << "\t\t" << w_f << "\t\t" << ratio
+                << std::endl;
       shown++;
     }
   }
@@ -265,7 +281,8 @@ int main() {
   Eigen::MatrixXd K_2d_p2, M_2d_p2;
   build_2d_fem_matrices(mesh, port2_surf, bc, K_2d_p2, M_2d_p2);
 
-  Eigen::GeneralizedSelfAdjointEigenSolver<Eigen::MatrixXd> ges_p2(K_2d_p2, M_2d_p2);
+  Eigen::GeneralizedSelfAdjointEigenSolver<Eigen::MatrixXd> ges_p2(K_2d_p2,
+                                                                   M_2d_p2);
   auto eigenvalues_p2 = ges_p2.eigenvalues();
   auto eigenvectors_p2 = ges_p2.eigenvectors();
 
@@ -296,7 +313,8 @@ int main() {
   wp2_fem.weights *= scale_fem_p2;
   wp2_fem.mode = mode1;
 
-  std::cout << "Normalized ||w||² = " << wp1_fem_norm.weights.squaredNorm() << " (target: " << target_norm_sq << ")" << std::endl;
+  std::cout << "Normalized ||w||² = " << wp1_fem_norm.weights.squaredNorm()
+            << " (target: " << target_norm_sq << ")" << std::endl;
 
   MaxwellParams p;
   p.omega = omega;
@@ -304,12 +322,15 @@ int main() {
   std::vector<WavePort> ports_fem{wp1_fem_norm, wp2_fem};
   auto S_fem = calculate_sparams(mesh, p, bc, ports_fem);
 
-  std::cout << "S11 = " << S_fem(0,0) << " (|S11| = " << std::abs(S_fem(0,0)) << ")" << std::endl;
-  std::cout << "S21 = " << S_fem(1,0) << " (|S21| = " << std::abs(S_fem(1,0)) << ")" << std::endl;
+  std::cout << "S11 = " << S_fem(0, 0) << " (|S11| = " << std::abs(S_fem(0, 0))
+            << ")" << std::endl;
+  std::cout << "S21 = " << S_fem(1, 0) << " (|S21| = " << std::abs(S_fem(1, 0))
+            << ")" << std::endl;
 
   double beta = std::real(mode1.beta);
   double L = 0.05;
-  std::cout << "\nExpected: S11 ≈ 0, S21 ≈ exp(-jβL) = " << std::exp(std::complex<double>(0, -beta*L)) << std::endl;
+  std::cout << "\nExpected: S11 ≈ 0, S21 ≈ exp(-jβL) = "
+            << std::exp(std::complex<double>(0, -beta * L)) << std::endl;
 
   return 0;
 }
