@@ -16,6 +16,7 @@ VectorEM is an open-source full-wave FEM solver specialized for metasurface, met
 | **Radiation Patterns** | 3D far-field via Stratton-Chu integration |
 | **Periodic Structures** | Floquet ports for infinite array/metasurface analysis |
 | **Open Boundaries** | PML and ABC for antenna/scattering problems |
+| **Dispersive Materials** | Debye, Lorentz, Drude, and DrudeLorentz models |
 | **Python SDK** | Full scriptable API with NumPy integration |
 | **Design Classes** | `RectWaveguideDesign`, `PatchAntennaDesign`, `UnitCellDesign` |
 | **Plotting Module** | 14 publication-quality visualization functions |
@@ -246,6 +247,11 @@ For large-scale problems (>5M DOF) or features requiring adaptive refinement, co
 
 ## Roadmap
 
+### v1.0 (Current)
+- Dispersive materials (Debye, Lorentz, Drude, DrudeLorentz models)
+- pip-installable Python package (`pip install vectorem`)
+- GitHub Actions CI/CD with automated wheel builds
+
 ### v1.1 (Planned)
 - Higher-order waveguide modes (TE20, TE01, TM modes)
 - Lumped port excitation
@@ -255,7 +261,6 @@ For large-scale problems (>5M DOF) or features requiring adaptive refinement, co
 
 ### v1.2 (Planned)
 - Plane wave excitation for RCS/scattering
-- Dispersive materials (Debye/Lorentz models)
 - Surface impedance BC (SIBC)
 - Direct solver option (MUMPS)
 
