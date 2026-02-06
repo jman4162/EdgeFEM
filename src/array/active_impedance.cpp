@@ -5,9 +5,10 @@
 
 namespace edgefem {
 
-Eigen::VectorXcd uniform_scan_excitation(int num_elements,
-                                         const std::vector<Eigen::Vector3d> &positions,
-                                         double theta, double phi, double k0) {
+Eigen::VectorXcd
+uniform_scan_excitation(int num_elements,
+                        const std::vector<Eigen::Vector3d> &positions,
+                        double theta, double phi, double k0) {
   if (static_cast<int>(positions.size()) != num_elements) {
     throw std::runtime_error("Position vector size must match num_elements");
   }
@@ -29,14 +30,15 @@ Eigen::VectorXcd uniform_scan_excitation(int num_elements,
   return excitation;
 }
 
-ActiveImpedanceResult compute_active_impedance(const CouplingMatrix &coupling,
-                                                const Eigen::VectorXcd &excitation) {
+ActiveImpedanceResult
+compute_active_impedance(const CouplingMatrix &coupling,
+                         const Eigen::VectorXcd &excitation) {
   if (coupling.S.rows() != excitation.size()) {
     throw std::runtime_error("Excitation size must match S-matrix dimension");
   }
 
   ActiveImpedanceResult result;
-  result.theta = 0.0;  // Caller should set these
+  result.theta = 0.0; // Caller should set these
   result.phi = 0.0;
 
   int n = coupling.num_ports;
@@ -69,8 +71,10 @@ ActiveImpedanceResult compute_active_impedance(const CouplingMatrix &coupling,
   }
 
   if (total_incident_power > 1e-20) {
-    double mismatch_efficiency = 1.0 - (total_reflected_power / total_incident_power);
-    result.scan_loss_db = -10.0 * std::log10(std::max(mismatch_efficiency, 1e-20));
+    double mismatch_efficiency =
+        1.0 - (total_reflected_power / total_incident_power);
+    result.scan_loss_db =
+        -10.0 * std::log10(std::max(mismatch_efficiency, 1e-20));
   } else {
     result.scan_loss_db = 0.0;
   }
@@ -78,12 +82,11 @@ ActiveImpedanceResult compute_active_impedance(const CouplingMatrix &coupling,
   return result;
 }
 
-std::vector<ActiveImpedanceResult> active_impedance_scan(
-    const CouplingMatrix &coupling,
-    const std::vector<Eigen::Vector3d> &positions,
-    const std::vector<double> &theta_rad,
-    const std::vector<double> &phi_rad,
-    double k0) {
+std::vector<ActiveImpedanceResult>
+active_impedance_scan(const CouplingMatrix &coupling,
+                      const std::vector<Eigen::Vector3d> &positions,
+                      const std::vector<double> &theta_rad,
+                      const std::vector<double> &phi_rad, double k0) {
 
   int num_elements = coupling.num_ports;
 
@@ -96,10 +99,11 @@ std::vector<ActiveImpedanceResult> active_impedance_scan(
 
   for (double theta : theta_rad) {
     for (double phi : phi_rad) {
-      Eigen::VectorXcd excitation = uniform_scan_excitation(
-          num_elements, positions, theta, phi, k0);
+      Eigen::VectorXcd excitation =
+          uniform_scan_excitation(num_elements, positions, theta, phi, k0);
 
-      ActiveImpedanceResult result = compute_active_impedance(coupling, excitation);
+      ActiveImpedanceResult result =
+          compute_active_impedance(coupling, excitation);
       result.theta = theta;
       result.phi = phi;
 
@@ -113,14 +117,14 @@ std::vector<ActiveImpedanceResult> active_impedance_scan(
 double active_vswr(std::complex<double> Gamma_active) {
   double rho = std::abs(Gamma_active);
   if (rho >= 1.0 - 1e-12) {
-    return 1e12;  // Effectively infinite VSWR
+    return 1e12; // Effectively infinite VSWR
   }
   return (1.0 + rho) / (1.0 - rho);
 }
 
-std::map<int, std::vector<double>> find_scan_blindness(
-    const std::vector<ActiveImpedanceResult> &scan_results,
-    double vswr_threshold) {
+std::map<int, std::vector<double>>
+find_scan_blindness(const std::vector<ActiveImpedanceResult> &scan_results,
+                    double vswr_threshold) {
 
   std::map<int, std::vector<double>> blindness;
 

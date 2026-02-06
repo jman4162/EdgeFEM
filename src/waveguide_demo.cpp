@@ -30,12 +30,10 @@ int main(int argc, char **argv) {
     MaxwellParams p;
     p.omega = 2 * M_PI * f;
 
-    auto modes1 =
-        solve_port_eigens(port1_surface.mesh, 1, p.omega, 1.0, 1.0,
-                          ModePolarization::TE);
-    auto modes2 =
-        solve_port_eigens(port2_surface.mesh, 1, p.omega, 1.0, 1.0,
-                          ModePolarization::TE);
+    auto modes1 = solve_port_eigens(port1_surface.mesh, 1, p.omega, 1.0, 1.0,
+                                    ModePolarization::TE);
+    auto modes2 = solve_port_eigens(port2_surface.mesh, 1, p.omega, 1.0, 1.0,
+                                    ModePolarization::TE);
     std::vector<WavePort> ports;
     ports.push_back(build_wave_port(mesh, port1_surface, modes1.at(0)));
     ports.push_back(build_wave_port(mesh, port2_surface, modes2.at(0)));
@@ -43,13 +41,13 @@ int main(int argc, char **argv) {
     auto S = calculate_sparams(mesh, p, bc, ports);
 
     SParams2 s2;
-    s2.s11 = S(0,0);
-    s2.s21 = S(1,0);
-    s2.s12 = S(0,1);
-    s2.s22 = S(1,1);
+    s2.s11 = S(0, 0);
+    s2.s21 = S(1, 0);
+    s2.s12 = S(0, 1);
+    s2.s22 = S(1, 1);
     s_params.push_back(s2);
 
-    std::cout << "f=" << f/1e9 << " GHz, S11=" << std::abs(s2.s11) << "\n";
+    std::cout << "f=" << f / 1e9 << " GHz, S11=" << std::abs(s2.s11) << "\n";
   }
 
   write_touchstone("waveguide_sparams.s2p", freqs, s_params);

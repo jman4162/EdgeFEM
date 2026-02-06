@@ -56,14 +56,13 @@ Eigen::MatrixXd FFPattern3D::pattern_dB() const {
 // 2D Stratton-Chu (existing)
 // -----------------------------------------------------------------------------
 
-std::vector<NTFPoint2D> stratton_chu_2d(
-    const std::vector<Eigen::Vector3d> &r,
-    const std::vector<Eigen::Vector3d> &n,
-    const std::vector<Eigen::Vector3cd> &E,
-    const std::vector<Eigen::Vector3cd> &H,
-    const std::vector<double> &area,
-    const std::vector<double> &theta_rad,
-    double phi_rad, double k0) {
+std::vector<NTFPoint2D> stratton_chu_2d(const std::vector<Eigen::Vector3d> &r,
+                                        const std::vector<Eigen::Vector3d> &n,
+                                        const std::vector<Eigen::Vector3cd> &E,
+                                        const std::vector<Eigen::Vector3cd> &H,
+                                        const std::vector<double> &area,
+                                        const std::vector<double> &theta_rad,
+                                        double phi_rad, double k0) {
   std::vector<NTFPoint2D> out;
   out.reserve(theta_rad.size());
 
@@ -81,8 +80,8 @@ std::vector<NTFPoint2D> stratton_chu_2d(
       Eigen::Vector3cd J = n[i].cross(H[i]);
       Eigen::Vector3cd M = -n[i].cross(E[i]);
       std::complex<double> phase = std::exp(-j * k0 * rhat.dot(r[i]));
-      Eigen::Vector3cd term = j * k0 * (rhat.cross(M)).cross(rhat) -
-                              Z0 * rhat.cross(J);
+      Eigen::Vector3cd term =
+          j * k0 * (rhat.cross(M)).cross(rhat) - Z0 * rhat.cross(J);
       Efar += term * phase * area[i];
     }
 
@@ -99,15 +98,13 @@ std::vector<NTFPoint2D> stratton_chu_2d(
 // 3D Stratton-Chu
 // -----------------------------------------------------------------------------
 
-FFPattern3D stratton_chu_3d(
-    const std::vector<Eigen::Vector3d> &r,
-    const std::vector<Eigen::Vector3d> &n,
-    const std::vector<Eigen::Vector3cd> &E,
-    const std::vector<Eigen::Vector3cd> &H,
-    const std::vector<double> &area,
-    const std::vector<double> &theta_rad,
-    const std::vector<double> &phi_rad,
-    double k0) {
+FFPattern3D stratton_chu_3d(const std::vector<Eigen::Vector3d> &r,
+                            const std::vector<Eigen::Vector3d> &n,
+                            const std::vector<Eigen::Vector3cd> &E,
+                            const std::vector<Eigen::Vector3cd> &H,
+                            const std::vector<double> &area,
+                            const std::vector<double> &theta_rad,
+                            const std::vector<double> &phi_rad, double k0) {
   const int Nth = static_cast<int>(theta_rad.size());
   const int Nph = static_cast<int>(phi_rad.size());
 
@@ -147,16 +144,16 @@ FFPattern3D stratton_chu_3d(
       Eigen::Vector3cd Efar = Eigen::Vector3cd::Zero();
       for (size_t s = 0; s < r.size(); ++s) {
         // Equivalent surface currents
-        Eigen::Vector3cd J = n[s].cross(H[s]);        // Electric current
-        Eigen::Vector3cd M = -n[s].cross(E[s]);       // Magnetic current
+        Eigen::Vector3cd J = n[s].cross(H[s]);  // Electric current
+        Eigen::Vector3cd M = -n[s].cross(E[s]); // Magnetic current
 
         // Phase factor for this surface point
         std::complex<double> phase = std::exp(-j_imag * k0 * rhat.dot(r[s]));
 
         // Far-field contribution from this patch
         // E_far = jk0 * (rhat x M) x rhat - Z0 * rhat x J
-        Eigen::Vector3cd term = j_imag * k0 * (rhat.cross(M)).cross(rhat) -
-                                Z0 * rhat.cross(J);
+        Eigen::Vector3cd term =
+            j_imag * k0 * (rhat.cross(M)).cross(rhat) - Z0 * rhat.cross(J);
         Efar += term * phase * area[s];
       }
 
@@ -178,7 +175,7 @@ double compute_directivity(const FFPattern3D &pattern) {
   // U = r^2 * S = |E|^2 / (2*Z0) is radiation intensity
   // P_rad = integral of U over sphere
 
-  const Eigen::MatrixXd pwr = pattern.power_pattern();  // |E_th|^2 + |E_ph|^2
+  const Eigen::MatrixXd pwr = pattern.power_pattern(); // |E_th|^2 + |E_ph|^2
   const double U_max = pwr.maxCoeff() / (2.0 * Z0);
 
   if (U_max < std::numeric_limits<double>::epsilon()) {
@@ -191,20 +188,24 @@ double compute_directivity(const FFPattern3D &pattern) {
   const int Nph = static_cast<int>(pattern.theta_grid.cols());
 
   if (Nth < 2 || Nph < 2) {
-    return 1.0;  // Not enough points for integration
+    return 1.0; // Not enough points for integration
   }
 
   // Compute dtheta and dphi (assuming uniform spacing)
-  double dtheta = (Nth > 1) ?
-      (pattern.theta_grid(Nth - 1, 0) - pattern.theta_grid(0, 0)) / (Nth - 1) : M_PI;
-  double dphi = (Nph > 1) ?
-      (pattern.phi_grid(0, Nph - 1) - pattern.phi_grid(0, 0)) / (Nph - 1) : 2.0 * M_PI;
+  double dtheta =
+      (Nth > 1) ? (pattern.theta_grid(Nth - 1, 0) - pattern.theta_grid(0, 0)) /
+                      (Nth - 1)
+                : M_PI;
+  double dphi =
+      (Nph > 1)
+          ? (pattern.phi_grid(0, Nph - 1) - pattern.phi_grid(0, 0)) / (Nph - 1)
+          : 2.0 * M_PI;
 
   double P_rad = 0.0;
   for (int i = 0; i < Nth; ++i) {
     double theta = pattern.theta_grid(i, 0);
     double sin_th = std::sin(theta);
-    double wt_th = (i == 0 || i == Nth - 1) ? 0.5 : 1.0;  // Trapezoidal weight
+    double wt_th = (i == 0 || i == Nth - 1) ? 0.5 : 1.0; // Trapezoidal weight
 
     for (int j = 0; j < Nph; ++j) {
       double wt_ph = (j == 0 || j == Nph - 1) ? 0.5 : 1.0;
@@ -245,8 +246,10 @@ std::pair<double, double> compute_hpbw(const FFPattern3D &pattern) {
   double e_plane_hpbw = 0.0;
   {
     int lower = max_ti, upper = max_ti;
-    while (lower > 0 && pwr(lower, max_pi) > half_power) --lower;
-    while (upper < Nth - 1 && pwr(upper, max_pi) > half_power) ++upper;
+    while (lower > 0 && pwr(lower, max_pi) > half_power)
+      --lower;
+    while (upper < Nth - 1 && pwr(upper, max_pi) > half_power)
+      ++upper;
 
     double theta_low = pattern.theta_grid(lower, max_pi);
     double theta_high = pattern.theta_grid(upper, max_pi);
@@ -257,8 +260,10 @@ std::pair<double, double> compute_hpbw(const FFPattern3D &pattern) {
   double h_plane_hpbw = 0.0;
   {
     int lower = max_pi, upper = max_pi;
-    while (lower > 0 && pwr(max_ti, lower) > half_power) --lower;
-    while (upper < Nph - 1 && pwr(max_ti, upper) > half_power) ++upper;
+    while (lower > 0 && pwr(max_ti, lower) > half_power)
+      --lower;
+    while (upper < Nph - 1 && pwr(max_ti, upper) > half_power)
+      ++upper;
 
     double phi_low = pattern.phi_grid(max_ti, lower);
     double phi_high = pattern.phi_grid(max_ti, upper);
@@ -287,7 +292,8 @@ void write_pattern_csv(const std::string &path, double phi_deg,
 
 void write_pattern_3d_csv(const std::string &path, const FFPattern3D &pattern) {
   std::ofstream f(path);
-  f << "theta_deg,phi_deg,E_theta_mag,E_theta_phase_deg,E_phi_mag,E_phi_phase_deg,total_dB\n";
+  f << "theta_deg,phi_deg,E_theta_mag,E_theta_phase_deg,E_phi_mag,E_phi_phase_"
+       "deg,total_dB\n";
 
   const Eigen::MatrixXd dB = pattern.pattern_dB();
 
@@ -299,13 +305,9 @@ void write_pattern_3d_csv(const std::string &path, const FFPattern3D &pattern) {
       std::complex<double> eth = pattern.E_theta(i, j);
       std::complex<double> eph = pattern.E_phi(i, j);
 
-      f << th_deg << ','
-        << ph_deg << ','
-        << std::abs(eth) << ','
-        << std::arg(eth) * 180.0 / M_PI << ','
-        << std::abs(eph) << ','
-        << std::arg(eph) * 180.0 / M_PI << ','
-        << dB(i, j) << '\n';
+      f << th_deg << ',' << ph_deg << ',' << std::abs(eth) << ','
+        << std::arg(eth) * 180.0 / M_PI << ',' << std::abs(eph) << ','
+        << std::arg(eph) * 180.0 / M_PI << ',' << dB(i, j) << '\n';
     }
   }
 }
@@ -321,13 +323,16 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
 
   // VTK XML Unstructured Grid header
   f << "<?xml version=\"1.0\"?>\n";
-  f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
+  f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" "
+       "byte_order=\"LittleEndian\">\n";
   f << "  <UnstructuredGrid>\n";
-  f << "    <Piece NumberOfPoints=\"" << n_points << "\" NumberOfCells=\"" << n_cells << "\">\n";
+  f << "    <Piece NumberOfPoints=\"" << n_points << "\" NumberOfCells=\""
+    << n_cells << "\">\n";
 
   // Points (spherical surface)
   f << "      <Points>\n";
-  f << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" "
+       "format=\"ascii\">\n";
   for (int i = 0; i < Nth; ++i) {
     for (int j = 0; j < Nph; ++j) {
       double th = pattern.theta_grid(i, j);
@@ -343,7 +348,8 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
 
   // Cells (quads)
   f << "      <Cells>\n";
-  f << "        <DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Int32\" Name=\"connectivity\" "
+       "format=\"ascii\">\n";
   for (int i = 0; i < Nth - 1; ++i) {
     for (int j = 0; j < Nph - 1; ++j) {
       int p0 = i * Nph + j;
@@ -361,7 +367,7 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
   f << "        </DataArray>\n";
   f << "        <DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
   for (int c = 0; c < n_cells; ++c) {
-    f << "          9\n";  // VTK_QUAD = 9
+    f << "          9\n"; // VTK_QUAD = 9
   }
   f << "        </DataArray>\n";
   f << "      </Cells>\n";
@@ -373,7 +379,8 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
   f << "      <PointData Scalars=\"Pattern_dB\">\n";
 
   // Pattern in dB
-  f << "        <DataArray type=\"Float64\" Name=\"Pattern_dB\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Float64\" Name=\"Pattern_dB\" "
+       "format=\"ascii\">\n";
   for (int i = 0; i < Nth; ++i) {
     for (int j = 0; j < Nph; ++j) {
       f << "          " << dB(i, j) << "\n";
@@ -382,7 +389,8 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
   f << "        </DataArray>\n";
 
   // Total magnitude
-  f << "        <DataArray type=\"Float64\" Name=\"E_magnitude\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Float64\" Name=\"E_magnitude\" "
+       "format=\"ascii\">\n";
   for (int i = 0; i < Nth; ++i) {
     for (int j = 0; j < Nph; ++j) {
       f << "          " << mag(i, j) << "\n";
@@ -391,7 +399,8 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
   f << "        </DataArray>\n";
 
   // E_theta magnitude
-  f << "        <DataArray type=\"Float64\" Name=\"E_theta_mag\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Float64\" Name=\"E_theta_mag\" "
+       "format=\"ascii\">\n";
   for (int i = 0; i < Nth; ++i) {
     for (int j = 0; j < Nph; ++j) {
       f << "          " << std::abs(pattern.E_theta(i, j)) << "\n";
@@ -400,7 +409,8 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
   f << "        </DataArray>\n";
 
   // E_phi magnitude
-  f << "        <DataArray type=\"Float64\" Name=\"E_phi_mag\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Float64\" Name=\"E_phi_mag\" "
+       "format=\"ascii\">\n";
   for (int i = 0; i < Nth; ++i) {
     for (int j = 0; j < Nph; ++j) {
       f << "          " << std::abs(pattern.E_phi(i, j)) << "\n";
@@ -415,4 +425,3 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
 }
 
 } // namespace edgefem
-

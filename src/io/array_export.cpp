@@ -26,13 +26,12 @@ std::string complex_to_json(std::complex<double> val) {
   return ss.str();
 }
 
-double to_degrees(double radians) {
-  return radians * 180.0 / M_PI;
-}
+double to_degrees(double radians) { return radians * 180.0 / M_PI; }
 
 } // namespace
 
-void export_array_package_json(const std::string &path, const ArrayPackage &pkg) {
+void export_array_package_json(const std::string &path,
+                               const ArrayPackage &pkg) {
   std::ofstream ofs(path);
   if (!ofs) {
     throw std::runtime_error("Cannot open file for writing: " + path);
@@ -50,7 +49,8 @@ void export_array_package_json(const std::string &path, const ArrayPackage &pkg)
   ofs << "  \"element_positions\": [\n";
   for (size_t i = 0; i < pkg.element_positions.size(); ++i) {
     ofs << "    " << to_json_array(pkg.element_positions[i]);
-    if (i < pkg.element_positions.size() - 1) ofs << ",";
+    if (i < pkg.element_positions.size() - 1)
+      ofs << ",";
     ofs << "\n";
   }
   ofs << "  ],\n";
@@ -60,7 +60,8 @@ void export_array_package_json(const std::string &path, const ArrayPackage &pkg)
   ofs << "  \"frequencies\": [";
   for (size_t i = 0; i < pkg.frequencies.size(); ++i) {
     ofs << pkg.frequencies[i];
-    if (i < pkg.frequencies.size() - 1) ofs << ", ";
+    if (i < pkg.frequencies.size() - 1)
+      ofs << ", ";
   }
   ofs << "],\n";
 
@@ -75,25 +76,31 @@ void export_array_package_json(const std::string &path, const ArrayPackage &pkg)
       ofs << "        [";
       for (int j = 0; j < S.cols(); ++j) {
         ofs << complex_to_json(S(i, j));
-        if (j < S.cols() - 1) ofs << ", ";
+        if (j < S.cols() - 1)
+          ofs << ", ";
       }
       ofs << "]";
-      if (i < S.rows() - 1) ofs << ",";
+      if (i < S.rows() - 1)
+        ofs << ",";
       ofs << "\n";
     }
     ofs << "      ]\n";
     ofs << "    }";
-    if (fi < pkg.S_matrices.size() - 1) ofs << ",";
+    if (fi < pkg.S_matrices.size() - 1)
+      ofs << ",";
     ofs << "\n";
   }
   ofs << "  ],\n";
 
   // Embedded patterns (simplified - just summary)
-  ofs << "  \"has_embedded_patterns\": " << (pkg.embedded_patterns.empty() ? "false" : "true") << ",\n";
-  ofs << "  \"num_pattern_frequencies\": " << pkg.embedded_patterns.size() << ",\n";
+  ofs << "  \"has_embedded_patterns\": "
+      << (pkg.embedded_patterns.empty() ? "false" : "true") << ",\n";
+  ofs << "  \"num_pattern_frequencies\": " << pkg.embedded_patterns.size()
+      << ",\n";
 
   // Scan data
-  ofs << "  \"has_scan_data\": " << (pkg.scan_data.empty() ? "false" : "true") << ",\n";
+  ofs << "  \"has_scan_data\": " << (pkg.scan_data.empty() ? "false" : "true")
+      << ",\n";
   ofs << "  \"num_scan_points\": " << pkg.scan_data.size();
 
   if (!pkg.scan_data.empty()) {
@@ -103,7 +110,8 @@ void export_array_package_json(const std::string &path, const ArrayPackage &pkg)
       ofs << "    {\"theta\": " << to_degrees(pkg.scan_data[i].theta)
           << ", \"phi\": " << to_degrees(pkg.scan_data[i].phi)
           << ", \"scan_loss_db\": " << pkg.scan_data[i].scan_loss_db << "}";
-      if (i < pkg.scan_data.size() - 1) ofs << ",";
+      if (i < pkg.scan_data.size() - 1)
+        ofs << ",";
       ofs << "\n";
     }
     ofs << "  ]\n";
@@ -122,25 +130,23 @@ void export_patterns_csv(const std::string &path,
   }
 
   ofs << std::setprecision(12);
-  ofs << "port_index,theta_deg,phi0_mag,phi0_phase_deg,phi90_mag,phi90_phase_deg\n";
+  ofs << "port_index,theta_deg,phi0_mag,phi0_phase_deg,phi90_mag,phi90_phase_"
+         "deg\n";
 
   for (const auto &pattern : patterns) {
-    size_t n = std::min(pattern.pattern_phi0.size(), pattern.pattern_phi90.size());
+    size_t n =
+        std::min(pattern.pattern_phi0.size(), pattern.pattern_phi90.size());
     for (size_t i = 0; i < n; ++i) {
       const auto &p0 = pattern.pattern_phi0[i];
       const auto &p90 = pattern.pattern_phi90[i];
-      ofs << pattern.port_index << ","
-          << to_degrees(p0.theta) << ","
-          << p0.magnitude << ","
-          << to_degrees(p0.phase) << ","
-          << p90.magnitude << ","
-          << to_degrees(p90.phase) << "\n";
+      ofs << pattern.port_index << "," << to_degrees(p0.theta) << ","
+          << p0.magnitude << "," << to_degrees(p0.phase) << "," << p90.magnitude
+          << "," << to_degrees(p90.phase) << "\n";
     }
   }
 }
 
-void export_coupling_csv(const std::string &path,
-                         const Eigen::MatrixXcd &S,
+void export_coupling_csv(const std::string &path, const Eigen::MatrixXcd &S,
                          const std::vector<Eigen::Vector3d> &positions) {
   auto couplings = extract_all_couplings(S, positions);
 
@@ -153,12 +159,8 @@ void export_coupling_csv(const std::string &path,
   ofs << "port_i,port_j,S_real,S_imag,magnitude_db,phase_deg,distance_m\n";
 
   for (const auto &c : couplings) {
-    ofs << c.port_i << ","
-        << c.port_j << ","
-        << c.S_ij.real() << ","
-        << c.S_ij.imag() << ","
-        << c.magnitude_db << ","
-        << c.phase_deg << ","
+    ofs << c.port_i << "," << c.port_j << "," << c.S_ij.real() << ","
+        << c.S_ij.imag() << "," << c.magnitude_db << "," << c.phase_deg << ","
         << c.distance << "\n";
   }
 }
@@ -171,20 +173,17 @@ void export_scan_csv(const std::string &path,
   }
 
   ofs << std::setprecision(12);
-  ofs << "theta_deg,phi_deg,element_idx,Gamma_real,Gamma_imag,Z_real,Z_imag,VSWR\n";
+  ofs << "theta_deg,phi_deg,element_idx,Gamma_real,Gamma_imag,Z_real,Z_imag,"
+         "VSWR\n";
 
   for (const auto &result : scan_results) {
     int n = static_cast<int>(result.Gamma_active.size());
     for (int i = 0; i < n; ++i) {
       double vswr = active_vswr(result.Gamma_active(i));
-      ofs << to_degrees(result.theta) << ","
-          << to_degrees(result.phi) << ","
-          << i << ","
-          << result.Gamma_active(i).real() << ","
-          << result.Gamma_active(i).imag() << ","
-          << result.Z_active(i).real() << ","
-          << result.Z_active(i).imag() << ","
-          << vswr << "\n";
+      ofs << to_degrees(result.theta) << "," << to_degrees(result.phi) << ","
+          << i << "," << result.Gamma_active(i).real() << ","
+          << result.Gamma_active(i).imag() << "," << result.Z_active(i).real()
+          << "," << result.Z_active(i).imag() << "," << vswr << "\n";
     }
   }
 }

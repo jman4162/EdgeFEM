@@ -106,7 +106,8 @@ Eigen::Vector4d compute_barycentric(const std::array<Eigen::Vector3d, 4> &v,
   return lambda;
 }
 
-Eigen::Vector3d compute_grad_lambda(const std::array<Eigen::Vector3d, 4> &v, int i) {
+Eigen::Vector3d compute_grad_lambda(const std::array<Eigen::Vector3d, 4> &v,
+                                    int i) {
   std::array<Eigen::Vector3d, 4> g;
   double V;
   gradients_and_volume(v, g, V);

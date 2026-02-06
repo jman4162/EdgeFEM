@@ -13,9 +13,9 @@ namespace edgefem {
 
 /// Far-field point in 2D pattern cut.
 struct FFPoint2D {
-  double theta;      // Angle in radians
-  double magnitude;  // Field magnitude (linear, not dB)
-  double phase;      // Phase in radians
+  double theta;     // Angle in radians
+  double magnitude; // Field magnitude (linear, not dB)
+  double phase;     // Phase in radians
 };
 
 /// Embedded element pattern for one port.
@@ -29,11 +29,11 @@ struct EmbeddedPattern {
 
 /// Configuration for embedded pattern computation.
 struct ArrayPatternConfig {
-  std::vector<double> theta_rad;       // Theta angles for pattern cuts
-  double phi_e_plane = 0.0;            // Phi angle for E-plane (usually 0)
-  double phi_h_plane = M_PI / 2.0;     // Phi angle for H-plane (usually π/2)
-  double k0;                           // Free-space wavenumber (rad/m)
-  double huygens_radius = 0.0;         // Radius for Huygens surface (0 = auto)
+  std::vector<double> theta_rad;   // Theta angles for pattern cuts
+  double phi_e_plane = 0.0;        // Phi angle for E-plane (usually 0)
+  double phi_h_plane = M_PI / 2.0; // Phi angle for H-plane (usually π/2)
+  double k0;                       // Free-space wavenumber (rad/m)
+  double huygens_radius = 0.0;     // Radius for Huygens surface (0 = auto)
 };
 
 /// Compute embedded element patterns for all ports.
@@ -45,9 +45,10 @@ struct ArrayPatternConfig {
 /// @param ports Wave port definitions (one per element)
 /// @param config Pattern configuration
 /// @return Vector of EmbeddedPattern, one per port
-std::vector<EmbeddedPattern> compute_embedded_patterns(
-    const Mesh &mesh, const MaxwellParams &params, const BC &bc,
-    const std::vector<WavePort> &ports, const ArrayPatternConfig &config);
+std::vector<EmbeddedPattern>
+compute_embedded_patterns(const Mesh &mesh, const MaxwellParams &params,
+                          const BC &bc, const std::vector<WavePort> &ports,
+                          const ArrayPatternConfig &config);
 
 /// Compute embedded pattern for a single port.
 /// @param mesh Volume mesh

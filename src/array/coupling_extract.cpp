@@ -13,15 +13,13 @@ double to_db(double linear) {
   return 20.0 * std::log10(std::max(linear, 1e-20));
 }
 
-double to_degrees(double radians) {
-  return radians * 180.0 / M_PI;
-}
+double to_degrees(double radians) { return radians * 180.0 / M_PI; }
 
 } // namespace
 
-std::vector<CouplingCoefficient> extract_all_couplings(
-    const Eigen::MatrixXcd &S,
-    const std::vector<Eigen::Vector3d> &positions) {
+std::vector<CouplingCoefficient>
+extract_all_couplings(const Eigen::MatrixXcd &S,
+                      const std::vector<Eigen::Vector3d> &positions) {
 
   if (S.rows() != S.cols()) {
     throw std::runtime_error("S-matrix must be square");
@@ -35,7 +33,8 @@ std::vector<CouplingCoefficient> extract_all_couplings(
 
   for (int i = 0; i < n; ++i) {
     for (int j = 0; j < n; ++j) {
-      if (i == j) continue;
+      if (i == j)
+        continue;
 
       CouplingCoefficient coef;
       coef.port_i = i;
@@ -57,9 +56,9 @@ std::vector<CouplingCoefficient> extract_all_couplings(
   return result;
 }
 
-std::map<int, double> coupling_vs_separation(
-    const Eigen::MatrixXcd &S,
-    const std::vector<Eigen::Vector3d> &positions) {
+std::map<int, double>
+coupling_vs_separation(const Eigen::MatrixXcd &S,
+                       const std::vector<Eigen::Vector3d> &positions) {
 
   if (S.rows() != S.cols()) {
     throw std::runtime_error("S-matrix must be square");
@@ -88,7 +87,8 @@ std::map<int, double> coupling_vs_separation(
 
   // Bin distances (10 bins)
   double bin_size = (max_dist - min_dist) / 10.0;
-  if (bin_size < 1e-12) bin_size = max_dist / 10.0;
+  if (bin_size < 1e-12)
+    bin_size = max_dist / 10.0;
 
   std::map<int, std::vector<double>> bins;
 
@@ -98,7 +98,8 @@ std::map<int, double> coupling_vs_separation(
       int bin = static_cast<int>((d - min_dist) / bin_size);
 
       // Average of both directions (should be reciprocal for passive network)
-      double coupling_db = 0.5 * (to_db(std::abs(S(i, j))) + to_db(std::abs(S(j, i))));
+      double coupling_db =
+          0.5 * (to_db(std::abs(S(i, j))) + to_db(std::abs(S(j, i))));
       bins[bin].push_back(coupling_db);
     }
   }
@@ -116,10 +117,10 @@ std::map<int, double> coupling_vs_separation(
   return result;
 }
 
-std::vector<CouplingCoefficient> extract_nearest_neighbor_coupling(
-    const Eigen::MatrixXcd &S,
-    const std::vector<Eigen::Vector3d> &positions,
-    int max_neighbors) {
+std::vector<CouplingCoefficient>
+extract_nearest_neighbor_coupling(const Eigen::MatrixXcd &S,
+                                  const std::vector<Eigen::Vector3d> &positions,
+                                  int max_neighbors) {
 
   if (S.rows() != S.cols()) {
     throw std::runtime_error("S-matrix must be square");
@@ -136,7 +137,8 @@ std::vector<CouplingCoefficient> extract_nearest_neighbor_coupling(
     // Find distances to all other elements
     std::vector<std::pair<double, int>> distances;
     for (int j = 0; j < n; ++j) {
-      if (i == j) continue;
+      if (i == j)
+        continue;
       double d = (positions[i] - positions[j]).norm();
       distances.push_back({d, j});
     }
@@ -183,7 +185,8 @@ CouplingStats compute_coupling_stats(const Eigen::MatrixXcd &S) {
 
   for (int i = 0; i < n; ++i) {
     for (int j = 0; j < n; ++j) {
-      if (i == j) continue;
+      if (i == j)
+        continue;
 
       double coupling_db = to_db(std::abs(S(i, j)));
 
@@ -204,7 +207,8 @@ CouplingStats compute_coupling_stats(const Eigen::MatrixXcd &S) {
 
   if (count > 0) {
     stats.mean_coupling_db = sum / count;
-    double variance = (sum_sq / count) - (stats.mean_coupling_db * stats.mean_coupling_db);
+    double variance =
+        (sum_sq / count) - (stats.mean_coupling_db * stats.mean_coupling_db);
     stats.std_coupling_db = std::sqrt(std::max(variance, 0.0));
   } else {
     stats.mean_coupling_db = 0.0;

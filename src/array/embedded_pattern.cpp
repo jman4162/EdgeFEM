@@ -12,10 +12,8 @@ namespace {
 
 // Compute far-field point using simplified Huygens integration
 // This is a placeholder - full implementation would use post/ntf.hpp
-FFPoint2D compute_ff_point(const Eigen::VectorXcd &E_field,
-                           const Mesh &mesh,
-                           double theta, double phi,
-                           double k0) {
+FFPoint2D compute_ff_point(const Eigen::VectorXcd &E_field, const Mesh &mesh,
+                           double theta, double phi, double k0) {
   FFPoint2D point;
   point.theta = theta;
 
@@ -30,7 +28,8 @@ FFPoint2D compute_ff_point(const Eigen::VectorXcd &E_field,
   r_hat.y() = std::sin(theta) * std::sin(phi);
   r_hat.z() = std::cos(theta);
 
-  for (size_t i = 0; i < mesh.edges.size() && i < static_cast<size_t>(E_field.size()); ++i) {
+  for (size_t i = 0;
+       i < mesh.edges.size() && i < static_cast<size_t>(E_field.size()); ++i) {
     const auto &edge = mesh.edges[i];
     Eigen::Vector3d p0 = mesh.nodes[mesh.nodeIndex.at(edge.n0)].xyz;
     Eigen::Vector3d p1 = mesh.nodes[mesh.nodeIndex.at(edge.n1)].xyz;
@@ -39,7 +38,8 @@ FFPoint2D compute_ff_point(const Eigen::VectorXcd &E_field,
 
     // Phase from observation point
     double phase_delay = k0 * edge_center.dot(r_hat);
-    std::complex<double> phase_factor(std::cos(phase_delay), -std::sin(phase_delay));
+    std::complex<double> phase_factor(std::cos(phase_delay),
+                                      -std::sin(phase_delay));
 
     // Angular weighting (cross product with observation direction)
     double angular_weight = (edge_vec.cross(r_hat)).norm();
@@ -55,9 +55,10 @@ FFPoint2D compute_ff_point(const Eigen::VectorXcd &E_field,
 
 } // namespace
 
-std::vector<EmbeddedPattern> compute_embedded_patterns(
-    const Mesh &mesh, const MaxwellParams &params, const BC &bc,
-    const std::vector<WavePort> &ports, const ArrayPatternConfig &config) {
+std::vector<EmbeddedPattern>
+compute_embedded_patterns(const Mesh &mesh, const MaxwellParams &params,
+                          const BC &bc, const std::vector<WavePort> &ports,
+                          const ArrayPatternConfig &config) {
 
   std::vector<EmbeddedPattern> patterns;
   patterns.reserve(ports.size());
@@ -125,7 +126,8 @@ EmbeddedPattern compute_single_embedded_pattern(
 }
 
 void normalize_pattern(std::vector<FFPoint2D> &pattern) {
-  if (pattern.empty()) return;
+  if (pattern.empty())
+    return;
 
   // Find peak magnitude
   double peak = 0.0;

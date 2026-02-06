@@ -36,7 +36,8 @@ Eigen::Vector3cd compute_field_at_point(const Mesh &mesh, const Element &tet,
     int n0 = edge_nodes[e][0];
     int n1 = edge_nodes[e][1];
 
-    // Whitney basis: W_e = lambda_n0 * grad(lambda_n1) - lambda_n1 * grad(lambda_n0)
+    // Whitney basis: W_e = lambda_n0 * grad(lambda_n1) - lambda_n1 *
+    // grad(lambda_n0)
     Eigen::Vector3d grad_lambda0 = compute_grad_lambda(X, n0);
     Eigen::Vector3d grad_lambda1 = compute_grad_lambda(X, n1);
 
@@ -45,7 +46,8 @@ Eigen::Vector3cd compute_field_at_point(const Mesh &mesh, const Element &tet,
     // Get solution coefficient for this edge (with orientation)
     int global_edge = tet.edges[e];
     int orient = tet.edge_orient[e];
-    std::complex<double> coeff = solution(global_edge) * static_cast<double>(orient);
+    std::complex<double> coeff =
+        solution(global_edge) * static_cast<double>(orient);
 
     E += coeff * W_e;
   }
@@ -82,28 +84,34 @@ void export_fields_vtk(const Mesh &mesh, const VecC &solution,
 
   for (size_t i = 0; i < num_tets; ++i) {
     centroids[i] = compute_centroid(mesh, mesh.tets[i]);
-    E_fields[i] = compute_field_at_point(mesh, mesh.tets[i], solution, centroids[i]);
+    E_fields[i] =
+        compute_field_at_point(mesh, mesh.tets[i], solution, centroids[i]);
   }
 
   // Write VTK XML header
   f << "<?xml version=\"1.0\"?>\n";
-  f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
+  f << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" "
+       "byte_order=\"LittleEndian\">\n";
   f << "  <UnstructuredGrid>\n";
-  f << "    <Piece NumberOfPoints=\"" << num_nodes << "\" NumberOfCells=\"" << num_tets << "\">\n";
+  f << "    <Piece NumberOfPoints=\"" << num_nodes << "\" NumberOfCells=\""
+    << num_tets << "\">\n";
 
-  // Point data (at cell centroids would require CellData, but we use original nodes)
+  // Point data (at cell centroids would require CellData, but we use original
+  // nodes)
   f << "      <Points>\n";
-  f << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" "
+       "format=\"ascii\">\n";
   for (const auto &node : mesh.nodes) {
-    f << "          " << std::scientific << std::setprecision(8)
-      << node.xyz[0] << " " << node.xyz[1] << " " << node.xyz[2] << "\n";
+    f << "          " << std::scientific << std::setprecision(8) << node.xyz[0]
+      << " " << node.xyz[1] << " " << node.xyz[2] << "\n";
   }
   f << "        </DataArray>\n";
   f << "      </Points>\n";
 
   // Cell connectivity
   f << "      <Cells>\n";
-  f << "        <DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Int32\" Name=\"connectivity\" "
+       "format=\"ascii\">\n";
   for (const auto &tet : mesh.tets) {
     // Map from global node IDs to local indices
     f << "          ";
@@ -121,15 +129,17 @@ void export_fields_vtk(const Mesh &mesh, const VecC &solution,
   f << "          ";
   for (size_t i = 1; i <= num_tets; ++i) {
     f << (i * 4) << " ";
-    if (i % 20 == 0) f << "\n          ";
+    if (i % 20 == 0)
+      f << "\n          ";
   }
   f << "\n        </DataArray>\n";
 
   f << "        <DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
   f << "          ";
   for (size_t i = 0; i < num_tets; ++i) {
-    f << "10 ";  // VTK_TETRA = 10
-    if ((i + 1) % 30 == 0) f << "\n          ";
+    f << "10 "; // VTK_TETRA = 10
+    if ((i + 1) % 30 == 0)
+      f << "\n          ";
   }
   f << "\n        </DataArray>\n";
   f << "      </Cells>\n";
@@ -138,7 +148,8 @@ void export_fields_vtk(const Mesh &mesh, const VecC &solution,
   f << "      <CellData>\n";
 
   if (options.export_magnitude) {
-    f << "        <DataArray type=\"Float64\" Name=\"E_magnitude\" format=\"ascii\">\n";
+    f << "        <DataArray type=\"Float64\" Name=\"E_magnitude\" "
+         "format=\"ascii\">\n";
     for (size_t i = 0; i < num_tets; ++i) {
       double mag = E_fields[i].norm();
       f << "          " << std::scientific << mag << "\n";
@@ -147,7 +158,8 @@ void export_fields_vtk(const Mesh &mesh, const VecC &solution,
   }
 
   if (options.export_phase) {
-    f << "        <DataArray type=\"Float64\" Name=\"E_phase_rad\" format=\"ascii\">\n";
+    f << "        <DataArray type=\"Float64\" Name=\"E_phase_rad\" "
+         "format=\"ascii\">\n";
     for (size_t i = 0; i < num_tets; ++i) {
       // Use phase of dominant component
       double max_mag = 0.0;
@@ -165,45 +177,44 @@ void export_fields_vtk(const Mesh &mesh, const VecC &solution,
   }
 
   if (options.export_real) {
-    f << "        <DataArray type=\"Float64\" Name=\"E_real\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+    f << "        <DataArray type=\"Float64\" Name=\"E_real\" "
+         "NumberOfComponents=\"3\" format=\"ascii\">\n";
     for (size_t i = 0; i < num_tets; ++i) {
-      f << "          " << std::scientific
-        << E_fields[i](0).real() << " "
-        << E_fields[i](1).real() << " "
-        << E_fields[i](2).real() << "\n";
+      f << "          " << std::scientific << E_fields[i](0).real() << " "
+        << E_fields[i](1).real() << " " << E_fields[i](2).real() << "\n";
     }
     f << "        </DataArray>\n";
   }
 
   if (options.export_imag) {
-    f << "        <DataArray type=\"Float64\" Name=\"E_imag\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+    f << "        <DataArray type=\"Float64\" Name=\"E_imag\" "
+         "NumberOfComponents=\"3\" format=\"ascii\">\n";
     for (size_t i = 0; i < num_tets; ++i) {
-      f << "          " << std::scientific
-        << E_fields[i](0).imag() << " "
-        << E_fields[i](1).imag() << " "
-        << E_fields[i](2).imag() << "\n";
+      f << "          " << std::scientific << E_fields[i](0).imag() << " "
+        << E_fields[i](1).imag() << " " << E_fields[i](2).imag() << "\n";
     }
     f << "        </DataArray>\n";
   }
 
   if (options.export_vector) {
     // Export real part as 3D vector for glyph visualization
-    f << "        <DataArray type=\"Float64\" Name=\"E_vector\" NumberOfComponents=\"3\" format=\"ascii\">\n";
+    f << "        <DataArray type=\"Float64\" Name=\"E_vector\" "
+         "NumberOfComponents=\"3\" format=\"ascii\">\n";
     for (size_t i = 0; i < num_tets; ++i) {
-      f << "          " << std::scientific
-        << E_fields[i](0).real() << " "
-        << E_fields[i](1).real() << " "
-        << E_fields[i](2).real() << "\n";
+      f << "          " << std::scientific << E_fields[i](0).real() << " "
+        << E_fields[i](1).real() << " " << E_fields[i](2).real() << "\n";
     }
     f << "        </DataArray>\n";
   }
 
   // Also export physical group tag for region identification
-  f << "        <DataArray type=\"Int32\" Name=\"PhysicalTag\" format=\"ascii\">\n";
+  f << "        <DataArray type=\"Int32\" Name=\"PhysicalTag\" "
+       "format=\"ascii\">\n";
   f << "          ";
   for (size_t i = 0; i < num_tets; ++i) {
     f << mesh.tets[i].phys << " ";
-    if ((i + 1) % 20 == 0) f << "\n          ";
+    if ((i + 1) % 20 == 0)
+      f << "\n          ";
   }
   f << "\n        </DataArray>\n";
 
@@ -229,7 +240,8 @@ void export_fields_vtk_legacy(const Mesh &mesh, const VecC &solution,
   std::vector<Eigen::Vector3cd> E_fields(num_tets);
   for (size_t i = 0; i < num_tets; ++i) {
     Eigen::Vector3d centroid = compute_centroid(mesh, mesh.tets[i]);
-    E_fields[i] = compute_field_at_point(mesh, mesh.tets[i], solution, centroid);
+    E_fields[i] =
+        compute_field_at_point(mesh, mesh.tets[i], solution, centroid);
   }
 
   // Write legacy VTK header
@@ -241,8 +253,8 @@ void export_fields_vtk_legacy(const Mesh &mesh, const VecC &solution,
   // Points
   f << "POINTS " << num_nodes << " double\n";
   for (const auto &node : mesh.nodes) {
-    f << std::scientific << std::setprecision(8)
-      << node.xyz[0] << " " << node.xyz[1] << " " << node.xyz[2] << "\n";
+    f << std::scientific << std::setprecision(8) << node.xyz[0] << " "
+      << node.xyz[1] << " " << node.xyz[2] << "\n";
   }
 
   // Cells
@@ -260,7 +272,7 @@ void export_fields_vtk_legacy(const Mesh &mesh, const VecC &solution,
 
   f << "CELL_TYPES " << num_tets << "\n";
   for (size_t i = 0; i < num_tets; ++i) {
-    f << "10\n";  // VTK_TETRA = 10
+    f << "10\n"; // VTK_TETRA = 10
   }
 
   // Cell data
@@ -277,10 +289,8 @@ void export_fields_vtk_legacy(const Mesh &mesh, const VecC &solution,
   if (options.export_vector) {
     f << "VECTORS E_vector double\n";
     for (size_t i = 0; i < num_tets; ++i) {
-      f << std::scientific
-        << E_fields[i](0).real() << " "
-        << E_fields[i](1).real() << " "
-        << E_fields[i](2).real() << "\n";
+      f << std::scientific << E_fields[i](0).real() << " "
+        << E_fields[i](1).real() << " " << E_fields[i](2).real() << "\n";
     }
   }
 }

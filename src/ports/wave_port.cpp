@@ -20,13 +20,15 @@ namespace edgefem {
 
 namespace {
 struct ArrayHash {
-  std::size_t operator()(const std::array<std::int64_t, 2> &arr) const noexcept {
-    return std::hash<std::int64_t>{}(arr[0]) ^ (std::hash<std::int64_t>{}(arr[1]) << 1);
+  std::size_t
+  operator()(const std::array<std::int64_t, 2> &arr) const noexcept {
+    return std::hash<std::int64_t>{}(arr[0]) ^
+           (std::hash<std::int64_t>{}(arr[1]) << 1);
   }
 };
 
-Eigen::Matrix<double, 3, 2>
-compute_shape_gradients(const Mesh &mesh, const Element &tri) {
+Eigen::Matrix<double, 3, 2> compute_shape_gradients(const Mesh &mesh,
+                                                    const Element &tri) {
   const auto &n0 = mesh.nodes.at(mesh.nodeIndex.at(tri.conn[0]));
   const auto &n1 = mesh.nodes.at(mesh.nodeIndex.at(tri.conn[1]));
   const auto &n2 = mesh.nodes.at(mesh.nodeIndex.at(tri.conn[2]));
@@ -106,10 +108,9 @@ PortSurfaceMesh extract_surface_mesh(const Mesh &volume_mesh, int surface_tag) {
   return surface;
 }
 
-WavePort build_wave_port(const Mesh &volume_mesh, const PortSurfaceMesh &surface,
-                         const PortMode &mode) {
-  if (mode.field.size() !=
-      static_cast<int>(surface.mesh.nodes.size())) {
+WavePort build_wave_port(const Mesh &volume_mesh,
+                         const PortSurfaceMesh &surface, const PortMode &mode) {
+  if (mode.field.size() != static_cast<int>(surface.mesh.nodes.size())) {
     throw std::runtime_error(
         "Port mode field size does not match surface mesh nodes");
   }
@@ -182,8 +183,8 @@ WavePort build_wave_port(const Mesh &volume_mesh, const PortSurfaceMesh &surface
   double normal_sign = (std::real(normal_accum) >= 0.0) ? 1.0 : -1.0;
 
   WavePort port;
-  port.surface_tag = surface.mesh.tris.empty() ? 0
-                                                : surface.mesh.tris.front().phys;
+  port.surface_tag =
+      surface.mesh.tris.empty() ? 0 : surface.mesh.tris.front().phys;
   port.mode = mode;
   port.edges.reserve(accum.size());
   port.weights.resize(static_cast<int>(accum.size()));
@@ -194,7 +195,8 @@ WavePort build_wave_port(const Mesh &volume_mesh, const PortSurfaceMesh &surface
   }
   std::sort(port.edges.begin(), port.edges.end());
   for (int edge_idx : port.edges) {
-    std::complex<double> value = accum[edge_idx] / static_cast<double>(counts[edge_idx]);
+    std::complex<double> value =
+        accum[edge_idx] / static_cast<double>(counts[edge_idx]);
     port.weights(idx++) = normal_sign * value;
   }
 
@@ -202,8 +204,7 @@ WavePort build_wave_port(const Mesh &volume_mesh, const PortSurfaceMesh &surface
 }
 
 void populate_te10_field(const PortSurfaceMesh &surface,
-                         const RectWaveguidePort &port,
-                         PortMode &mode) {
+                         const RectWaveguidePort &port, PortMode &mode) {
   const int num_nodes = static_cast<int>(surface.mesh.nodes.size());
   mode.field.resize(num_nodes);
 
@@ -247,25 +248,27 @@ void populate_te10_field(const PortSurfaceMesh &surface,
   double kc = mode.kc;
   double pi_sq = M_PI * M_PI;
 
-  double A_sq = 4.0 * std::pow(kc, 4) * port.a / (omega * mu * beta * pi_sq * port.b);
+  double A_sq =
+      4.0 * std::pow(kc, 4) * port.a / (omega * mu * beta * pi_sq * port.b);
   double scale = std::sqrt(A_sq);
 
   mode.field *= scale;
 }
 
-WavePort build_wave_port_from_eigenvector(const Mesh &volume_mesh,
-                                           const PortSurfaceMesh &surface,
-                                           const Eigen::VectorXd &eigenvector,
-                                           const PortMode &mode,
-                                           const std::unordered_set<int> &pec_edges) {
+WavePort build_wave_port_from_eigenvector(
+    const Mesh &volume_mesh, const PortSurfaceMesh &surface,
+    const Eigen::VectorXd &eigenvector, const PortMode &mode,
+    const std::unordered_set<int> &pec_edges) {
   WavePort port;
-  port.surface_tag = surface.mesh.tris.empty() ? 0 : surface.mesh.tris.front().phys;
+  port.surface_tag =
+      surface.mesh.tris.empty() ? 0 : surface.mesh.tris.front().phys;
   port.mode = mode;
 
   // Collect all edges from surface triangles
   std::unordered_set<int> port_edge_set;
   for (size_t tri_idx = 0; tri_idx < surface.mesh.tris.size(); ++tri_idx) {
-    const auto &tri3d = volume_mesh.tris.at(surface.volume_tri_indices.at(tri_idx));
+    const auto &tri3d =
+        volume_mesh.tris.at(surface.volume_tri_indices.at(tri_idx));
     for (int e = 0; e < 3; ++e) {
       port_edge_set.insert(tri3d.edges[e]);
     }
@@ -285,7 +288,8 @@ WavePort build_wave_port_from_eigenvector(const Mesh &volume_mesh,
     if (pec_edges.count(e)) {
       port.weights(i) = std::complex<double>(0.0, 0.0);
     } else {
-      // Convert real eigenvector to complex (multiply by j to match TE mode phase)
+      // Convert real eigenvector to complex (multiply by j to match TE mode
+      // phase)
       port.weights(i) = std::complex<double>(0.0, eigenvector(e));
       norm_sq += eigenvector(e) * eigenvector(e);
       free_count++;
@@ -304,8 +308,8 @@ WavePort build_wave_port_from_eigenvector(const Mesh &volume_mesh,
 }
 
 Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
-                                        const std::unordered_set<int> &pec_edges,
-                                        double target_kc_sq) {
+                                       const std::unordered_set<int> &pec_edges,
+                                       double target_kc_sq) {
   const int n = static_cast<int>(mesh.edges.size());
 
   // Build mapping from original to free DOF indices
@@ -346,13 +350,15 @@ Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
     for (int i = 0; i < 6; ++i) {
       int gi = tet.edges[i];
       int fi = orig_to_free[gi];
-      if (fi < 0) continue;  // PEC edge
+      if (fi < 0)
+        continue; // PEC edge
       int si = tet.edge_orient[i];
 
       for (int j = 0; j < 6; ++j) {
         int gj = tet.edges[j];
         int fj = orig_to_free[gj];
-        if (fj < 0) continue;  // PEC edge
+        if (fj < 0)
+          continue; // PEC edge
         int sj = tet.edge_orient[j];
 
         double sign = static_cast<double>(si * sj);
@@ -378,7 +384,7 @@ Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
   double min_diff = std::numeric_limits<double>::max();
 
   for (int i = 0; i < n_free; ++i) {
-    if (eigenvalues(i) > 100.0) {  // Skip null space
+    if (eigenvalues(i) > 100.0) { // Skip null space
       double diff = std::abs(eigenvalues(i) - target_kc_sq);
       if (diff < min_diff) {
         min_diff = diff;
@@ -401,4 +407,3 @@ Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
 }
 
 } // namespace edgefem
-

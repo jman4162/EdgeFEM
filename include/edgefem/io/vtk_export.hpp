@@ -43,8 +43,8 @@ void export_fields_vtk(const Mesh &mesh, const VecC &solution,
 /// @param solution The edge-element solution vector (complex)
 /// @param filename Output filename (should end in .vtk)
 /// @param options Export options
-void export_fields_vtk_legacy(const Mesh &mesh, const VecC &solution,
-                              const std::string &filename,
-                              const VTKExportOptions &options = VTKExportOptions());
+void export_fields_vtk_legacy(
+    const Mesh &mesh, const VecC &solution, const std::string &filename,
+    const VTKExportOptions &options = VTKExportOptions());
 
 } // namespace edgefem

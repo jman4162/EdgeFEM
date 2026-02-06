@@ -11,15 +11,15 @@ namespace edgefem {
 
 /// Output format for Touchstone files.
 enum class TouchstoneFormat {
-  RI,  // Real/Imaginary
-  MA,  // Magnitude/Angle (degrees)
-  DB   // dB/Angle (degrees)
+  RI, // Real/Imaginary
+  MA, // Magnitude/Angle (degrees)
+  DB  // dB/Angle (degrees)
 };
 
 /// Options for Touchstone file export.
 struct TouchstoneOptions {
   TouchstoneFormat format = TouchstoneFormat::RI;
-  double z0 = 50.0;  // Reference impedance (ohms)
+  double z0 = 50.0; // Reference impedance (ohms)
 };
 
 /// Write 2-port S-parameters to Touchstone file (legacy API).
@@ -34,10 +34,10 @@ void write_touchstone(const std::string &path, const std::vector<double> &freq,
 /// @param freq Vector of frequencies in Hz
 /// @param S_matrices Vector of NxN S-parameter matrices, one per frequency
 /// @param opts Export options (format, reference impedance)
-void write_touchstone_nport(const std::string &path,
-                            const std::vector<double> &freq,
-                            const std::vector<Eigen::MatrixXcd> &S_matrices,
-                            const TouchstoneOptions &opts = TouchstoneOptions());
+void write_touchstone_nport(
+    const std::string &path, const std::vector<double> &freq,
+    const std::vector<Eigen::MatrixXcd> &S_matrices,
+    const TouchstoneOptions &opts = TouchstoneOptions());
 
 /// Get the appropriate Touchstone file extension for a given port count.
 /// @param num_ports Number of ports (1-99)

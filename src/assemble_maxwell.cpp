@@ -2,10 +2,10 @@
 #include "edgefem/maxwell.hpp"
 
 #include <Eigen/SparseCore>
-#include <iostream>
 #include <array>
 #include <cmath>
 #include <complex>
+#include <iostream>
 #include <limits>
 #include <unordered_map>
 #include <unordered_set>
@@ -16,10 +16,11 @@
 namespace edgefem {
 
 namespace {
-constexpr double c0 = 299792458.0;         // speed of light in vacuum (m/s)
-constexpr double mu0 = 4.0 * M_PI * 1e-7;  // permeability of free space (H/m)
-constexpr double eps0 = 1.0 / (mu0 * c0 * c0);  // permittivity of free space (F/m)
-constexpr double eta0 = mu0 * c0;          // free-space impedance ≈ 377 ohms
+constexpr double c0 = 299792458.0;        // speed of light in vacuum (m/s)
+constexpr double mu0 = 4.0 * M_PI * 1e-7; // permeability of free space (H/m)
+constexpr double eps0 =
+    1.0 / (mu0 * c0 * c0);        // permittivity of free space (F/m)
+constexpr double eta0 = mu0 * c0; // free-space impedance ≈ 377 ohms
 } // namespace
 
 MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
@@ -35,8 +36,10 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   std::vector<T> trips;
 
   struct Bounds {
-    Eigen::Vector3d min = Eigen::Vector3d::Constant(std::numeric_limits<double>::infinity());
-    Eigen::Vector3d max = Eigen::Vector3d::Constant(-std::numeric_limits<double>::infinity());
+    Eigen::Vector3d min =
+        Eigen::Vector3d::Constant(std::numeric_limits<double>::infinity());
+    Eigen::Vector3d max =
+        Eigen::Vector3d::Constant(-std::numeric_limits<double>::infinity());
     bool initialized = false;
   };
 
@@ -80,7 +83,8 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
         diag.reflection_est[axis] = 1.0;
         continue;
       }
-      const double integral = sigma_max * thickness / (kv.second.grading_order + 1.0);
+      const double integral =
+          sigma_max * thickness / (kv.second.grading_order + 1.0);
       const double exponent = -2.0 * integral / omega_mag;
       diag.reflection_est[axis] = std::exp(exponent);
     }
@@ -104,8 +108,7 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
       if (tensor_it != p.pml_tensor_regions.end()) {
         const auto &spec = tensor_it->second;
         Eigen::Vector3d sigma = Eigen::Vector3d::Zero();
-        Eigen::Vector3d centroid =
-            (X[0] + X[1] + X[2] + X[3]) / 4.0;
+        Eigen::Vector3d centroid = (X[0] + X[1] + X[2] + X[3]) / 4.0;
         auto bounds_it = region_bounds.find(tet.phys);
         Eigen::Vector3d bbox_min = Eigen::Vector3d::Zero();
         Eigen::Vector3d bbox_max = Eigen::Vector3d::Zero();
@@ -132,12 +135,15 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
             xi = std::max(xi, kMinProfile);
           }
           sigma[axis] = sigma_max * std::pow(xi, spec.grading_order);
-          if (p.enforce_pml_heuristics && sigma_max > 0.0 && sigma[axis] < sigma_max * kMinProfile) {
+          if (p.enforce_pml_heuristics && sigma_max > 0.0 &&
+              sigma[axis] < sigma_max * kMinProfile) {
             sigma[axis] = sigma_max * kMinProfile;
           }
-          stretch_tensor[axis] = std::complex<double>(1.0, sigma[axis] / p.omega);
+          stretch_tensor[axis] =
+              std::complex<double>(1.0, sigma[axis] / p.omega);
         }
-        std::complex<double> stretch_sum = stretch_tensor[0] + stretch_tensor[1] + stretch_tensor[2];
+        std::complex<double> stretch_sum =
+            stretch_tensor[0] + stretch_tensor[1] + stretch_tensor[2];
         stretch_scalar = stretch_sum / 3.0;
       } else if (p.pml_regions.count(tet.phys)) {
         stretch_scalar = std::complex<double>(1.0, p.pml_sigma / p.omega);
@@ -232,15 +238,16 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   }
 
   // Port-specific ABC: Add absorbing boundary conditions on port surfaces
-  // For Maxwell's equations, the first-order ABC is: n×(∇×E) + jβ E_t = 2jβ E_inc
-  // In weak form this adds jβ ∫∫_S (n×N_i)·(n×N_j) dS to the stiffness matrix
-  // where N_i are the edge basis functions.
+  // For Maxwell's equations, the first-order ABC is: n×(∇×E) + jβ E_t = 2jβ
+  // E_inc In weak form this adds jβ ∫∫_S (n×N_i)·(n×N_j) dS to the stiffness
+  // matrix where N_i are the edge basis functions.
   //
   // For edge elements, the surface integral ∫∫ (n×N_i)·(n×N_j) dS
   // equals the edge mass matrix on the 2D surface.
   if (p.use_port_abc && p.port_abc_type != PortABCType::None) {
     for (const auto &port : ports) {
-      if (port.mode.Z0 == std::complex<double>(0.0)) continue;
+      if (port.mode.Z0 == std::complex<double>(0.0))
+        continue;
 
       // Compute propagation constant beta = sqrt(k0² - kc²)
       const double k0 = p.omega / c0;
@@ -253,24 +260,25 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
         std::complex<double> abc_coeff(0.0, 0.0);
 
         switch (p.port_abc_type) {
-          case PortABCType::Beta:
-            // Standard ABC: jβ (propagation constant)
-            abc_coeff = std::complex<double>(0.0, beta);
-            break;
-          case PortABCType::BetaNorm:
-            // Dimensionless: jβ/k0
-            abc_coeff = std::complex<double>(0.0, beta / k0);
-            break;
-          case PortABCType::ImpedanceMatch:
-            // Impedance matched: jβ√(Z0/η0)
-            abc_coeff = std::complex<double>(0.0, beta * std::sqrt(Z0_real / eta0));
-            break;
-          case PortABCType::ModalAdmittance:
-            // Modal admittance: jωε0/Z0 = jβ/(η0·μr) for TE modes
-            abc_coeff = std::complex<double>(0.0, p.omega * eps0 / Z0_real);
-            break;
-          case PortABCType::None:
-            break;
+        case PortABCType::Beta:
+          // Standard ABC: jβ (propagation constant)
+          abc_coeff = std::complex<double>(0.0, beta);
+          break;
+        case PortABCType::BetaNorm:
+          // Dimensionless: jβ/k0
+          abc_coeff = std::complex<double>(0.0, beta / k0);
+          break;
+        case PortABCType::ImpedanceMatch:
+          // Impedance matched: jβ√(Z0/η0)
+          abc_coeff =
+              std::complex<double>(0.0, beta * std::sqrt(Z0_real / eta0));
+          break;
+        case PortABCType::ModalAdmittance:
+          // Modal admittance: jωε0/Z0 = jβ/(η0·μr) for TE modes
+          abc_coeff = std::complex<double>(0.0, p.omega * eps0 / Z0_real);
+          break;
+        case PortABCType::None:
+          break;
         }
 
         // Add ABC contribution as diagonal term (simplified)
@@ -287,7 +295,8 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   // Apply Dirichlet BC: zero both row and column, set diagonal to 1
   // First pass: zero column entries (column-major iteration)
   for (int e : bc.dirichlet_edges) {
-    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(asmbl.A, e);
+    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(asmbl.A,
+                                                                     e);
          it; ++it) {
       it.valueRef() = std::complex<double>(0.0, 0.0);
     }
@@ -295,7 +304,8 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
 
   // Second pass: zero row entries by iterating over all columns
   for (int col = 0; col < m; ++col) {
-    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(asmbl.A, col);
+    for (Eigen::SparseMatrix<std::complex<double>>::InnerIterator it(asmbl.A,
+                                                                     col);
          it; ++it) {
       if (bc.dirichlet_edges.count(it.row())) {
         it.valueRef() = std::complex<double>(0.0, 0.0);
@@ -312,9 +322,9 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   return asmbl;
 }
 
-Eigen::MatrixXcd
-calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
-                  const std::vector<WavePort> &ports) {
+Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
+                                   const BC &bc,
+                                   const std::vector<WavePort> &ports) {
   const int num_ports = static_cast<int>(ports.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
 
@@ -405,8 +415,8 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
 
     // Target: w^H A^-1 w = Z0 for proper S-parameter extraction
     // This comes from the Woodbury identity analysis:
-    // With port loading Y = ww^H/Z0, using b = 2w/sqrt(Z0), the port voltage is:
-    // V = w^H (A+Y)^-1 b = 2*Z0*w^H A^-1 w / (sqrt(Z0)*(Z0 + w^H A^-1 w))
+    // With port loading Y = ww^H/Z0, using b = 2w/sqrt(Z0), the port voltage
+    // is: V = w^H (A+Y)^-1 b = 2*Z0*w^H A^-1 w / (sqrt(Z0)*(Z0 + w^H A^-1 w))
     // For matched port (V = V_inc = sqrt(Z0)), we need w^H A^-1 w = Z0
     double target = Z0_real;
     double ratio = wAinvw_mag / target;
@@ -414,8 +424,7 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
     std::cerr << "  Port normalization: free_edges=" << free_count
               << ", wAinvw_exact=" << wAinvw_mag
               << ", wAinvw_diag=" << wAinvw_diag_est
-              << ", target=Z0/2=" << target
-              << ", ratio=" << ratio << std::endl;
+              << ", target=Z0/2=" << target << ", ratio=" << ratio << std::endl;
 
     if (wAinvw_mag > 1e-15 && target > 1e-15) {
       // Scale factor: alpha^2 * wAinvw = target => alpha = sqrt(target/wAinvw)
@@ -426,11 +435,11 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
   }
 }
 
-MaxwellAssembly
-assemble_maxwell_periodic(const Mesh &mesh, const MaxwellParams &p,
-                          const BC &bc, const PeriodicBC &pbc,
-                          const std::vector<WavePort> &ports,
-                          int active_port_idx) {
+MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
+                                          const MaxwellParams &p, const BC &bc,
+                                          const PeriodicBC &pbc,
+                                          const std::vector<WavePort> &ports,
+                                          int active_port_idx) {
   // First, assemble the standard Maxwell system
   MaxwellAssembly asmbl = assemble_maxwell(mesh, p, bc, ports, active_port_idx);
 
@@ -450,7 +459,8 @@ assemble_maxwell_periodic(const Mesh &mesh, const MaxwellParams &p,
 
   // Apply periodic constraint by direct elimination:
   // For each pair, we have: E_slave = phi * orient * E_master
-  // We accumulate slave contributions to master DOFs and zero out slave rows/cols.
+  // We accumulate slave contributions to master DOFs and zero out slave
+  // rows/cols.
 
   // Copy matrix to dense for easier manipulation (for small systems)
   // For large systems, a more efficient sparse manipulation would be needed
@@ -460,8 +470,7 @@ assemble_maxwell_periodic(const Mesh &mesh, const MaxwellParams &p,
   for (const auto &pair : pbc.pairs) {
     int m_edge = pair.master_edge;
     int s_edge = pair.slave_edge;
-    double orient =
-        static_cast<double>(pair.master_orient * pair.slave_orient);
+    double orient = static_cast<double>(pair.master_orient * pair.slave_orient);
     std::complex<double> phase = phi * orient;
     std::complex<double> phase_conj = phi_conj * orient;
 
@@ -517,8 +526,7 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
   // Build map of slave to master edges for solution recovery
   std::unordered_map<int, std::pair<int, std::complex<double>>> slave_to_master;
   for (const auto &pair : pbc.pairs) {
-    double orient =
-        static_cast<double>(pair.master_orient * pair.slave_orient);
+    double orient = static_cast<double>(pair.master_orient * pair.slave_orient);
     std::complex<double> phase = pbc.phase_shift * orient;
     slave_to_master[pair.slave_edge] = {pair.master_edge, phase};
   }
@@ -560,8 +568,7 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
 
 Eigen::MatrixXcd
 calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc,
-                            const std::vector<WavePort> &ports) {
+                            const BC &bc, const std::vector<WavePort> &ports) {
   const int num_ports = static_cast<int>(ports.size());
   const int m = static_cast<int>(mesh.edges.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
@@ -627,7 +634,8 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
     auto res = solve_linear(asmbl.A, asmbl.b, {});
 
     // Extract S-parameters from overlap integrals
-    std::complex<double> V_inc(1.0, 0.0);  // Unit incident amplitude (normalized eigenvector)
+    std::complex<double> V_inc(
+        1.0, 0.0); // Unit incident amplitude (normalized eigenvector)
 
     for (int j = 0; j < num_ports; ++j) {
       std::complex<double> Vj = port_vecs[j].dot(res.x);

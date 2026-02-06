@@ -11,7 +11,7 @@ namespace edgefem {
 /// Far-field point from near-to-far transformation (Stratton-Chu).
 /// Contains E_theta and E_phi far-field components.
 struct NTFPoint2D {
-  double theta_deg;         ///< Polar angle in degrees
+  double theta_deg;             ///< Polar angle in degrees
   std::complex<double> e_theta; ///< \f$E_\theta\f$ far-field component
   std::complex<double> e_phi;   ///< \f$E_\phi\f$ far-field component
 };
@@ -19,10 +19,10 @@ struct NTFPoint2D {
 /// 3D far-field pattern over spherical (theta, phi) grid.
 /// Matrices are Ntheta x Nphi where theta varies along rows, phi along columns.
 struct FFPattern3D {
-  Eigen::MatrixXd theta_grid;    ///< Theta angles in radians
-  Eigen::MatrixXd phi_grid;      ///< Phi angles in radians
-  Eigen::MatrixXcd E_theta;      ///< E_theta far-field component
-  Eigen::MatrixXcd E_phi;        ///< E_phi far-field component
+  Eigen::MatrixXd theta_grid; ///< Theta angles in radians
+  Eigen::MatrixXd phi_grid;   ///< Phi angles in radians
+  Eigen::MatrixXcd E_theta;   ///< E_theta far-field component
+  Eigen::MatrixXcd E_phi;     ///< E_phi far-field component
 
   /// Get total electric field magnitude at each point
   Eigen::MatrixXd total_magnitude() const;
@@ -43,14 +43,13 @@ struct FFPattern3D {
  * The returned pattern is sampled for a fixed azimuthal angle (phi) and a list
  * of polar angles (theta).
  */
-std::vector<NTFPoint2D> stratton_chu_2d(
-    const std::vector<Eigen::Vector3d> &r,
-    const std::vector<Eigen::Vector3d> &n,
-    const std::vector<Eigen::Vector3cd> &E,
-    const std::vector<Eigen::Vector3cd> &H,
-    const std::vector<double> &area,
-    const std::vector<double> &theta_rad,
-    double phi_rad, double k0);
+std::vector<NTFPoint2D> stratton_chu_2d(const std::vector<Eigen::Vector3d> &r,
+                                        const std::vector<Eigen::Vector3d> &n,
+                                        const std::vector<Eigen::Vector3cd> &E,
+                                        const std::vector<Eigen::Vector3cd> &H,
+                                        const std::vector<double> &area,
+                                        const std::vector<double> &theta_rad,
+                                        double phi_rad, double k0);
 
 /**
  * Compute full 3D far-field pattern using Stratton-Chu integral over a
@@ -66,15 +65,13 @@ std::vector<NTFPoint2D> stratton_chu_2d(
  * @param k0     Free-space wavenumber (2*pi/lambda)
  * @return FFPattern3D with Ntheta x Nphi grids
  */
-FFPattern3D stratton_chu_3d(
-    const std::vector<Eigen::Vector3d> &r,
-    const std::vector<Eigen::Vector3d> &n,
-    const std::vector<Eigen::Vector3cd> &E,
-    const std::vector<Eigen::Vector3cd> &H,
-    const std::vector<double> &area,
-    const std::vector<double> &theta_rad,
-    const std::vector<double> &phi_rad,
-    double k0);
+FFPattern3D stratton_chu_3d(const std::vector<Eigen::Vector3d> &r,
+                            const std::vector<Eigen::Vector3d> &n,
+                            const std::vector<Eigen::Vector3cd> &E,
+                            const std::vector<Eigen::Vector3cd> &H,
+                            const std::vector<double> &area,
+                            const std::vector<double> &theta_rad,
+                            const std::vector<double> &phi_rad, double k0);
 
 /**
  * Compute directivity from 3D far-field pattern.
@@ -106,7 +103,8 @@ std::pair<double, double> compute_hpbw(const FFPattern3D &pattern);
 
 /**
  * Export 3D pattern to CSV file with columns:
- * theta_deg, phi_deg, E_theta_mag, E_theta_phase, E_phi_mag, E_phi_phase, total_dB
+ * theta_deg, phi_deg, E_theta_mag, E_theta_phase, E_phi_mag, E_phi_phase,
+ * total_dB
  */
 void write_pattern_3d_csv(const std::string &path, const FFPattern3D &pattern);
 
@@ -122,4 +120,3 @@ void write_pattern_csv(const std::string &path, double phi_deg,
                        const std::vector<NTFPoint2D> &pat);
 
 } // namespace edgefem
-

@@ -35,11 +35,11 @@ struct PMLDiagnostic {
 
 /// ABC formulation variants for port boundary treatment
 enum class PortABCType {
-  None,         ///< No port ABC (default)
-  Beta,         ///< j*beta (propagation constant)
-  BetaNorm,     ///< j*beta/k0 (dimensionless form)
-  ImpedanceMatch,///< j*beta*sqrt(Z0/eta0) (impedance matched)
-  ModalAdmittance///< j*omega*eps0/Z0 (modal admittance based)
+  None,           ///< No port ABC (default)
+  Beta,           ///< j*beta (propagation constant)
+  BetaNorm,       ///< j*beta/k0 (dimensionless form)
+  ImpedanceMatch, ///< j*beta*sqrt(Z0/eta0) (impedance matched)
+  ModalAdmittance ///< j*omega*eps0/Z0 (modal admittance based)
 };
 
 struct MaxwellParams {
@@ -54,10 +54,12 @@ struct MaxwellParams {
   std::unordered_map<int, std::complex<double>> mu_r_regions;
 
   // Dispersive material models per region (takes precedence over eps_r_regions)
-  // When a region has a dispersive model, eps is evaluated at the current omega.
-  // Maps physical group tag to dispersive material model.
-  std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>> eps_models;
-  std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>> mu_models;
+  // When a region has a dispersive model, eps is evaluated at the current
+  // omega. Maps physical group tag to dispersive material model.
+  std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>>
+      eps_models;
+  std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>>
+      mu_models;
 
   // Conductivity term for PML coordinate stretching (sigma)
   double pml_sigma = 0.0;
@@ -84,9 +86,10 @@ struct MaxwellParams {
   // analytical mode weights. Requires calling compute_te_eigenvector() first.
   bool use_eigenmode_excitation = false;
 
-  /// Get effective permittivity for a given physical region tag (non-dispersive).
-  /// Returns region-specific value if defined, otherwise global eps_r.
-  /// Note: For dispersive materials, use get_eps_r(phys_tag, omega) instead.
+  /// Get effective permittivity for a given physical region tag
+  /// (non-dispersive). Returns region-specific value if defined, otherwise
+  /// global eps_r. Note: For dispersive materials, use get_eps_r(phys_tag,
+  /// omega) instead.
   std::complex<double> get_eps_r(int phys_tag) const {
     auto it = eps_r_regions.find(phys_tag);
     return (it != eps_r_regions.end()) ? it->second : eps_r;
@@ -107,9 +110,10 @@ struct MaxwellParams {
     return (it != eps_r_regions.end()) ? it->second : eps_r;
   }
 
-  /// Get effective permeability for a given physical region tag (non-dispersive).
-  /// Returns region-specific value if defined, otherwise global mu_r.
-  /// Note: For dispersive materials, use get_mu_r(phys_tag, omega) instead.
+  /// Get effective permeability for a given physical region tag
+  /// (non-dispersive). Returns region-specific value if defined, otherwise
+  /// global mu_r. Note: For dispersive materials, use get_mu_r(phys_tag, omega)
+  /// instead.
   std::complex<double> get_mu_r(int phys_tag) const {
     auto it = mu_r_regions.find(phys_tag);
     return (it != mu_r_regions.end()) ? it->second : mu_r;
@@ -153,15 +157,15 @@ assemble_maxwell(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
 /// @param ports Wave port definitions
 /// @param active_port_idx Index of active port (-1 for no excitation)
 /// @return Assembled system with periodic constraints applied
-MaxwellAssembly
-assemble_maxwell_periodic(const Mesh &mesh, const MaxwellParams &p,
-                          const BC &bc, const PeriodicBC &pbc,
-                          const std::vector<WavePort> &ports,
-                          int active_port_idx = -1);
+MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
+                                          const MaxwellParams &p, const BC &bc,
+                                          const PeriodicBC &pbc,
+                                          const std::vector<WavePort> &ports,
+                                          int active_port_idx = -1);
 
-Eigen::MatrixXcd
-calculate_sparams(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
-                  const std::vector<WavePort> &ports);
+Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
+                                   const BC &bc,
+                                   const std::vector<WavePort> &ports);
 
 /// Normalize port weights for self-consistent port loading.
 /// Computes w^H A^-1 w and scales weights so that w^H A^-1 w = Z0/2,
@@ -180,26 +184,27 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
 
 /// Calculate S-parameters with periodic boundary conditions.
 /// Useful for unit cell simulations under Floquet excitation.
-Eigen::MatrixXcd
-calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
-                           const BC &bc, const PeriodicBC &pbc,
-                           const std::vector<WavePort> &ports);
+Eigen::MatrixXcd calculate_sparams_periodic(const Mesh &mesh,
+                                            const MaxwellParams &p,
+                                            const BC &bc, const PeriodicBC &pbc,
+                                            const std::vector<WavePort> &ports);
 
 /// Calculate S-parameters using direct eigenmode excitation.
 /// This method uses 3D FEM eigenvectors instead of analytical port weights,
 /// providing better accuracy (~5% error) than the standard port formulation.
 ///
 /// The ports must have been built with build_wave_port_from_eigenvector()
-/// to contain the eigenvector-based weights and mode parameters (beta, kc, etc).
+/// to contain the eigenvector-based weights and mode parameters (beta, kc,
+/// etc).
 ///
 /// @param mesh Volume mesh
-/// @param p Maxwell parameters (omega required, port_abc_scale recommended = 0.5)
+/// @param p Maxwell parameters (omega required, port_abc_scale recommended =
+/// 0.5)
 /// @param bc PEC boundary conditions
 /// @param ports Wave ports with eigenvector-based weights
 /// @return N×N S-parameter matrix
 Eigen::MatrixXcd
 calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc,
-                            const std::vector<WavePort> &ports);
+                            const BC &bc, const std::vector<WavePort> &ports);
 
 } // namespace edgefem

@@ -7,12 +7,12 @@ namespace edgefem {
 
 /// Coupling matrix representation in multiple network parameter formats.
 struct CouplingMatrix {
-  Eigen::MatrixXcd Z;  // Impedance matrix
-  Eigen::MatrixXcd Y;  // Admittance matrix
-  Eigen::MatrixXcd S;  // Scattering matrix
-  double frequency;    // Operating frequency (Hz)
-  double z0;           // Reference impedance (ohms)
-  int num_ports;       // Number of ports
+  Eigen::MatrixXcd Z; // Impedance matrix
+  Eigen::MatrixXcd Y; // Admittance matrix
+  Eigen::MatrixXcd S; // Scattering matrix
+  double frequency;   // Operating frequency (Hz)
+  double z0;          // Reference impedance (ohms)
+  int num_ports;      // Number of ports
 };
 
 /// Compute impedance/admittance matrices from S-parameters.

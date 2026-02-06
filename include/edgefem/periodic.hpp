@@ -11,11 +11,11 @@ namespace edgefem {
 
 /// Pair of edges linked by periodic boundary condition.
 struct PeriodicPair {
-  int master_edge;     // Global edge index on master surface
-  int slave_edge;      // Global edge index on slave surface
-  int master_orient;   // Orientation of edge on master (+1 or -1)
-  int slave_orient;    // Orientation of edge on slave (+1 or -1)
-  Eigen::Vector3d translation;  // Vector from master to slave
+  int master_edge;             // Global edge index on master surface
+  int slave_edge;              // Global edge index on slave surface
+  int master_orient;           // Orientation of edge on master (+1 or -1)
+  int slave_orient;            // Orientation of edge on slave (+1 or -1)
+  Eigen::Vector3d translation; // Vector from master to slave
 };
 
 /// Periodic boundary condition specification.
@@ -61,8 +61,9 @@ void set_floquet_phase(PeriodicBC &pbc, const Eigen::Vector2d &k_transverse);
 /// @param phi Azimuth angle from x-axis (radians)
 /// @param k0 Free-space wavenumber (rad/m)
 /// @return Phase shift exp(j * k_inc · period_vector)
-std::complex<double> floquet_phase_from_angle(
-    const Eigen::Vector3d &period_vector, double theta, double phi, double k0);
+std::complex<double>
+floquet_phase_from_angle(const Eigen::Vector3d &period_vector, double theta,
+                         double phi, double k0);
 
 /// Count edges on a surface with given physical tag.
 /// Useful for verifying periodic BC matching.

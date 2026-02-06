@@ -13,11 +13,13 @@ struct BC {
 };
 
 /// Build scalar PEC boundary condition from mesh surface tag.
-/// Returns BC with dirichlet_nodes set for all nodes on surfaces with the given tag.
+/// Returns BC with dirichlet_nodes set for all nodes on surfaces with the given
+/// tag.
 BC build_scalar_pec(const Mesh &mesh, int pec_tag);
 
 /// Build edge-element PEC boundary condition from mesh surface tag.
-/// Returns BC with dirichlet_edges set for all edges on surfaces with the given tag.
+/// Returns BC with dirichlet_edges set for all edges on surfaces with the given
+/// tag.
 /// @note Prints a warning to stderr if no edges are found (common user error).
 BC build_edge_pec(const Mesh &mesh, int pec_tag);
 
@@ -25,8 +27,8 @@ BC build_edge_pec(const Mesh &mesh, int pec_tag);
 /// Returns separate sets for volume (tet) and surface (tri) tags.
 /// Useful for debugging when wrong tags are specified.
 struct PhysicalTagInfo {
-  std::set<int> volume_tags;   ///< Tags from tetrahedra (3D regions)
-  std::set<int> surface_tags;  ///< Tags from triangles (2D surfaces)
+  std::set<int> volume_tags;  ///< Tags from tetrahedra (3D regions)
+  std::set<int> surface_tags; ///< Tags from triangles (2D surfaces)
 };
 PhysicalTagInfo list_physical_tags(const Mesh &mesh);
 

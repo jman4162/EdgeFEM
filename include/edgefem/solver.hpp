@@ -10,7 +10,8 @@ namespace edgefem {
 /// Callback function type for solver progress reporting.
 /// @param iteration Current iteration number
 /// @param residual Current residual norm
-using SolverProgressCallback = std::function<void(int iteration, double residual)>;
+using SolverProgressCallback =
+    std::function<void(int iteration, double residual)>;
 
 struct SolveOptions {
   bool use_bicgstab = true;

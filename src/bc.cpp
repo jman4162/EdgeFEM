@@ -23,14 +23,16 @@ BC build_scalar_pec(const Mesh &mesh, int pec_tag) {
   if (bc.dirichlet_nodes.empty()) {
     auto tags = list_physical_tags(mesh);
     std::ostringstream oss;
-    oss << "WARNING: build_scalar_pec() found no nodes for PEC tag " << pec_tag << ".\n";
+    oss << "WARNING: build_scalar_pec() found no nodes for PEC tag " << pec_tag
+        << ".\n";
     oss << "  Available surface tags: ";
     if (tags.surface_tags.empty()) {
       oss << "(none)";
     } else {
       bool first = true;
       for (int t : tags.surface_tags) {
-        if (!first) oss << ", ";
+        if (!first)
+          oss << ", ";
         oss << t;
         first = false;
       }
@@ -56,14 +58,16 @@ BC build_edge_pec(const Mesh &mesh, int pec_tag) {
   if (bc.dirichlet_edges.empty()) {
     auto tags = list_physical_tags(mesh);
     std::ostringstream oss;
-    oss << "WARNING: build_edge_pec() found no edges for PEC tag " << pec_tag << ".\n";
+    oss << "WARNING: build_edge_pec() found no edges for PEC tag " << pec_tag
+        << ".\n";
     oss << "  Available surface tags: ";
     if (tags.surface_tags.empty()) {
       oss << "(none)";
     } else {
       bool first = true;
       for (int t : tags.surface_tags) {
-        if (!first) oss << ", ";
+        if (!first)
+          oss << ", ";
         oss << t;
         first = false;
       }
@@ -88,14 +92,16 @@ PhysicalTagInfo list_physical_tags(const Mesh &mesh) {
 
 bool has_surface_tag(const Mesh &mesh, int tag) {
   for (const auto &tri : mesh.tris) {
-    if (tri.phys == tag) return true;
+    if (tri.phys == tag)
+      return true;
   }
   return false;
 }
 
 bool has_volume_tag(const Mesh &mesh, int tag) {
   for (const auto &tet : mesh.tets) {
-    if (tet.phys == tag) return true;
+    if (tet.phys == tag)
+      return true;
   }
   return false;
 }

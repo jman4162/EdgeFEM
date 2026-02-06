@@ -70,9 +70,9 @@ public:
   double tau() const { return tau_; }
 
 private:
-  double eps_s_;    ///< Static (DC) permittivity
-  double eps_inf_;  ///< High-frequency permittivity
-  double tau_;      ///< Relaxation time (seconds)
+  double eps_s_;   ///< Static (DC) permittivity
+  double eps_inf_; ///< High-frequency permittivity
+  double tau_;     ///< Relaxation time (seconds)
 };
 
 /// Multi-pole Lorentz oscillator model for resonant materials.
@@ -81,7 +81,8 @@ private:
 /// such as dielectrics near absorption bands, metamaterials, and crystals.
 ///
 /// Formula: eps(omega) = eps_inf + Sum_k [ delta_eps_k * omega0_k^2 /
-///                                         (omega0_k^2 - omega^2 + j*gamma_k*omega) ]
+///                                         (omega0_k^2 - omega^2 +
+///                                         j*gamma_k*omega) ]
 ///
 /// Each pole is characterized by:
 ///   delta_eps = oscillator strength (contribution to permittivity)
@@ -94,9 +95,9 @@ class LorentzMaterial : public DispersiveMaterial {
 public:
   /// Pole parameters for a single Lorentz oscillator.
   struct Pole {
-    double delta_eps;  ///< Oscillator strength
-    double omega0;     ///< Resonance angular frequency (rad/s)
-    double gamma;      ///< Damping factor (rad/s)
+    double delta_eps; ///< Oscillator strength
+    double omega0;    ///< Resonance angular frequency (rad/s)
+    double gamma;     ///< Damping factor (rad/s)
   };
 
   /// Construct an empty Lorentz material with eps_inf = 1.0.
@@ -117,7 +118,8 @@ public:
       throw std::invalid_argument("LorentzMaterial: omega0 must be positive");
     }
     if (gamma < 0.0) {
-      throw std::invalid_argument("LorentzMaterial: gamma must be non-negative");
+      throw std::invalid_argument(
+          "LorentzMaterial: gamma must be non-negative");
     }
     poles_.push_back({delta_eps, omega0, gamma});
   }
@@ -195,8 +197,8 @@ public:
   double gamma() const { return gamma_; }
 
 private:
-  double omega_p_;  ///< Plasma frequency (rad/s)
-  double gamma_;    ///< Collision/damping frequency (rad/s)
+  double omega_p_; ///< Plasma frequency (rad/s)
+  double gamma_;   ///< Collision/damping frequency (rad/s)
 };
 
 /// Combined Drude-Lorentz model for realistic metals.
@@ -224,20 +226,24 @@ public:
   DrudeLorentzMaterial(double eps_inf, double omega_p, double gamma_d)
       : eps_inf_(eps_inf), omega_p_(omega_p), gamma_d_(gamma_d) {
     if (omega_p <= 0.0) {
-      throw std::invalid_argument("DrudeLorentzMaterial: omega_p must be positive");
+      throw std::invalid_argument(
+          "DrudeLorentzMaterial: omega_p must be positive");
     }
     if (gamma_d < 0.0) {
-      throw std::invalid_argument("DrudeLorentzMaterial: gamma_d must be non-negative");
+      throw std::invalid_argument(
+          "DrudeLorentzMaterial: gamma_d must be non-negative");
     }
   }
 
   /// Add a Lorentz pole for interband transitions.
   void add_lorentz_pole(double delta_eps, double omega0, double gamma) {
     if (omega0 <= 0.0) {
-      throw std::invalid_argument("DrudeLorentzMaterial: omega0 must be positive");
+      throw std::invalid_argument(
+          "DrudeLorentzMaterial: omega0 must be positive");
     }
     if (gamma < 0.0) {
-      throw std::invalid_argument("DrudeLorentzMaterial: gamma must be non-negative");
+      throw std::invalid_argument(
+          "DrudeLorentzMaterial: gamma must be non-negative");
     }
     lorentz_poles_.push_back({delta_eps, omega0, gamma});
   }
@@ -269,7 +275,9 @@ public:
   double eps_inf() const { return eps_inf_; }
   double omega_p() const { return omega_p_; }
   double gamma_d() const { return gamma_d_; }
-  const std::vector<LorentzPole> &lorentz_poles() const { return lorentz_poles_; }
+  const std::vector<LorentzPole> &lorentz_poles() const {
+    return lorentz_poles_;
+  }
 
 private:
   double eps_inf_;

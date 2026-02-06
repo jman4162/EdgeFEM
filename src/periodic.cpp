@@ -206,11 +206,13 @@ void set_floquet_phase(PeriodicBC &pbc, const Eigen::Vector2d &k_transverse) {
   // Assumes period_vector is in x-y plane primarily
   double phase_arg = k_transverse.x() * pbc.period_vector.x() +
                      k_transverse.y() * pbc.period_vector.y();
-  pbc.phase_shift = std::complex<double>(std::cos(phase_arg), std::sin(phase_arg));
+  pbc.phase_shift =
+      std::complex<double>(std::cos(phase_arg), std::sin(phase_arg));
 }
 
-std::complex<double> floquet_phase_from_angle(
-    const Eigen::Vector3d &period_vector, double theta, double phi, double k0) {
+std::complex<double>
+floquet_phase_from_angle(const Eigen::Vector3d &period_vector, double theta,
+                         double phi, double k0) {
   // Incident wave vector: k = k0 * [sin(theta)cos(phi), sin(theta)sin(phi),
   // -cos(theta)]
   Eigen::Vector3d k_inc;

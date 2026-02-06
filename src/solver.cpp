@@ -1,8 +1,8 @@
 #include "edgefem/solver.hpp"
 
 #include <Eigen/IterativeLinearSolvers>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 
 namespace edgefem {
 
@@ -68,8 +68,8 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
   // Print summary if verbose
   if (opt.verbose) {
     std::cerr << "Solver: " << res.method << " "
-              << (res.converged ? "CONVERGED" : "FAILED")
-              << " in " << res.iters << " iterations"
+              << (res.converged ? "CONVERGED" : "FAILED") << " in " << res.iters
+              << " iterations"
               << ", residual=" << std::scientific << res.residual << "\n";
     std::cerr << std::fixed;
   }

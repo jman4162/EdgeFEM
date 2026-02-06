@@ -91,10 +91,11 @@ namespace edgefem {
 
 using TripletC = Eigen::Triplet<std::complex<double>>;
 
-std::vector<PortMode>
-solve_port_eigens(const Mesh &mesh, int num_modes, double omega,
-                  std::complex<double> eps_r, std::complex<double> mu_r,
-                  ModePolarization pol) {
+std::vector<PortMode> solve_port_eigens(const Mesh &mesh, int num_modes,
+                                        double omega,
+                                        std::complex<double> eps_r,
+                                        std::complex<double> mu_r,
+                                        ModePolarization pol) {
   if (mesh.tris.empty()) {
     throw std::runtime_error("Port eigensolver requires a 2D mesh.");
   }
@@ -135,23 +136,27 @@ solve_port_eigens(const Mesh &mesh, int num_modes, double omega,
     const auto &n2 = mesh.nodes.at(mesh.nodeIndex.at(tri.conn[2]));
 
     Eigen::Matrix3d C;
-    C << 1, n0.xyz.x(), n0.xyz.y(), 1, n1.xyz.x(), n1.xyz.y(), 1, n2.xyz.x(), n2.xyz.y();
+    C << 1, n0.xyz.x(), n0.xyz.y(), 1, n1.xyz.x(), n1.xyz.y(), 1, n2.xyz.x(),
+        n2.xyz.y();
 
     double area = 0.5 * std::abs(C.determinant());
 
     Eigen::Matrix<double, 3, 2> G = C.inverse().block<3, 2>(0, 1);
     Eigen::Matrix3d ke = area * G * G.transpose();
-    Eigen::Matrix3d me = (area / 12.0) * Eigen::Matrix3d{{2, 1, 1}, {1, 2, 1}, {1, 1, 2}};
+    Eigen::Matrix3d me =
+        (area / 12.0) * Eigen::Matrix3d{{2, 1, 1}, {1, 2, 1}, {1, 1, 2}};
 
     for (int i = 0; i < 3; ++i) {
       int node_i = mesh.nodeIndex.at(tri.conn[i]);
       int dof_i = node_to_dof[node_i];
-      if (dof_i < 0) continue; // Skip PEC node
+      if (dof_i < 0)
+        continue; // Skip PEC node
 
       for (int j = 0; j < 3; ++j) {
         int node_j = mesh.nodeIndex.at(tri.conn[j]);
         int dof_j = node_to_dof[node_j];
-        if (dof_j < 0) continue; // Skip PEC node
+        if (dof_j < 0)
+          continue; // Skip PEC node
 
         A_triplets.emplace_back(dof_i, dof_j, ke(i, j));
         B_triplets.emplace_back(dof_i, dof_j, me(i, j));
@@ -199,13 +204,11 @@ solve_port_eigens(const Mesh &mesh, int num_modes, double omega,
     mode.beta = beta;
 
     if (pol == ModePolarization::TE) {
-      mode.Z0 = (beta == std::complex<double>(0.0))
-                    ? std::complex<double>(0.0)
-                    : (omega * mu / beta);
+      mode.Z0 = (beta == std::complex<double>(0.0)) ? std::complex<double>(0.0)
+                                                    : (omega * mu / beta);
     } else {
-      mode.Z0 = (beta == std::complex<double>(0.0))
-                    ? std::complex<double>(0.0)
-                    : (beta / (omega * eps));
+      mode.Z0 = (beta == std::complex<double>(0.0)) ? std::complex<double>(0.0)
+                                                    : (beta / (omega * eps));
     }
 
     Eigen::VectorXcd vec = eigenvectors.col(i);
@@ -222,8 +225,7 @@ solve_port_eigens(const Mesh &mesh, int num_modes, double omega,
       Eigen::Matrix<double, 3, 2> G = shape_gradients(mesh, tri);
       Eigen::Vector3cd values;
       for (int k = 0; k < 3; ++k) {
-        values[k] =
-            field_full[mesh.nodeIndex.at(tri.conn[k])];
+        values[k] = field_full[mesh.nodeIndex.at(tri.conn[k])];
       }
       Eigen::Vector2cd grad = G.transpose() * values;
 
@@ -269,4 +271,4 @@ solve_port_eigens(const Mesh &mesh, int num_modes, double omega,
   return modes;
 }
 
-}
+} // namespace edgefem
