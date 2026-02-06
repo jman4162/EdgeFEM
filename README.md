@@ -227,6 +227,44 @@ If you use VectorEM in your research, please cite:
 }
 ```
 
+## Current Limitations
+
+VectorEM v1.0 is optimized for **unit cell and metasurface RF modeling**. The following features are not yet implemented:
+
+| Feature | Status | Workaround |
+|---------|--------|------------|
+| Higher-order elements (Tet10) | Planned v1.1 | Use finer mesh |
+| Adaptive mesh refinement | Planned v1.1 | Manual mesh refinement in Gmsh |
+| Higher-order modes (TE20, TM) | Planned v1.1 | Single-mode analysis only |
+| Plane wave excitation | Planned v1.2 | Use Floquet ports for periodic |
+| Lumped ports | Planned v1.1 | Use wave ports |
+| Anisotropic materials | Not planned | Isotropic only |
+| MPI/GPU parallelization | Planned v2.0 | Single-node execution |
+| Time-domain solver | Not planned | Frequency-domain only |
+
+For large-scale problems (>5M DOF) or features requiring adaptive refinement, consider commercial tools like HFSS or CST.
+
+## Roadmap
+
+### v1.1 (Planned)
+- Higher-order waveguide modes (TE20, TE01, TM modes)
+- Lumped port excitation
+- Higher-order Nédélec elements (Tet10)
+- OpenMP parallelization
+- Adaptive mesh refinement (h-adaptivity)
+
+### v1.2 (Planned)
+- Plane wave excitation for RCS/scattering
+- Dispersive materials (Debye/Lorentz models)
+- Surface impedance BC (SIBC)
+- Direct solver option (MUMPS)
+
+### v2.0 (Future)
+- MPI distributed solving
+- GPU acceleration
+- Optimization framework
+- GUI application
+
 ## Contributing
 
 - Use feature branches; PRs require green CI and updated docs
