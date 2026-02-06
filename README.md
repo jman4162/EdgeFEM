@@ -2,7 +2,10 @@
 
 **3D Finite-Element Electromagnetics Simulator for RF and mmWave**
 
+[![PyPI version](https://img.shields.io/pypi/v/edgefem.svg)](https://pypi.org/project/edgefem/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/jman4162/EdgeFEM/actions/workflows/ci.yml/badge.svg)](https://github.com/jman4162/EdgeFEM/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://jman4162.github.io/EdgeFEM/)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 
