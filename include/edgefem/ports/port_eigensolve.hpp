@@ -30,8 +30,8 @@ struct PortMode {
 
 /// @deprecated Use Eigen::MatrixXcd from calculate_sparams() for N-port
 /// support.
-struct [[deprecated("Use Eigen::MatrixXcd from calculate_sparams() instead")]]
-SParams2 {
+struct [[deprecated(
+    "Use Eigen::MatrixXcd from calculate_sparams() instead")]] SParams2 {
   std::complex<double> s11;
   std::complex<double> s21;
   std::complex<double> s12;
