@@ -14,7 +14,7 @@ Steps:
 5. Export to Touchstone format
 
 Requirements:
-    - VectorEM built with VECTOREM_PYTHON=ON
+    - EdgeFEM built with EDGEFEM_PYTHON=ON
     - matplotlib for plotting (optional)
     - Mesh file: examples/rect_waveguide.msh
 """
@@ -24,9 +24,9 @@ from pathlib import Path
 import sys
 
 try:
-    import pyvectorem as em
+    import pyedgefem as em
 except ImportError:
-    print("Error: pyvectorem not found. Build VectorEM with -DVECTOREM_PYTHON=ON")
+    print("Error: pyedgefem not found. Build EdgeFEM with -DEDGEFEM_PYTHON=ON")
     raise
 
 
@@ -36,7 +36,7 @@ def main():
     script_dir = Path(__file__).parent
 
     print("=" * 60)
-    print("VectorEM Example 02: Frequency Sweep Analysis")
+    print("EdgeFEM Example 02: Frequency Sweep Analysis")
     print("=" * 60)
 
     # ========================================================================

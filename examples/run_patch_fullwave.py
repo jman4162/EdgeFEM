@@ -2,7 +2,7 @@
 import subprocess
 from pathlib import Path
 import numpy as np
-import pyvectorem as em
+import pyedgefem as em
 
 
 def run():

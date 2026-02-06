@@ -1,8 +1,8 @@
-"""VectorEM CAD integration package.
+"""EdgeFEM CAD integration package.
 
 This package provides a light‑weight, modular pipeline for importing
 CAD geometry, tagging metadata, generating meshes, previewing results
-and exporting a ready‑to‑simulate VectorEM case.  Only a minimal
+and exporting a ready‑to‑simulate EdgeFEM case.  Only a minimal
 stub implementation is provided here; the public API mirrors the
 intended design so downstream tooling can be developed incrementally."""
 
@@ -34,7 +34,7 @@ class Case:
 from .io import step_iges, stl_obj  # noqa: F401
 from .mesh.generate import generate_mesh  # noqa: F401
 from .ops.tagging import apply_tags  # noqa: F401
-from .export.vectorem_case import export_case  # noqa: F401
+from .export.edgefem_case import export_case  # noqa: F401
 from .ops.repair import heal_geometry  # noqa: F401
 
 __all__ = [

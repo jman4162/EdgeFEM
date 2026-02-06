@@ -15,7 +15,7 @@ Note: This example uses a simple waveguide as a placeholder for a unit cell.
 A real phased array simulation would use a patch antenna or slot geometry.
 
 Requirements:
-    - VectorEM built with VECTOREM_PYTHON=ON
+    - EdgeFEM built with EDGEFEM_PYTHON=ON
     - Mesh file with periodic surfaces
 
 For actual array simulations, the mesh should have:
@@ -28,9 +28,9 @@ import numpy as np
 from pathlib import Path
 
 try:
-    import pyvectorem as em
+    import pyedgefem as em
 except ImportError:
-    print("Error: pyvectorem not found. Build VectorEM with -DVECTOREM_PYTHON=ON")
+    print("Error: pyedgefem not found. Build EdgeFEM with -DEDGEFEM_PYTHON=ON")
     raise
 
 
@@ -68,7 +68,7 @@ def main():
     """Demonstrate Floquet/periodic BC concepts."""
 
     print("=" * 60)
-    print("VectorEM Example 03: Phased Array Unit Cell Concepts")
+    print("EdgeFEM Example 03: Phased Array Unit Cell Concepts")
     print("=" * 60)
 
     # ========================================================================
@@ -126,16 +126,16 @@ def main():
 
    where psi is the inter-element phase shift.
 
-   VectorEM provides these functions:
+   EdgeFEM provides these functions:
    - compute_active_impedance(coupling, excitation)
    - active_impedance_scan(coupling, positions, theta, phi, k0)
    - active_vswr(Gamma_active)
    """)
 
     # ========================================================================
-    # Part 3: Using Periodic BCs in VectorEM
+    # Part 3: Using Periodic BCs in EdgeFEM
     # ========================================================================
-    print("\n3. Using Periodic BCs in VectorEM")
+    print("\n3. Using Periodic BCs in EdgeFEM")
     print("   " + "-" * 50)
 
     print("""
@@ -211,7 +211,7 @@ def main():
 This example demonstrated:
 1. Floquet phase shift calculation for phased arrays
 2. Active impedance concepts for embedded element analysis
-3. VectorEM periodic BC workflow for unit cell simulations
+3. EdgeFEM periodic BC workflow for unit cell simulations
 4. Scan loss estimation for phased array design
 
 For a complete unit cell simulation, you would need:
@@ -219,7 +219,7 @@ For a complete unit cell simulation, you would need:
 - Periodic surfaces matching the array lattice
 - Floquet or wave ports for excitation
 
-VectorEM provides all the necessary functions for full-wave
+EdgeFEM provides all the necessary functions for full-wave
 unit cell analysis of phased array antennas.
 """)
 

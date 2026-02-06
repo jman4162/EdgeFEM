@@ -1,7 +1,7 @@
 """
-High-Level Design Classes for VectorEM
+High-Level Design Classes for EdgeFEM
 
-This module provides convenient wrappers around the low-level VectorEM API
+This module provides convenient wrappers around the low-level EdgeFEM API
 for common electromagnetic structures.
 
 Available designs:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VectorEM New Simulation Setup
+EdgeFEM New Simulation Setup
 
 Creates a new simulation directory with geometry, mesh, and run script.
 
@@ -28,7 +28,7 @@ def create_run_script(sim_dir: Path, geo_file: str, sim_type: str):
     """Create a Python run script for the simulation."""
     script = f'''#!/usr/bin/env python3
 """
-VectorEM Simulation: {sim_dir.name}
+EdgeFEM Simulation: {sim_dir.name}
 Type: {sim_type}
 
 Run with: python run_simulation.py
@@ -42,11 +42,11 @@ import numpy as np
 # Get the directory where this script lives (simulation directory)
 SCRIPT_DIR = Path(__file__).parent.resolve()
 
-# Add VectorEM to path
-vectorem_root = SCRIPT_DIR.parent.parent
-sys.path.insert(0, str(vectorem_root / "build" / "python"))
+# Add EdgeFEM to path
+edgefem_root = SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(edgefem_root / "build" / "python"))
 
-import pyvectorem as em
+import pyedgefem as em
 
 
 def main():
@@ -58,7 +58,7 @@ def main():
     if not msh_file.exists():
         import subprocess
         print(f"Meshing {{geo_file.name}}...")
-        # Use -format msh2 for Gmsh v2 format (required by VectorEM)
+        # Use -format msh2 for Gmsh v2 format (required by EdgeFEM)
         result = subprocess.run(["gmsh", str(geo_file), "-3", "-format", "msh2", "-o", str(msh_file)],
                                 capture_output=True, text=True)
         if result.returncode != 0:
@@ -199,7 +199,7 @@ def create_dipole_simulation(sim_dir: Path, args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Create a new VectorEM simulation",
+        description="Create a new EdgeFEM simulation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -249,7 +249,7 @@ Simulation types:
         geo_path = sim_dir / geo_file
         msh_path = geo_path.with_suffix(".msh")
         print(f"Meshing {geo_file}...")
-        # Use -format msh2 for Gmsh v2 format (required by VectorEM)
+        # Use -format msh2 for Gmsh v2 format (required by EdgeFEM)
         result = subprocess.run(
             ["gmsh", str(geo_path), "-3", "-format", "msh2", "-o", str(msh_path)],
             capture_output=True, text=True

@@ -1,4 +1,4 @@
-"""Export a :class:`~edgefem_cad.Case` into a VectorEM case directory."""
+"""Export a :class:`~edgefem_cad.Case` into a EdgeFEM case directory."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .. import Case
 
 
 def export_case(case: Case, out_dir: str | Path) -> Path:
-    """Write a minimal VectorEM case structure.
+    """Write a minimal EdgeFEM case structure.
 
     The function creates ``mesh.msh`` and ``settings.json`` placeholders
     so that downstream tooling has consistent expectations.

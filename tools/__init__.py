@@ -1,1 +1,1 @@
-"""VectorEM Tools"""
+"""EdgeFEM Tools"""

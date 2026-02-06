@@ -1,8 +1,8 @@
-site_name: VectorEM Documentation
+site_name: EdgeFEM Documentation
 site_description: 3D Finite-Element Electromagnetics Simulator for RF/mmWave
 site_author: John Hodge
-repo_url: https://github.com/jman4162/VectorEM
-repo_name: jman4162/VectorEM
+repo_url: https://github.com/jman4162/EdgeFEM
+repo_name: jman4162/EdgeFEM
 
 theme:
   name: material

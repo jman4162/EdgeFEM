@@ -14,9 +14,9 @@ from pathlib import Path
 import numpy as np
 
 try:
-    import pyvectorem as em
+    import pyedgefem as em
 except ImportError:
-    print("Error: pyvectorem not found. Build VectorEM with -DVECTOREM_PYTHON=ON")
+    print("Error: pyedgefem not found. Build EdgeFEM with -DEDGEFEM_PYTHON=ON")
     raise
 
 

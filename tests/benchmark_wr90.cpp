@@ -1,5 +1,5 @@
 // WR-90 Waveguide Benchmark Test
-// Validates VectorEM against analytical results for rectangular waveguide
+// Validates EdgeFEM against analytical results for rectangular waveguide
 //
 // Test cases:
 // 1. 50mm waveguide at 10 GHz: |S21| > 0.95, |S11| < 0.1, phase within 10°
@@ -99,7 +99,7 @@ int main() {
   std::cout << std::setprecision(4) << std::fixed;
 
   std::cout << "======================================================" << std::endl;
-  std::cout << "VectorEM WR-90 Waveguide Benchmark" << std::endl;
+  std::cout << "EdgeFEM WR-90 Waveguide Benchmark" << std::endl;
   std::cout << "======================================================" << std::endl;
 
   // Load mesh

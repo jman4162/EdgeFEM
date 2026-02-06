@@ -2,7 +2,7 @@
 """
 Example 01: Waveguide S-Parameter Extraction
 
-This example demonstrates the basic VectorEM workflow for computing S-parameters
+This example demonstrates the basic EdgeFEM workflow for computing S-parameters
 of a WR-90 rectangular waveguide using the eigenmode-based method.
 
 Steps:
@@ -14,7 +14,7 @@ Steps:
 6. Export to Touchstone format
 
 Requirements:
-    - VectorEM built with VECTOREM_PYTHON=ON
+    - EdgeFEM built with EDGEFEM_PYTHON=ON
     - Mesh file: examples/rect_waveguide.msh
 
 Generate mesh with:
@@ -25,9 +25,9 @@ import numpy as np
 from pathlib import Path
 
 try:
-    import pyvectorem as em
+    import pyedgefem as em
 except ImportError:
-    print("Error: pyvectorem not found. Build VectorEM with -DVECTOREM_PYTHON=ON")
+    print("Error: pyedgefem not found. Build EdgeFEM with -DEDGEFEM_PYTHON=ON")
     raise
 
 
@@ -37,7 +37,7 @@ def main():
     script_dir = Path(__file__).parent
 
     print("=" * 60)
-    print("VectorEM Example 01: Waveguide S-Parameter Extraction")
+    print("EdgeFEM Example 01: Waveguide S-Parameter Extraction")
     print("=" * 60)
 
     # ========================================================================

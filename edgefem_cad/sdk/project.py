@@ -1,9 +1,9 @@
 import numpy as np
-import pyvectorem as em
+import pyedgefem as em
 
 class Project:
     """
-    High-level class for managing a VectorEM simulation project.
+    High-level class for managing a EdgeFEM simulation project.
     """
     def __init__(self, name="default"):
         self.name = name

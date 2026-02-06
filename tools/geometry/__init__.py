@@ -1,4 +1,4 @@
-"""VectorEM Geometry Generation Tools"""
+"""EdgeFEM Geometry Generation Tools"""
 
 from .generators import (
     RectWaveguide,

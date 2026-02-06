@@ -11,7 +11,7 @@ import argparse
 from pathlib import Path
 
 from . import Case
-from .export.vectorem_case import export_case
+from .export.edgefem_case import export_case
 from .io import step_iges, stl_obj
 from .mesh.generate import generate_mesh
 from .ops.repair import heal_geometry
@@ -20,7 +20,7 @@ from .viz.preview import preview
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="vectorem-cad")
+    parser = argparse.ArgumentParser(prog="edgefem-cad")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_import = sub.add_parser("import", help="Import a CAD file")
@@ -37,9 +37,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_preview.add_argument("case_dir")
     p_preview.add_argument("--mesh", action="store_true")
 
-    p_export = sub.add_parser("export", help="Export VectorEM case")
+    p_export = sub.add_parser("export", help="Export EdgeFEM case")
     p_export.add_argument("case_dir")
-    p_export.add_argument("--format", default="vectorem")
+    p_export.add_argument("--format", default="edgefem")
 
     return parser
 

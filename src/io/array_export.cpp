@@ -40,7 +40,7 @@ void export_array_package_json(const std::string &path, const ArrayPackage &pkg)
 
   ofs << std::setprecision(12);
   ofs << "{\n";
-  ofs << "  \"format\": \"VectorEM_ArrayPackage\",\n";
+  ofs << "  \"format\": \"EdgeFEM_ArrayPackage\",\n";
   ofs << "  \"version\": \"1.0\",\n";
   ofs << "  \"model_name\": \"" << pkg.model_name << "\",\n";
   ofs << "  \"reference_impedance\": " << pkg.reference_impedance << ",\n";

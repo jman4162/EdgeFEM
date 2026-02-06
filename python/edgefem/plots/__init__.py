@@ -1,5 +1,5 @@
 """
-VectorEM Plotting Module
+EdgeFEM Plotting Module
 
 Matplotlib-based plotting utilities for common EM visualization tasks.
 All functions are designed to produce publication-quality figures.
