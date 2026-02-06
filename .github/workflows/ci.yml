@@ -11,7 +11,11 @@ jobs:
           python-version: '3.11'
       - name: Install deps
         run: |
-          sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-format clang-tidy libeigen3-dev gmsh
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-format-19 clang-tidy-19 libeigen3-dev gmsh
+          sudo ln -sf /usr/bin/clang-format-19 /usr/bin/clang-format
+          sudo ln -sf /usr/bin/clang-tidy-19 /usr/bin/clang-tidy
           python -m pip install --upgrade pip
           python -m pip install -r tools/requirements.txt
           python -m pip install pybind11 matplotlib
