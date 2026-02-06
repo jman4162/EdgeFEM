@@ -3,11 +3,13 @@
 #include <Eigen/Core>
 #include <Eigen/Sparse>
 #include <complex>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "vectorem/bc.hpp"
+#include "vectorem/materials/dispersive.hpp"
 #include "vectorem/mesh.hpp"
 #include "vectorem/periodic.hpp"
 #include "vectorem/ports/port_eigensolve.hpp"
@@ -44,6 +46,19 @@ struct MaxwellParams {
   double omega = 0.0;
   std::complex<double> eps_r = 1.0;
   std::complex<double> mu_r = 1.0;
+
+  // Region-based material assignment (takes precedence over global eps_r/mu_r)
+  // Maps physical group tag to complex relative permittivity/permeability.
+  // Elements with unassigned tags use the global eps_r/mu_r values above.
+  std::unordered_map<int, std::complex<double>> eps_r_regions;
+  std::unordered_map<int, std::complex<double>> mu_r_regions;
+
+  // Dispersive material models per region (takes precedence over eps_r_regions)
+  // When a region has a dispersive model, eps is evaluated at the current omega.
+  // Maps physical group tag to dispersive material model.
+  std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>> eps_models;
+  std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>> mu_models;
+
   // Conductivity term for PML coordinate stretching (sigma)
   double pml_sigma = 0.0;
   // Physical region tags that should be treated as PML
@@ -68,6 +83,52 @@ struct MaxwellParams {
   // When enabled, ports are excited using 3D FEM eigenvector instead of
   // analytical mode weights. Requires calling compute_te_eigenvector() first.
   bool use_eigenmode_excitation = false;
+
+  /// Get effective permittivity for a given physical region tag (non-dispersive).
+  /// Returns region-specific value if defined, otherwise global eps_r.
+  /// Note: For dispersive materials, use get_eps_r(phys_tag, omega) instead.
+  std::complex<double> get_eps_r(int phys_tag) const {
+    auto it = eps_r_regions.find(phys_tag);
+    return (it != eps_r_regions.end()) ? it->second : eps_r;
+  }
+
+  /// Get effective permittivity for a given physical region tag with frequency.
+  /// Priority: dispersive model > static region value > global eps_r.
+  /// @param phys_tag Physical group tag
+  /// @param omega Angular frequency (rad/s) for dispersive evaluation
+  std::complex<double> get_eps_r(int phys_tag, double omega) const {
+    // First check for dispersive model
+    auto model_it = eps_models.find(phys_tag);
+    if (model_it != eps_models.end() && model_it->second) {
+      return model_it->second->eval_eps(omega);
+    }
+    // Fall back to static region value or global
+    auto it = eps_r_regions.find(phys_tag);
+    return (it != eps_r_regions.end()) ? it->second : eps_r;
+  }
+
+  /// Get effective permeability for a given physical region tag (non-dispersive).
+  /// Returns region-specific value if defined, otherwise global mu_r.
+  /// Note: For dispersive materials, use get_mu_r(phys_tag, omega) instead.
+  std::complex<double> get_mu_r(int phys_tag) const {
+    auto it = mu_r_regions.find(phys_tag);
+    return (it != mu_r_regions.end()) ? it->second : mu_r;
+  }
+
+  /// Get effective permeability for a given physical region tag with frequency.
+  /// Priority: dispersive model > static region value > global mu_r.
+  /// @param phys_tag Physical group tag
+  /// @param omega Angular frequency (rad/s) for dispersive evaluation
+  std::complex<double> get_mu_r(int phys_tag, double omega) const {
+    // First check for dispersive model
+    auto model_it = mu_models.find(phys_tag);
+    if (model_it != mu_models.end() && model_it->second) {
+      return model_it->second->eval_mu(omega);
+    }
+    // Fall back to static region value or global
+    auto it = mu_r_regions.find(phys_tag);
+    return (it != mu_r_regions.end()) ? it->second : mu_r;
+  }
 };
 
 struct MaxwellAssembly {

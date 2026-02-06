@@ -157,6 +157,12 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
     // Matrix entry = (1/μ_r)K - k₀²ε_r M
     const double k0 = p.omega / c0;
     const double k0_sq = k0 * k0;
+
+    // Get per-element material properties (region-based or global fallback)
+    // Use frequency-aware accessor to support dispersive materials
+    const std::complex<double> eps_r_elem = p.get_eps_r(tet.phys, p.omega);
+    const std::complex<double> mu_r_elem = p.get_mu_r(tet.phys, p.omega);
+
     for (int i = 0; i < 6; ++i) {
       int gi = tet.edges[i];
       int si = tet.edge_orient[i];
@@ -164,7 +170,7 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
         int gj = tet.edges[j];
         int sj = tet.edge_orient[j];
         std::complex<double> val =
-            (Kloc(i, j) / p.mu_r) - (k0_sq * p.eps_r * Mloc(i, j));
+            (Kloc(i, j) / mu_r_elem) - (k0_sq * eps_r_elem * Mloc(i, j));
         val *= static_cast<double>(si * sj);
         trips.emplace_back(gi, gj, val);
       }

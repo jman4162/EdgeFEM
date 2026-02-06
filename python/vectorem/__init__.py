@@ -38,7 +38,7 @@ try:
 except ImportError:
     plots = None  # matplotlib not installed
 
-__version__ = "0.3.0"
+__version__ = "1.0.0"
 __all__ = [
     # Re-exported from pyvectorem (documented for IDE support)
     "Mesh", "Node", "Element", "Edge", "ElemType",
@@ -75,6 +75,8 @@ __all__ = [
     "TouchstoneFormat", "TouchstoneOptions",
     "write_touchstone", "write_touchstone_nport", "touchstone_extension",
     "MeshQualityReport", "validate_mesh",
+    # Dispersive materials
+    "materials",
     # High-level API
     "designs",
     "plots",

@@ -10,12 +10,14 @@ add_library(vectorem
   io/touchstone.cpp
   io/json_export.cpp
   io/array_export.cpp
+  io/vtk_export.cpp
   array/embedded_pattern.cpp
   array/active_impedance.cpp
   array/coupling_extract.cpp
   post/ntf.cpp
   sweep.cpp
   mor/vector_fit.cpp
+  materials/dispersive.cpp
 )
 
 set_target_properties(vectorem PROPERTIES POSITION_INDEPENDENT_CODE ON)

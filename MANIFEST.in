@@ -1,0 +1,17 @@
+include CMakeLists.txt
+include LICENSE
+include README.md
+include CLAUDE.md
+include pyproject.toml
+recursive-include cmake *.cmake
+recursive-include include *.hpp
+recursive-include src *.cpp *.hpp
+recursive-include python *.py *.cpp CMakeLists.txt
+recursive-include examples *.py *.msh *.geo
+prune build
+prune .git
+prune simulations
+prune tests
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store

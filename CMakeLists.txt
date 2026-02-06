@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(VectorEM VERSION 0.1.0 LANGUAGES CXX)
+project(VectorEM VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,6 +14,11 @@ find_package(Eigen3 3.4 REQUIRED)
 option(VECTOREM_BUILD_SCALAR "Build scalar prototype" ON)
 option(VECTOREM_BUILD_VECTOR "Build vector Maxwell path" ON)
 option(VECTOREM_PYTHON "Build Python bindings" OFF)
+
+# When building via scikit-build-core, SKBUILD is defined
+if(SKBUILD)
+  set(VECTOREM_PYTHON ON CACHE BOOL "" FORCE)
+endif()
 
 add_subdirectory(src)
 add_subdirectory(tests)

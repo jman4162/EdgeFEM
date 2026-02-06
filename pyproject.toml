@@ -1,12 +1,54 @@
-[project]
-name = "vectorem_cad"
-version = "0.1.0"
-description = "CAD import and meshing utilities for VectorEM"
-readme = "README.md"
-requires-python = ">=3.10"
-license = { text = "MIT" }
-authors = [{name = "John Hodge"}]
-dependencies = []
+[build-system]
+requires = ["scikit-build-core>=0.5", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
 
-[project.scripts]
-vectorem-cad = "vectorem_cad.cli:main"
+[project]
+name = "vectorem"
+version = "1.0.0"
+description = "3D FEM Electromagnetics Simulator for RF and mmWave"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [{name = "John Hodge"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+]
+keywords = ["electromagnetics", "fem", "simulation", "rf", "mmwave", "antenna", "s-parameters"]
+dependencies = ["numpy>=1.20"]
+
+[project.optional-dependencies]
+plots = ["matplotlib>=3.5"]
+dev = ["pytest", "pytest-cov"]
+all = ["matplotlib>=3.5", "pytest", "pytest-cov"]
+
+[project.urls]
+Homepage = "https://github.com/jman4162/VectorEM"
+Documentation = "https://github.com/jman4162/VectorEM#readme"
+Repository = "https://github.com/jman4162/VectorEM"
+Issues = "https://github.com/jman4162/VectorEM/issues"
+
+[tool.scikit-build]
+cmake.minimum-version = "3.20"
+cmake.build-type = "Release"
+# Install the compiled pyvectorem module at the root level
+wheel.install-dir = "."
+
+[tool.scikit-build.cmake.define]
+VECTOREM_PYTHON = "ON"
+VECTOREM_BUILD_VECTOR = "ON"
+VECTOREM_BUILD_SCALAR = "ON"
+
+# Include the vectorem Python package
+[tool.scikit-build.wheel.packages]
+vectorem = "python/vectorem"

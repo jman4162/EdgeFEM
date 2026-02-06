@@ -9,6 +9,7 @@
 #include "vectorem/coupling.hpp"
 #include "vectorem/fem.hpp"
 #include "vectorem/io/touchstone.hpp"
+#include "vectorem/materials/dispersive.hpp"
 #include "vectorem/mesh.hpp"
 #include "vectorem/mesh_quality.hpp"
 #include "vectorem/periodic.hpp"
@@ -191,12 +192,48 @@ PYBIND11_MODULE(pyvectorem, m) {
       .def_readwrite("mu_r_regions", &MaxwellParams::mu_r_regions,
                      "Region-based permeability: maps physical tag to complex mu_r.\n"
                      "Elements with unassigned tags use global mu_r.")
-      .def("get_eps_r", &MaxwellParams::get_eps_r,
-           "Get effective permittivity for a physical region tag.",
+      .def_property("eps_models",
+                    [](const MaxwellParams &p) { return p.eps_models; },
+                    [](MaxwellParams &p,
+                       const std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>> &m) {
+                      p.eps_models = m;
+                    },
+                    "Dispersive permittivity models: maps physical tag to DispersiveMaterial.\n"
+                    "Takes precedence over eps_r_regions. Evaluated at current omega.")
+      .def("set_eps_model", [](MaxwellParams &p, int tag,
+                               std::shared_ptr<materials::DispersiveMaterial> model) {
+                              p.eps_models[tag] = model;
+                            },
+           py::arg("phys_tag"), py::arg("model"),
+           "Set a dispersive permittivity model for a physical region.")
+      .def_property("mu_models",
+                    [](const MaxwellParams &p) { return p.mu_models; },
+                    [](MaxwellParams &p,
+                       const std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>> &m) {
+                      p.mu_models = m;
+                    },
+                    "Dispersive permeability models: maps physical tag to DispersiveMaterial.\n"
+                    "Takes precedence over mu_r_regions. Evaluated at current omega.")
+      .def("set_mu_model", [](MaxwellParams &p, int tag,
+                              std::shared_ptr<materials::DispersiveMaterial> model) {
+                             p.mu_models[tag] = model;
+                           },
+           py::arg("phys_tag"), py::arg("model"),
+           "Set a dispersive permeability model for a physical region.")
+      .def("get_eps_r", py::overload_cast<int>(&MaxwellParams::get_eps_r, py::const_),
+           "Get effective permittivity for a physical region tag (non-dispersive).",
            py::arg("phys_tag"))
-      .def("get_mu_r", &MaxwellParams::get_mu_r,
-           "Get effective permeability for a physical region tag.",
+      .def("get_eps_r", py::overload_cast<int, double>(&MaxwellParams::get_eps_r, py::const_),
+           "Get effective permittivity for a physical region tag at given omega.\n"
+           "Evaluates dispersive models if present.",
+           py::arg("phys_tag"), py::arg("omega"))
+      .def("get_mu_r", py::overload_cast<int>(&MaxwellParams::get_mu_r, py::const_),
+           "Get effective permeability for a physical region tag (non-dispersive).",
            py::arg("phys_tag"))
+      .def("get_mu_r", py::overload_cast<int, double>(&MaxwellParams::get_mu_r, py::const_),
+           "Get effective permeability for a physical region tag at given omega.\n"
+           "Evaluates dispersive models if present.",
+           py::arg("phys_tag"), py::arg("omega"))
       .def_readwrite("pml_sigma", &MaxwellParams::pml_sigma, "PML conductivity.")
       .def_readwrite("pml_regions", &MaxwellParams::pml_regions, "Set of physical region tags for PML.")
       .def_readwrite("use_abc", &MaxwellParams::use_abc, "Flag to enable absorbing boundary condition.")
@@ -762,4 +799,120 @@ PYBIND11_MODULE(pyvectorem, m) {
         "Compatible with older visualization tools.",
         py::arg("mesh"), py::arg("solution"), py::arg("filename"),
         py::arg("options") = VTKExportOptions());
+
+  // ============================================================
+  // Dispersive Materials Submodule
+  // ============================================================
+
+  py::module_ materials = m.def_submodule("materials",
+      "Frequency-dependent (dispersive) material models.\n\n"
+      "Supported models:\n"
+      "  - DebyeMaterial: Polar dielectrics with single relaxation time\n"
+      "  - LorentzMaterial: Resonant materials with oscillator poles\n"
+      "  - DrudeMaterial: Free-electron metals and plasmas\n"
+      "  - DrudeLorentzMaterial: Combined model for realistic metals");
+
+  using namespace vectorem::materials;
+
+  // Base class (for type hints and polymorphism)
+  py::class_<DispersiveMaterial, std::shared_ptr<DispersiveMaterial>>(
+      materials, "DispersiveMaterial",
+      "Base class for dispersive material models.\n"
+      "Use subclasses DebyeMaterial, LorentzMaterial, or DrudeMaterial.")
+      .def("eval_eps", &DispersiveMaterial::eval_eps,
+           "Evaluate complex permittivity at angular frequency omega (rad/s).",
+           py::arg("omega"))
+      .def("eval_mu", &DispersiveMaterial::eval_mu,
+           "Evaluate complex permeability at angular frequency omega (rad/s).\n"
+           "Returns 1.0 for non-magnetic materials (default).",
+           py::arg("omega"));
+
+  // Debye relaxation model
+  py::class_<DebyeMaterial, DispersiveMaterial, std::shared_ptr<DebyeMaterial>>(
+      materials, "DebyeMaterial",
+      "Debye relaxation model for polar dielectrics.\n\n"
+      "Formula: eps(omega) = eps_inf + (eps_s - eps_inf) / (1 + j*omega*tau)\n\n"
+      "Example (water at 20C):\n"
+      "    water = DebyeMaterial(eps_static=80.1, eps_inf=4.9, tau=9.3e-12)")
+      .def(py::init<double, double, double>(),
+           py::arg("eps_static"), py::arg("eps_inf"), py::arg("tau"),
+           "Create Debye material.\n\n"
+           "Args:\n"
+           "    eps_static: Static (DC) relative permittivity\n"
+           "    eps_inf: High-frequency relative permittivity\n"
+           "    tau: Relaxation time in seconds (must be > 0)")
+      .def("eval_eps", &DebyeMaterial::eval_eps, py::arg("omega"))
+      .def_property_readonly("eps_static", &DebyeMaterial::eps_static,
+                             "Static (DC) permittivity")
+      .def_property_readonly("eps_inf", &DebyeMaterial::eps_inf,
+                             "High-frequency permittivity")
+      .def_property_readonly("tau", &DebyeMaterial::tau,
+                             "Relaxation time constant (seconds)");
+
+  // Lorentz oscillator model
+  py::class_<LorentzMaterial, DispersiveMaterial, std::shared_ptr<LorentzMaterial>>(
+      materials, "LorentzMaterial",
+      "Multi-pole Lorentz oscillator model for resonant materials.\n\n"
+      "Formula: eps(omega) = eps_inf + Sum_k [ delta_eps_k * omega0_k^2 /\n"
+      "                                       (omega0_k^2 - omega^2 + j*gamma_k*omega) ]\n\n"
+      "Example:\n"
+      "    mat = LorentzMaterial(eps_inf=1.0)\n"
+      "    mat.add_pole(delta_eps=5.0, omega0=2*pi*10e9, gamma=2*pi*0.5e9)")
+      .def(py::init<>(), "Create Lorentz material with eps_inf=1.0")
+      .def(py::init<double>(), py::arg("eps_inf"),
+           "Create Lorentz material with specified eps_inf")
+      .def("add_pole", &LorentzMaterial::add_pole,
+           py::arg("delta_eps"), py::arg("omega0"), py::arg("gamma"),
+           "Add a Lorentz pole.\n\n"
+           "Args:\n"
+           "    delta_eps: Oscillator strength (permittivity contribution)\n"
+           "    omega0: Resonance angular frequency (rad/s, must be > 0)\n"
+           "    gamma: Damping factor (rad/s, must be >= 0)")
+      .def("eval_eps", &LorentzMaterial::eval_eps, py::arg("omega"))
+      .def_property_readonly("eps_inf", &LorentzMaterial::eps_inf,
+                             "High-frequency permittivity")
+      .def_property_readonly("num_poles", &LorentzMaterial::num_poles,
+                             "Number of Lorentz poles");
+
+  // Drude free-electron model
+  py::class_<DrudeMaterial, DispersiveMaterial, std::shared_ptr<DrudeMaterial>>(
+      materials, "DrudeMaterial",
+      "Drude free-electron model for metals and plasmas.\n\n"
+      "Formula: eps(omega) = 1 - omega_p^2 / (omega^2 + j*gamma*omega)\n\n"
+      "Example (gold-like):\n"
+      "    gold = DrudeMaterial(omega_p=1.37e16, gamma=4.05e13)")
+      .def(py::init<double, double>(),
+           py::arg("omega_p"), py::arg("gamma"),
+           "Create Drude material.\n\n"
+           "Args:\n"
+           "    omega_p: Plasma frequency in rad/s (must be > 0)\n"
+           "    gamma: Collision/damping frequency in rad/s (must be >= 0)")
+      .def("eval_eps", &DrudeMaterial::eval_eps, py::arg("omega"))
+      .def_property_readonly("omega_p", &DrudeMaterial::omega_p,
+                             "Plasma frequency (rad/s)")
+      .def_property_readonly("gamma", &DrudeMaterial::gamma,
+                             "Collision/damping frequency (rad/s)");
+
+  // Drude-Lorentz combined model
+  py::class_<DrudeLorentzMaterial, DispersiveMaterial, std::shared_ptr<DrudeLorentzMaterial>>(
+      materials, "DrudeLorentzMaterial",
+      "Combined Drude-Lorentz model for realistic metals.\n\n"
+      "Combines free-electron (Drude) and bound-electron (Lorentz) contributions.\n\n"
+      "Example:\n"
+      "    gold = DrudeLorentzMaterial(eps_inf=1.0, omega_p=1.37e16, gamma_d=4.05e13)\n"
+      "    gold.add_lorentz_pole(delta_eps=2.0, omega0=4e15, gamma=1e14)")
+      .def(py::init<double, double, double>(),
+           py::arg("eps_inf"), py::arg("omega_p"), py::arg("gamma_d"),
+           "Create Drude-Lorentz material.\n\n"
+           "Args:\n"
+           "    eps_inf: High-frequency permittivity (background)\n"
+           "    omega_p: Plasma frequency in rad/s\n"
+           "    gamma_d: Drude damping in rad/s")
+      .def("add_lorentz_pole", &DrudeLorentzMaterial::add_lorentz_pole,
+           py::arg("delta_eps"), py::arg("omega0"), py::arg("gamma"),
+           "Add a Lorentz pole for interband transitions.")
+      .def("eval_eps", &DrudeLorentzMaterial::eval_eps, py::arg("omega"))
+      .def_property_readonly("eps_inf", &DrudeLorentzMaterial::eps_inf)
+      .def_property_readonly("omega_p", &DrudeLorentzMaterial::omega_p)
+      .def_property_readonly("gamma_d", &DrudeLorentzMaterial::gamma_d);
 }
