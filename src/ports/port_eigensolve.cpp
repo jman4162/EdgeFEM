@@ -62,6 +62,8 @@ PortMode solve_te10_mode(const RectWaveguidePort &port, double freq) {
   return mode;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 SParams2 straight_waveguide_sparams(const RectWaveguidePort &port,
                                     double length, double freq) {
   const double k = 2.0 * M_PI * freq / c0;
@@ -84,6 +86,7 @@ SParams2 straight_waveguide_sparams(const RectWaveguidePort &port,
   }
   return s;
 }
+#pragma GCC diagnostic pop
 
 } // namespace edgefem
 

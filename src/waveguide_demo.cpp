@@ -6,6 +6,9 @@
 #include "edgefem/mesh.hpp"
 #include "edgefem/ports/wave_port.hpp"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 using namespace edgefem;
 
 int main(int argc, char **argv) {
@@ -55,3 +58,5 @@ int main(int argc, char **argv) {
 
   return 0;
 }
+
+#pragma GCC diagnostic pop

@@ -447,7 +447,6 @@ MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
     return asmbl;
   }
 
-  const int m = static_cast<int>(mesh.edges.size());
   const std::complex<double> phi = pbc.phase_shift;
   const std::complex<double> phi_conj = std::conj(phi);
 
