@@ -1,8 +1,8 @@
-#include "vectorem/fem.hpp"
+#include "edgefem/fem.hpp"
 
 #include <Eigen/SparseCore>
 
-namespace vectorem {
+namespace edgefem {
 
 ScalarAssembly assemble_scalar_helmholtz(const Mesh &mesh,
                                          const ScalarHelmholtzParams &p,
@@ -34,4 +34,4 @@ ScalarAssembly assemble_scalar_helmholtz(const Mesh &mesh,
   return asmbl;
 }
 
-} // namespace vectorem
+} // namespace edgefem

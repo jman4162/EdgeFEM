@@ -1,11 +1,11 @@
-#include "vectorem/mesh.hpp"
+#include "edgefem/mesh.hpp"
 
 #include <array>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 
-namespace vectorem {
+namespace edgefem {
 namespace {
 void build_edges(Mesh &mesh);
 }
@@ -118,4 +118,4 @@ void build_edges(Mesh &mesh) {
   }
 }
 } // namespace
-} // namespace vectorem
+} // namespace edgefem

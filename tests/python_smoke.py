@@ -1,4 +1,4 @@
-import pyvectorem as em
+import pyedgefem as em
 
 mesh = em.load_gmsh("examples/cube_cavity.msh")
 bc = em.build_scalar_pec(mesh, 1)

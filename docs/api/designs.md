@@ -1,13 +1,13 @@
 # Design Classes API Reference
 
-VectorEM provides high-level design classes that encapsulate common simulation workflows. These classes handle mesh generation, boundary conditions, and post-processing automatically.
+EdgeFEM provides high-level design classes that encapsulate common simulation workflows. These classes handle mesh generation, boundary conditions, and post-processing automatically.
 
 ## RectWaveguideDesign
 
 High-level interface for rectangular waveguide S-parameter analysis.
 
 ```python
-from vectorem.designs import RectWaveguideDesign
+from edgefem.designs import RectWaveguideDesign
 ```
 
 ### Constructor
@@ -156,8 +156,8 @@ Export E-field solution to VTK format for ParaView.
 ### Complete Example
 
 ```python
-from vectorem.designs import RectWaveguideDesign
-import vectorem.plots as vp
+from edgefem.designs import RectWaveguideDesign
+import edgefem.plots as vp
 import numpy as np
 
 # Create WR-90 waveguide
@@ -186,7 +186,7 @@ wg.export_fields_vtk("wr90_field.vtu", freq=10e9)
 High-level interface for microstrip patch antenna simulation.
 
 ```python
-from vectorem.designs import PatchAntennaDesign
+from edgefem.designs import PatchAntennaDesign
 ```
 
 ### Constructor
@@ -328,8 +328,8 @@ Estimate bandwidth based on VSWR threshold.
 ### Complete Example
 
 ```python
-from vectorem.designs import PatchAntennaDesign
-import vectorem.plots as vp
+from edgefem.designs import PatchAntennaDesign
+import edgefem.plots as vp
 import numpy as np
 
 # Design 2.4 GHz patch on FR-4
@@ -376,7 +376,7 @@ vp.plot_pattern_3d_cuts(pattern, title="2.4 GHz Patch", save="patch_pattern.png"
 High-level interface for periodic metasurface/metamaterial unit cell analysis.
 
 ```python
-from vectorem.designs import UnitCellDesign
+from edgefem.designs import UnitCellDesign
 ```
 
 ### Constructor
@@ -530,8 +530,8 @@ Extract effective permittivity and permeability using NRW method.
 ### Complete Example
 
 ```python
-from vectorem.designs import UnitCellDesign
-import vectorem.plots as vp
+from edgefem.designs import UnitCellDesign
+import edgefem.plots as vp
 import numpy as np
 
 # Create unit cell for phased array

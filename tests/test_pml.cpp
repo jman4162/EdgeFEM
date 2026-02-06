@@ -3,9 +3,9 @@
 #include <cassert>
 #include <cmath>
 
-#include "vectorem/maxwell.hpp"
+#include "edgefem/maxwell.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main() {
   // Load simple mesh and tag first tetrahedron as PML region

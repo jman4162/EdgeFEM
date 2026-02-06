@@ -1,11 +1,11 @@
-#include "vectorem/array/coupling_extract.hpp"
+#include "edgefem/array/coupling_extract.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 
@@ -214,4 +214,4 @@ CouplingStats compute_coupling_stats(const Eigen::MatrixXcd &S) {
   return stats;
 }
 
-} // namespace vectorem
+} // namespace edgefem

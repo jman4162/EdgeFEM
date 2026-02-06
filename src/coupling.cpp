@@ -1,10 +1,10 @@
-#include "vectorem/coupling.hpp"
+#include "edgefem/coupling.hpp"
 
 #include <Eigen/Dense>
 #include <cmath>
 #include <stdexcept>
 
-namespace vectorem {
+namespace edgefem {
 
 CouplingMatrix compute_coupling(const Eigen::MatrixXcd &S, double freq,
                                 double z0) {
@@ -133,4 +133,4 @@ bool is_reciprocal(const Eigen::MatrixXcd &S, double tolerance) {
   return S.isApprox(S.transpose(), tolerance);
 }
 
-} // namespace vectorem
+} // namespace edgefem

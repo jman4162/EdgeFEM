@@ -1,4 +1,4 @@
-# VectorEM Project Review — Sprint Health Check
+# EdgeFEM Project Review — Sprint Health Check
 
 ## Overview
 This review cross-references the committed implementation against the project plan to highlight accomplished scope, gaps, and recommended next steps.

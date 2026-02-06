@@ -1,9 +1,9 @@
 #include <array>
 #include <cassert>
 
-#include "vectorem/mesh.hpp"
+#include "edgefem/mesh.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main() {
   Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");

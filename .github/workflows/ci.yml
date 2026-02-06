@@ -19,7 +19,7 @@ jobs:
         id: pybind11_dir
         run: echo "dir=$(python3 -c 'import pybind11; print(pybind11.get_cmake_dir())')" >> $GITHUB_ENV
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVECTOREM_PYTHON=ON -Dpybind11_DIR=${{ env.dir }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_PYTHON=ON -Dpybind11_DIR=${{ env.dir }}
       - name: Build
         run: cmake --build build -j
       - name: Static analysis
@@ -31,6 +31,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vectorem-artifacts
+          name: edgefem-artifacts
           path: artifacts
 

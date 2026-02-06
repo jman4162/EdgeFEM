@@ -1,6 +1,6 @@
 # Tutorial: Periodic Unit Cell Analysis
 
-This tutorial covers analyzing periodic structures (metasurfaces, frequency selective surfaces, phased array unit cells) with VectorEM. You'll learn to:
+This tutorial covers analyzing periodic structures (metasurfaces, frequency selective surfaces, phased array unit cells) with EdgeFEM. You'll learn to:
 
 - Create unit cell geometry with periodic boundaries
 - Compute reflection and transmission coefficients
@@ -17,7 +17,7 @@ Periodic structures are fundamental building blocks for:
 - **Phased Arrays**: Unit cell characterizes element coupling
 - **Metamaterials**: Engineered effective ε and μ
 
-VectorEM uses Floquet boundary conditions to simulate an infinite periodic array from a single unit cell.
+EdgeFEM uses Floquet boundary conditions to simulate an infinite periodic array from a single unit cell.
 
 **Key concepts:**
 
@@ -30,7 +30,7 @@ VectorEM uses Floquet boundary conditions to simulate an infinite periodic array
 Design a simple square patch unit cell for 10 GHz operation:
 
 ```python
-from vectorem.designs import UnitCellDesign
+from edgefem.designs import UnitCellDesign
 import numpy as np
 
 # Unit cell parameters
@@ -326,7 +326,7 @@ print(f"Jerusalem cross: {len(jc._geometry_elements)} elements")
 For phased array applications, analyze active impedance vs. scan:
 
 ```python
-from vectorem.designs import UnitCellDesign
+from edgefem.designs import UnitCellDesign
 import numpy as np
 
 # Phased array unit cell
@@ -420,7 +420,7 @@ if np.max(Z_mag) > 5 * np.min(Z_mag):
 """
 Complete Unit Cell Analysis Script
 """
-from vectorem.designs import UnitCellDesign
+from edgefem.designs import UnitCellDesign
 import numpy as np
 import matplotlib.pyplot as plt
 

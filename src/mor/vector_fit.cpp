@@ -1,10 +1,10 @@
-#include "vectorem/mor/vector_fit.hpp"
+#include "edgefem/mor/vector_fit.hpp"
 
 #include <Eigen/Dense>
 #include <fstream>
 #include <sstream>
 
-namespace vectorem {
+namespace edgefem {
 namespace mor {
 
 FitResult vector_fit(const std::vector<double> &freq,
@@ -85,4 +85,4 @@ FitResult vector_fit(const std::vector<double> &freq,
 }
 
 } // namespace mor
-} // namespace vectorem
+} // namespace edgefem

@@ -1,11 +1,11 @@
-# REQUIREMENTS.md — VectorEM v1.0
+# REQUIREMENTS.md — EdgeFEM v1.0
 
 **Status:** Draft (v0.1)  
 **Owner:** Core Team (Numerics Lead + Runtime Lead)  
 **Last updated:** <set on commit>
 
 ## 1. Purpose & Scope
-VectorEM is a 3D frequency‑domain FEM electromagnetics solver for RF/mmWave analysis. v1.0 targets accurate S‑parameters and antenna radiation patterns with first‑order Nédélec elements, wave/lumped ports, and PML. This document defines testable **functional and non‑functional requirements** for v1.0.
+EdgeFEM is a 3D frequency‑domain FEM electromagnetics solver for RF/mmWave analysis. v1.0 targets accurate S‑parameters and antenna radiation patterns with first‑order Nédélec elements, wave/lumped ports, and PML. This document defines testable **functional and non‑functional requirements** for v1.0.
 
 ## 2. Definitions & Acronyms
 - **FEM:** Finite Element Method  
@@ -69,7 +69,7 @@ Each item is labeled with an ID; “MoSCoW” priority in brackets. **Verificati
 ### Interfaces & UX
 - **FR‑050 [Must]:** CLI to run: mesh check, solve, post; exit codes on failure.  
   _Verify:_ CLI tests.
-- **FR‑051 [Must]:** Python SDK (`pyvectorem`) exposing: mesh load, solve, S‑params export, basic field sampling.  
+- **FR‑051 [Must]:** Python SDK (`pyedgefem`) exposing: mesh load, solve, S‑params export, basic field sampling.  
   _Verify:_ Python smoke test in CI (< 30 s).
 - **FR‑052 [Should]:** Minimal Qt GUI (tree view, property panels, plots) for demos.  
   _Verify:_ manual demo script and screenshot artifact.

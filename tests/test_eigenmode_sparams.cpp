@@ -5,10 +5,10 @@
 #include <iomanip>
 #include <cmath>
 #include <cassert>
-#include "vectorem/maxwell.hpp"
-#include "vectorem/solver.hpp"
+#include "edgefem/maxwell.hpp"
+#include "edgefem/solver.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 constexpr double c0 = 299792458.0;
 constexpr double mu0 = 4.0 * M_PI * 1e-7;

@@ -1,6 +1,6 @@
 # Core API Reference
 
-This document covers the core functions and classes in the `pyvectorem` module.
+This document covers the core functions and classes in the `pyedgefem` module.
 
 ## Mesh Operations
 

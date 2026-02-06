@@ -1,4 +1,4 @@
-add_library(vectorem
+add_library(edgefem
   mesh_gmsh.cpp
   mesh_quality.cpp
   solver.cpp
@@ -20,26 +20,25 @@ add_library(vectorem
   materials/dispersive.cpp
 )
 
-set_target_properties(vectorem PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(edgefem PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-if (VECTOREM_BUILD_SCALAR)
-  target_sources(vectorem PRIVATE fem_scalar.cpp)
+if (EDGEFEM_BUILD_SCALAR)
+  target_sources(edgefem PRIVATE fem_scalar.cpp)
 endif()
 
-if (VECTOREM_BUILD_VECTOR)
-  target_sources(vectorem PRIVATE edge_basis.cpp assemble_maxwell.cpp)
-  add_executable(vectorem_waveguide_demo waveguide_demo.cpp)
-  target_link_libraries(vectorem_waveguide_demo PRIVATE vectorem)
-  add_executable(vectorem_sweep_demo sweep_demo.cpp)
-  target_link_libraries(vectorem_sweep_demo PRIVATE vectorem)
+if (EDGEFEM_BUILD_VECTOR)
+  target_sources(edgefem PRIVATE edge_basis.cpp assemble_maxwell.cpp)
+  add_executable(edgefem_waveguide_demo waveguide_demo.cpp)
+  target_link_libraries(edgefem_waveguide_demo PRIVATE edgefem)
+  add_executable(edgefem_sweep_demo sweep_demo.cpp)
+  target_link_libraries(edgefem_sweep_demo PRIVATE edgefem)
 endif()
 
-target_include_directories(vectorem PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(edgefem PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(vectorem PUBLIC Eigen3::Eigen)
+target_link_libraries(edgefem PUBLIC Eigen3::Eigen)
 
-if (VECTOREM_BUILD_SCALAR)
-  add_executable(vectorem_scalar_demo main_scalar_demo.cpp)
-  target_link_libraries(vectorem_scalar_demo PRIVATE vectorem)
+if (EDGEFEM_BUILD_SCALAR)
+  add_executable(edgefem_scalar_demo main_scalar_demo.cpp)
+  target_link_libraries(edgefem_scalar_demo PRIVATE edgefem)
 endif()
-

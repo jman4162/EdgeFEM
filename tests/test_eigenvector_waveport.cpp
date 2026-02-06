@@ -4,10 +4,10 @@
 #include <iostream>
 #include <iomanip>
 #include <cmath>
-#include "vectorem/maxwell.hpp"
-#include "vectorem/solver.hpp"
+#include "edgefem/maxwell.hpp"
+#include "edgefem/solver.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 constexpr double c0 = 299792458.0;
 

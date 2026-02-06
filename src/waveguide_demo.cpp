@@ -1,12 +1,12 @@
 #include <iostream>
 #include <vector>
 
-#include "vectorem/io/touchstone.hpp"
-#include "vectorem/maxwell.hpp"
-#include "vectorem/mesh.hpp"
-#include "vectorem/ports/wave_port.hpp"
+#include "edgefem/io/touchstone.hpp"
+#include "edgefem/maxwell.hpp"
+#include "edgefem/mesh.hpp"
+#include "edgefem/ports/wave_port.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main(int argc, char **argv) {
   Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");

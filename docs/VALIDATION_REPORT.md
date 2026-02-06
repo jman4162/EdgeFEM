@@ -1,12 +1,12 @@
-# VectorEM Validation Report
+# EdgeFEM Validation Report
 
 ## Overview
 
-This document presents validation results for VectorEM, a 3D finite-element Maxwell solver for RF/microwave simulations. Results are compared against analytical solutions for standard benchmark cases.
+This document presents validation results for EdgeFEM, a 3D finite-element Maxwell solver for RF/microwave simulations. Results are compared against analytical solutions for standard benchmark cases.
 
 ## Test Configuration
 
-- **VectorEM Version**: Development (Feb 2026)
+- **EdgeFEM Version**: Development (Feb 2026)
 - **Platform**: macOS ARM64 (Apple Silicon)
 - **Compiler**: Clang 17
 - **Linear Solver**: BiCGSTAB with ILUT preconditioner
@@ -56,7 +56,7 @@ This document presents validation results for VectorEM, a 3D finite-element Maxw
 
 ## S-Parameter Extraction Method
 
-VectorEM uses an **eigenmode-based S-parameter extraction** method that achieves high accuracy by:
+EdgeFEM uses an **eigenmode-based S-parameter extraction** method that achieves high accuracy by:
 
 1. Computing the 3D FEM eigenvector for the dominant mode using the generalized eigenvalue problem
 2. Using the eigenvector pattern as port weights (not analytical formulas)
@@ -90,13 +90,13 @@ Eigen::MatrixXcd S = calculate_sparams_eigenmode(mesh, p, bc, {port1, port2});
 
 ## Conclusion
 
-VectorEM demonstrates excellent agreement with analytical solutions for the WR-90 waveguide benchmark:
+EdgeFEM demonstrates excellent agreement with analytical solutions for the WR-90 waveguide benchmark:
 - **>99% transmission accuracy** (|S21| > 0.99)
 - **<10% reflection** (|S11| < 0.10 typical)
 - **<10° phase error** for typical mesh density
 - **Strict passivity** maintained
 
-These results validate VectorEM for research-grade RF/microwave simulations of waveguide structures.
+These results validate EdgeFEM for research-grade RF/microwave simulations of waveguide structures.
 
 ---
 *Report generated: February 2026*

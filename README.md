@@ -1,4 +1,4 @@
-# VectorEM
+# EdgeFEM
 
 **3D Finite-Element Electromagnetics Simulator for RF and mmWave**
 
@@ -6,7 +6,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 
-VectorEM is an open-source full-wave FEM solver specialized for metasurface, metamaterial, and phased array unit cell modeling (100 kHz - 110 GHz). It computes S-parameters, electromagnetic fields, and radiation patterns using Nédélec (edge) elements with industry-standard accuracy.
+EdgeFEM is an open-source full-wave FEM solver specialized for metasurface, metamaterial, and phased array unit cell modeling (100 kHz - 110 GHz). It computes S-parameters, electromagnetic fields, and radiation patterns using Nédélec (edge) elements with industry-standard accuracy.
 
 ## Features
 
@@ -31,9 +31,9 @@ VectorEM is an open-source full-wave FEM solver specialized for metasurface, met
 brew install cmake ninja eigen gmsh
 
 # Clone and build
-git clone https://github.com/jman4162/VectorEM.git
-cd VectorEM
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVECTOREM_PYTHON=ON
+git clone https://github.com/jman4162/EdgeFEM.git
+cd EdgeFEM
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_PYTHON=ON
 cmake --build build -j
 
 # Set Python path
@@ -43,7 +43,7 @@ export PYTHONPATH="$PWD/build/python:$PWD/python:$PYTHONPATH"
 ### 10-Line Example: Waveguide S-Parameters
 
 ```python
-from vectorem.designs import RectWaveguideDesign
+from edgefem.designs import RectWaveguideDesign
 import numpy as np
 
 # Create WR-90 waveguide (X-band)
@@ -59,7 +59,7 @@ print(f"|S21| = {abs(S[1,0]):.4f}")  # ~0.994 (99.4% transmission)
 ### Patch Antenna Example
 
 ```python
-from vectorem.designs import PatchAntennaDesign
+from edgefem.designs import PatchAntennaDesign
 
 # 2.4 GHz WiFi patch on FR-4
 patch = PatchAntennaDesign(
@@ -79,7 +79,7 @@ print(f"Directivity: {10*np.log10(D):.1f} dBi")
 ### Unit Cell / Metasurface Example
 
 ```python
-from vectorem.designs import UnitCellDesign
+from edgefem.designs import UnitCellDesign
 
 # Periodic unit cell
 cell = UnitCellDesign(period_x=5e-3, period_y=5e-3,
@@ -113,7 +113,7 @@ Zs = cell.surface_impedance(10e9)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Python SDK (pyvectorem)                     │
+│                      Python SDK (pyedgefem)                     │
 │  ┌─────────────────────┐  ┌────────────────┐  ┌──────────────┐  │
 │  │   Design Classes    │  │  Plots Module  │  │  Core API    │  │
 │  │ RectWaveguideDesign │  │ plot_pattern   │  │ load_gmsh    │  │
@@ -134,7 +134,7 @@ Zs = cell.surface_impedance(10e9)
 
 ## Validation
 
-VectorEM achieves research-grade accuracy:
+EdgeFEM achieves research-grade accuracy:
 
 | Metric | Target | Achieved |
 |--------|--------|----------|
@@ -147,7 +147,7 @@ See [Validation Report](docs/validation.md) for full benchmark results.
 
 ## Ecosystem Integration
 
-VectorEM is the full-wave FEM engine in a multi-package RF modeling ecosystem:
+EdgeFEM is the full-wave FEM engine in a multi-package RF modeling ecosystem:
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
@@ -160,26 +160,26 @@ VectorEM is the full-wave FEM engine in a multi-package RF modeling ecosystem:
               │                              │
               ▼                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                          VectorEM                                │
+│                          EdgeFEM                                │
 │  Full-wave 3D FEM providing: S-params, patterns, coupling       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **[Phased-Array-Antenna-Model](https://github.com/jman4162/Phased-Array-Antenna-Model)**: Uses VectorEM element patterns and coupling for array synthesis
+- **[Phased-Array-Antenna-Model](https://github.com/jman4162/Phased-Array-Antenna-Model)**: Uses EdgeFEM element patterns and coupling for array synthesis
 
 ## Build Options
 
 ```bash
 cmake -S . -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DVECTOREM_PYTHON=ON         # Python bindings
+    -DEDGEFEM_PYTHON=ON         # Python bindings
 ```
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `VECTOREM_BUILD_SCALAR` | ON | Scalar Helmholtz solver |
-| `VECTOREM_BUILD_VECTOR` | ON | Maxwell vector solver |
-| `VECTOREM_PYTHON` | OFF | Python bindings (pybind11) |
+| `EDGEFEM_BUILD_SCALAR` | ON | Scalar Helmholtz solver |
+| `EDGEFEM_BUILD_VECTOR` | ON | Maxwell vector solver |
+| `EDGEFEM_PYTHON` | OFF | Python bindings (pybind11) |
 
 ## Run Tests
 
@@ -192,7 +192,7 @@ ctest --test-dir build -L pml    # PML absorption tests
 ## Plotting Module
 
 ```python
-import vectorem.plots as vp
+import edgefem.plots as vp
 
 # S-parameters vs frequency
 vp.plot_sparams_vs_freq(freqs, S_list, params=['S11', 'S21'])
@@ -216,21 +216,21 @@ vp.plot_active_impedance_scan(angles, Z_active)
 
 ## Citation
 
-If you use VectorEM in your research, please cite:
+If you use EdgeFEM in your research, please cite:
 
 ```bibtex
-@software{hodge2026vectorem,
+@software{hodge2026edgefem,
   author = {Hodge, John},
-  title = {{VectorEM}: A 3D Finite-Element Electromagnetics Simulator for RF and mmWave},
+  title = {{EdgeFEM}: A 3D Finite-Element Electromagnetics Simulator for RF and mmWave},
   year = {2026},
-  url = {https://github.com/jman4162/VectorEM},
+  url = {https://github.com/jman4162/EdgeFEM},
   version = {1.0.0}
 }
 ```
 
 ## Current Limitations
 
-VectorEM v1.0 is optimized for **unit cell and metasurface RF modeling**. The following features are not yet implemented:
+EdgeFEM v1.0 is optimized for **unit cell and metasurface RF modeling**. The following features are not yet implemented:
 
 | Feature | Status | Workaround |
 |---------|--------|------------|
@@ -249,7 +249,7 @@ For large-scale problems (>5M DOF) or features requiring adaptive refinement, co
 
 ### v1.0 (Current)
 - Dispersive materials (Debye, Lorentz, Drude, DrudeLorentz models)
-- pip-installable Python package (`pip install vectorem`)
+- pip-installable Python package (`pip install edgefem`)
 - GitHub Actions CI/CD with automated wheel builds
 
 ### v1.1 (Planned)
@@ -284,7 +284,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-VectorEM builds on excellent open-source projects:
+EdgeFEM builds on excellent open-source projects:
 - [Eigen](https://eigen.tuxfamily.org/) - Linear algebra
 - [Gmsh](https://gmsh.info/) - Mesh generation
 - [pybind11](https://github.com/pybind/pybind11) - Python bindings

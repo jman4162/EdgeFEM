@@ -1,6 +1,6 @@
 # Installation
 
-VectorEM can be installed from source. Pre-built packages are planned for future releases.
+EdgeFEM can be installed from source. Pre-built packages are planned for future releases.
 
 ## Prerequisites
 
@@ -39,8 +39,8 @@ sudo dnf install cmake ninja-build eigen3-devel gmsh python3-devel
 ### Basic Build (C++ only)
 
 ```bash
-git clone https://github.com/jman4162/VectorEM.git
-cd VectorEM
+git clone https://github.com/jman4162/EdgeFEM.git
+cd EdgeFEM
 
 # Configure and build
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -52,12 +52,12 @@ cmake --build build -j
 ```bash
 cmake -S . -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DVECTOREM_PYTHON=ON
+    -DEDGEFEM_PYTHON=ON
 
 cmake --build build -j
 ```
 
-The Python module will be built as `build/python/pyvectorem.cpython-*.so`.
+The Python module will be built as `build/python/pyedgefem.cpython-*.so`.
 
 ### Verify Installation
 
@@ -66,7 +66,7 @@ The Python module will be built as `build/python/pyvectorem.cpython-*.so`.
 ctest --test-dir build -j
 
 # Test Python bindings
-python3 -c "import sys; sys.path.insert(0, 'build/python'); import pyvectorem as em; print('OK')"
+python3 -c "import sys; sys.path.insert(0, 'build/python'); import pyedgefem as em; print('OK')"
 ```
 
 ## Python Environment Setup
@@ -85,7 +85,7 @@ pip install numpy matplotlib
 # Optional: for interactive 3D plots
 pip install plotly
 
-# Add VectorEM to Python path (development)
+# Add EdgeFEM to Python path (development)
 export PYTHONPATH="$PWD/build/python:$PWD/python:$PYTHONPATH"
 ```
 
@@ -93,9 +93,9 @@ export PYTHONPATH="$PWD/build/python:$PWD/python:$PYTHONPATH"
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `VECTOREM_BUILD_SCALAR` | ON | Build scalar Helmholtz solver |
-| `VECTOREM_BUILD_VECTOR` | ON | Build Maxwell vector solver |
-| `VECTOREM_PYTHON` | OFF | Build Python bindings (pybind11) |
+| `EDGEFEM_BUILD_SCALAR` | ON | Build scalar Helmholtz solver |
+| `EDGEFEM_BUILD_VECTOR` | ON | Build Maxwell vector solver |
+| `EDGEFEM_PYTHON` | OFF | Build Python bindings (pybind11) |
 | `CMAKE_BUILD_TYPE` | Release | Build type (Release/Debug/RelWithDebInfo) |
 
 Example with all options:
@@ -103,9 +103,9 @@ Example with all options:
 ```bash
 cmake -S . -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DVECTOREM_BUILD_SCALAR=ON \
-    -DVECTOREM_BUILD_VECTOR=ON \
-    -DVECTOREM_PYTHON=ON
+    -DEDGEFEM_BUILD_SCALAR=ON \
+    -DEDGEFEM_BUILD_VECTOR=ON \
+    -DEDGEFEM_PYTHON=ON
 ```
 
 ## Troubleshooting
@@ -135,7 +135,7 @@ cmake -S . -B build -DEIGEN3_INCLUDE_DIR=/path/to/eigen3 ...
 
 ### Python module import fails
 
-1. Ensure the module is built: check for `pyvectorem*.so` in `build/python/`
+1. Ensure the module is built: check for `pyedgefem*.so` in `build/python/`
 2. Add to Python path: `export PYTHONPATH="$PWD/build/python:$PYTHONPATH"`
 3. Check Python version matches the one used during build
 

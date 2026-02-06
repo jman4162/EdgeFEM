@@ -1,6 +1,6 @@
 # System Design Specification
 
-**Project:** VectorEM — 3D FEM Electromagnetics Simulator
+**Project:** EdgeFEM — 3D FEM Electromagnetics Simulator
 **Primary Modes:** Driven-modal / Driven-terminal / Eigenmode
 **Outputs:** S-parameters, port impedances, fields, near/far radiation patterns, gains, efficiencies
 
@@ -147,7 +147,7 @@ CLI (headless)   +---------------------------+
   * `sweep = project.sweep.linear(1e9, 5e9, 401, policy="balanced")`
   * `res = project.solve(hp_adapt=True)`
   * `s = res.sparams(); pat = res.farfield(f=3e9)`
-* **CLI:** `vectorem solve project.veproj --hpadapt --scheduler slurm`
+* **CLI:** `edgefem solve project.veproj --hpadapt --scheduler slurm`
 * **Plugins:** C++/Python hooks for custom materials, post-processors
 
 ## 15) Verification & Validation

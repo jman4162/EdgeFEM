@@ -4,9 +4,9 @@
 #include <complex>
 #include <iostream>
 
-#include "vectorem/coupling.hpp"
+#include "edgefem/coupling.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 void test_compute_coupling_basic() {
   std::cout << "test_compute_coupling_basic..." << std::endl;

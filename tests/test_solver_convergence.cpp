@@ -3,9 +3,9 @@
 #include <cmath>
 #include <iostream>
 
-#include "vectorem/solver.hpp"
+#include "edgefem/solver.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 void test_convergence_options() {
   std::cout << "test_convergence_options..." << std::endl;

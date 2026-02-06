@@ -1,4 +1,4 @@
-#include "vectorem/materials/dispersive.hpp"
+#include "edgefem/materials/dispersive.hpp"
 
 // This file provides a translation unit for dispersive material models.
 // All functionality is implemented in the header as inline/template methods.
@@ -6,7 +6,7 @@
 // the dispersive header, and provides a place for any future non-inline
 // implementations.
 
-namespace vectorem {
+namespace edgefem {
 namespace materials {
 
 // Placeholder to ensure this TU compiles and links.
@@ -14,4 +14,4 @@ namespace materials {
 // which allows the compiler to generate it in each TU that needs it.
 
 } // namespace materials
-} // namespace vectorem
+} // namespace edgefem

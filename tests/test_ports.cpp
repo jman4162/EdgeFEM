@@ -2,10 +2,10 @@
 #include <cmath>
 #include <iostream>
 
-#include "vectorem/mesh.hpp"
-#include "vectorem/ports/port_eigensolve.hpp"
+#include "edgefem/mesh.hpp"
+#include "edgefem/ports/port_eigensolve.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main() {
   auto mesh = load_gmsh_v2("examples/wr90_port.msh");

@@ -1,4 +1,4 @@
-#include "vectorem/io/array_export.hpp"
+#include "edgefem/io/array_export.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -6,9 +6,9 @@
 #include <sstream>
 #include <stdexcept>
 
-#include "vectorem/array/coupling_extract.hpp"
+#include "edgefem/array/coupling_extract.hpp"
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 
@@ -189,4 +189,4 @@ void export_scan_csv(const std::string &path,
   }
 }
 
-} // namespace vectorem
+} // namespace edgefem

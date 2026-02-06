@@ -1,5 +1,5 @@
-#include "vectorem/edge_basis.hpp"
-#include "vectorem/maxwell.hpp"
+#include "edgefem/edge_basis.hpp"
+#include "edgefem/maxwell.hpp"
 
 #include <Eigen/SparseCore>
 #include <iostream>
@@ -11,9 +11,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "vectorem/solver.hpp"
+#include "edgefem/solver.hpp"
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 constexpr double c0 = 299792458.0;         // speed of light in vacuum (m/s)
@@ -645,4 +645,4 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
   return S;
 }
 
-} // namespace vectorem
+} // namespace edgefem

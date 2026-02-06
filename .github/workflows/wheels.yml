@@ -34,7 +34,7 @@ jobs:
             apt-get update && apt-get install -y libeigen3-dev
           # Test the wheel after building
           CIBW_TEST_COMMAND: >
-            python -c "import pyvectorem; print('VectorEM imported successfully')"
+            python -c "import pyedgefem; print('EdgeFEM imported successfully')"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -62,7 +62,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     environment:
       name: pypi
-      url: https://pypi.org/project/vectorem/
+      url: https://pypi.org/project/edgefem/
     permissions:
       id-token: write
 

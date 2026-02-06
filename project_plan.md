@@ -1,4 +1,4 @@
-# VectorEM — Project Plan, README, and Agents
+# EdgeFEM — Project Plan, README, and Agents
 
 This document contains three sections:
 
@@ -32,7 +32,7 @@ This amends the earlier System Design Specification:
 
 # 1) Sprint Plan & Detailed Task Breakdown
 
-**Project:** VectorEM (HFSS‑like FEM EM simulator)
+**Project:** EdgeFEM (HFSS‑like FEM EM simulator)
 **Cadence:** 2‑week sprints (adjust as needed)
 **Team Roles:**
 
@@ -57,7 +57,7 @@ This amends the earlier System Design Specification:
 
 **Deliverables:**
 
-* CMake project; Eigen wired; `vectorem_scalar_demo` runs
+* CMake project; Eigen wired; `edgefem_scalar_demo` runs
 * Gmsh v2 mesh loader; Tet4 linear element support
 * Scalar Helmholtz assembly, basic Dirichlet BCs
 * CI (GitHub Actions) with build + unit tests + clang‑tidy
@@ -257,7 +257,7 @@ This amends the earlier System Design Specification:
 
 **Deliverables:**
 
-* pybind11 module (`pyvectorem`); high‑level Python API
+* pybind11 module (`pyedgefem`); high‑level Python API
 * CLI subcommands (mesh/solve/post)
 * Jupyter notebooks: S‑params, patterns, convergence studies
 

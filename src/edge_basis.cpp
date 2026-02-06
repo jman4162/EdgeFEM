@@ -1,10 +1,10 @@
-#include "vectorem/edge_basis.hpp"
+#include "edgefem/edge_basis.hpp"
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include <array>
 
-namespace vectorem {
+namespace edgefem {
 namespace {
 const std::array<std::array<int, 2>, 6> edge_pairs = {
     std::array<int, 2>{0, 1}, std::array<int, 2>{0, 2},
@@ -85,4 +85,32 @@ whitney_mass_matrix(const std::array<Eigen::Vector3d, 4> &v) {
   return M;
 }
 
-} // namespace vectorem
+Eigen::Vector4d compute_barycentric(const std::array<Eigen::Vector3d, 4> &v,
+                                    const Eigen::Vector3d &p) {
+  // Build matrix T = [v0-v3, v1-v3, v2-v3]
+  Eigen::Matrix3d T;
+  T.col(0) = v[0] - v[3];
+  T.col(1) = v[1] - v[3];
+  T.col(2) = v[2] - v[3];
+
+  // Solve T * [lambda0, lambda1, lambda2]^T = p - v3
+  Eigen::Vector3d rhs = p - v[3];
+  Eigen::Vector3d lambda012 = T.inverse() * rhs;
+
+  Eigen::Vector4d lambda;
+  lambda(0) = lambda012(0);
+  lambda(1) = lambda012(1);
+  lambda(2) = lambda012(2);
+  lambda(3) = 1.0 - lambda(0) - lambda(1) - lambda(2);
+
+  return lambda;
+}
+
+Eigen::Vector3d compute_grad_lambda(const std::array<Eigen::Vector3d, 4> &v, int i) {
+  std::array<Eigen::Vector3d, 4> g;
+  double V;
+  gradients_and_volume(v, g, V);
+  return g[i];
+}
+
+} // namespace edgefem

@@ -2,11 +2,11 @@
 #include <cstdio>
 #include <vector>
 
-#include "vectorem/mor/vector_fit.hpp"
-#include "vectorem/sweep.hpp"
+#include "edgefem/mor/vector_fit.hpp"
+#include "edgefem/sweep.hpp"
 
-using namespace vectorem;
-using namespace vectorem::mor;
+using namespace edgefem;
+using namespace edgefem::mor;
 
 int main() {
   std::vector<double> freqs;

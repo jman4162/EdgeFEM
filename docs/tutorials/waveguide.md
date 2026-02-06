@@ -1,6 +1,6 @@
 # Tutorial: Rectangular Waveguide S-Parameters
 
-This tutorial covers computing S-parameters of rectangular waveguides using VectorEM. You'll learn to:
+This tutorial covers computing S-parameters of rectangular waveguides using EdgeFEM. You'll learn to:
 
 - Set up waveguide geometry and mesh
 - Compute S-parameters at single and multiple frequencies
@@ -20,7 +20,7 @@ Rectangular waveguides are fundamental building blocks in microwave systems. The
 ## Step 1: Create Waveguide Design
 
 ```python
-from vectorem.designs import RectWaveguideDesign
+from edgefem.designs import RectWaveguideDesign
 import numpy as np
 
 # WR-90 waveguide (X-band: 8.2-12.4 GHz)
@@ -38,7 +38,7 @@ print(f"TE10 cutoff frequency: {fc/1e9:.3f} GHz")
 
 ## Step 2: Generate Mesh
 
-VectorEM uses Gmsh to generate tetrahedral meshes automatically:
+EdgeFEM uses Gmsh to generate tetrahedral meshes automatically:
 
 ```python
 # Generate mesh with 10 elements per wavelength
@@ -118,7 +118,7 @@ mag_error = abs(abs(S21_sim) - 1.0) * 100
 print(f"\n  |S21| error: {mag_error:.2f}%")
 ```
 
-VectorEM achieves <1% magnitude error and <2° phase error for typical meshes.
+EdgeFEM achieves <1% magnitude error and <2° phase error for typical meshes.
 
 ## Step 5: Frequency Sweep
 
@@ -141,7 +141,7 @@ print(f"\nComputed {len(freqs)} frequency points")
 
 ```python
 import matplotlib.pyplot as plt
-import vectorem.plots as vp
+import edgefem.plots as vp
 
 # Using the plots module
 vp.plot_sparams_vs_freq(
@@ -230,7 +230,7 @@ In ParaView:
 For more control, use the core API directly:
 
 ```python
-import pyvectorem as em
+import pyedgefem as em
 
 # Load existing mesh
 mesh = em.load_gmsh("waveguide_mesh.msh")
@@ -294,8 +294,8 @@ print(f"S21 = {S[1,0]:.6f}")
 """
 Complete WR-90 Waveguide Analysis Script
 """
-from vectorem.designs import RectWaveguideDesign
-import vectorem.plots as vp
+from edgefem.designs import RectWaveguideDesign
+import edgefem.plots as vp
 import numpy as np
 import matplotlib.pyplot as plt
 

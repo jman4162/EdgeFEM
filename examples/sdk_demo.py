@@ -1,5 +1,5 @@
 import numpy as np
-from vectorem_cad.sdk.project import Project
+from edgefem_cad.sdk.project import Project
 
 def run_sdk_demo():
     """

@@ -1,14 +1,14 @@
-# Contributing to VectorEM
+# Contributing to EdgeFEM
 
-Thank you for your interest in contributing to VectorEM! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to EdgeFEM! This document provides guidelines for contributing to the project.
 
 ## Getting Started
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/YOUR-USERNAME/VectorEM.git
-   cd VectorEM
+   git clone https://github.com/YOUR-USERNAME/EdgeFEM.git
+   cd EdgeFEM
    ```
 3. **Build the project** following the [README](README.md) instructions
 4. **Run tests** to ensure everything works:
@@ -56,11 +56,11 @@ Thank you for your interest in contributing to VectorEM! This document provides 
 - **Standard**: C++20
 - **Formatting**: clang-format (configuration in `.clang-format`)
 - **Static Analysis**: clang-tidy (configuration in `.clang-tidy`)
-- **Namespace**: All code in `namespace vectorem`
+- **Namespace**: All code in `namespace edgefem`
 
 Run formatting before committing:
 ```bash
-clang-format -i src/*.cpp include/vectorem/*.hpp
+clang-format -i src/*.cpp include/edgefem/*.hpp
 ```
 
 ### Python
@@ -144,7 +144,7 @@ Large features or architectural changes require an **Architecture Decision Recor
 ### Bug Reports
 
 Include:
-- VectorEM version (git commit hash)
+- EdgeFEM version (git commit hash)
 - Operating system and compiler version
 - Minimal reproducing example
 - Expected vs actual behavior
@@ -158,8 +158,8 @@ Include:
 
 ## Questions?
 
-- Open a [GitHub Discussion](https://github.com/jman4162/VectorEM/discussions) for questions
-- Check existing [Issues](https://github.com/jman4162/VectorEM/issues) for known problems
+- Open a [GitHub Discussion](https://github.com/jman4162/EdgeFEM/discussions) for questions
+- Check existing [Issues](https://github.com/jman4162/EdgeFEM/issues) for known problems
 
 ## License
 

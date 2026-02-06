@@ -1,11 +1,11 @@
-#include "vectorem/mesh_quality.hpp"
+#include "edgefem/mesh_quality.hpp"
 
 #include <Eigen/Geometry>
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-namespace vectorem {
+namespace edgefem {
 
 double tet_volume(const Eigen::Vector3d &p0, const Eigen::Vector3d &p1,
                   const Eigen::Vector3d &p2, const Eigen::Vector3d &p3) {
@@ -80,4 +80,4 @@ MeshQualityReport validate_mesh(const Mesh &mesh) {
   return report;
 }
 
-} // namespace vectorem
+} // namespace edgefem

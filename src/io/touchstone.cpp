@@ -1,4 +1,4 @@
-#include "vectorem/io/touchstone.hpp"
+#include "edgefem/io/touchstone.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -6,7 +6,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 
@@ -148,4 +148,4 @@ std::string touchstone_extension(int num_ports) {
   return ss.str();
 }
 
-} // namespace vectorem
+} // namespace edgefem

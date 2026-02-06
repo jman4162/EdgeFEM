@@ -1,8 +1,8 @@
-# VectorEM
+# EdgeFEM
 
 **3D Finite-Element Electromagnetics Simulator for RF and mmWave**
 
-VectorEM is an open-source full-wave FEM solver specialized for metasurface, metamaterial, and phased array unit cell modeling (100 kHz - 110 GHz). It computes S-parameters, electromagnetic fields, and radiation patterns using Nédélec (edge) elements with industry-standard accuracy.
+EdgeFEM is an open-source full-wave FEM solver specialized for metasurface, metamaterial, and phased array unit cell modeling (100 kHz - 110 GHz). It computes S-parameters, electromagnetic fields, and radiation patterns using Nédélec (edge) elements with industry-standard accuracy.
 
 ## Key Features
 
@@ -19,7 +19,7 @@ VectorEM is an open-source full-wave FEM solver specialized for metasurface, met
 ## Quick Example
 
 ```python
-from vectorem.designs import RectWaveguideDesign
+from edgefem.designs import RectWaveguideDesign
 import numpy as np
 
 # Create WR-90 waveguide (X-band: 8.2-12.4 GHz)
@@ -39,7 +39,7 @@ print(f"|S21| = {abs(S[1,0]):.4f}")  # ~1.0 (full transmission)
 
 ## Design Philosophy
 
-VectorEM is designed as a **computation engine** that integrates with your existing workflow:
+EdgeFEM is designed as a **computation engine** that integrates with your existing workflow:
 
 - **Script-first**: All simulations are fully reproducible Python scripts
 - **Standard formats**: Export to Touchstone for RF tools, VTK for ParaView
@@ -50,7 +50,7 @@ VectorEM is designed as a **computation engine** that integrates with your exist
 
 ```
                     ┌─────────────────────────────────┐
-                    │      Python SDK (pyvectorem)    │
+                    │      Python SDK (pyedgefem)    │
                     │  ┌───────────┐ ┌─────────────┐  │
                     │  │  Design   │ │   Plots     │  │
                     │  │  Classes  │ │   Module    │  │
@@ -69,17 +69,17 @@ VectorEM is designed as a **computation engine** that integrates with your exist
 
 ## Getting Started
 
-1. **[Installation](installation.md)** - Set up VectorEM on your system
+1. **[Installation](installation.md)** - Set up EdgeFEM on your system
 2. **[Quick Start](quickstart.md)** - Run your first simulation in 5 minutes
 3. **[Tutorials](tutorials/waveguide.md)** - Step-by-step guides for common tasks
 
 ## Ecosystem Integration
 
-VectorEM is the full-wave FEM engine in a multi-package RF modeling ecosystem:
+EdgeFEM is the full-wave FEM engine in a multi-package RF modeling ecosystem:
 
-- **[Phased-Array-Antenna-Model](https://github.com/jman4162/Phased-Array-Antenna-Model)**: Uses VectorEM element patterns and coupling for array synthesis
+- **[Phased-Array-Antenna-Model](https://github.com/jman4162/Phased-Array-Antenna-Model)**: Uses EdgeFEM element patterns and coupling for array synthesis
 - **Metasurface Package** (planned): Unit cell optimization and homogenization
 
 ## License
 
-VectorEM is released under the MIT License. See `LICENSE` for details.
+EdgeFEM is released under the MIT License. See `LICENSE` for details.

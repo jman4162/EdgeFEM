@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-VectorEM is a 3D finite-element electromagnetics (FEM) simulator specialized for **metasurface, metamaterial, and phased array unit cell RF modeling** (100 kHz–110 GHz). It computes S-parameters, fields, and radiation patterns using Nédélec (edge) elements with periodic boundary conditions, PML for open boundaries, and scales from laptops to HPC clusters.
+EdgeFEM is a 3D finite-element electromagnetics (FEM) simulator specialized for **metasurface, metamaterial, and phased array unit cell RF modeling** (100 kHz–110 GHz). It computes S-parameters, fields, and radiation patterns using Nédélec (edge) elements with periodic boundary conditions, PML for open boundaries, and scales from laptops to HPC clusters.
 
 The project is MCP (Model Context Protocol) compatible, enabling LLM-augmented automation agents for mesh QA, numerical validation, and documentation sync.
 
 ## Ecosystem Role
 
-VectorEM serves as the **full-wave FEM engine** in a multi-package RF modeling ecosystem:
+EdgeFEM serves as the **full-wave FEM engine** in a multi-package RF modeling ecosystem:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -25,7 +25,7 @@ VectorEM serves as the **full-wave FEM engine** in a multi-package RF modeling e
 │            │                                │                   │
 │            ▼                                ▼                   │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │                      VectorEM                             │   │
+│  │                      EdgeFEM                             │   │
 │  │  Full-wave 3D FEM engine providing:                       │   │
 │  │  - Unit cell S-parameters (Floquet ports)                 │   │
 │  │  - Embedded element patterns                              │   │
@@ -39,21 +39,21 @@ VectorEM serves as the **full-wave FEM engine** in a multi-package RF modeling e
 
 | Interface | Format | Use Case |
 |-----------|--------|----------|
-| Python SDK (`pyvectorem`) | NumPy arrays | Direct integration with array/metasurface packages |
+| Python SDK (`pyedgefem`) | NumPy arrays | Direct integration with array/metasurface packages |
 | Touchstone (.sNp) | IEEE standard | S-parameter exchange with any RF tool |
 | JSON | Structured data | Element patterns, coupling matrices, geometry |
 | Gmsh v2 | Mesh format | Geometry import from CAD pipelines |
 
 ### Integration with Phased-Array-Antenna-Model
 
-VectorEM provides element-level data that feeds into [Phased-Array-Antenna-Model](https://github.com/jman4162/Phased-Array-Antenna-Model):
+EdgeFEM provides element-level data that feeds into [Phased-Array-Antenna-Model](https://github.com/jman4162/Phased-Array-Antenna-Model):
 - **Element patterns**: Far-field radiation from unit cell simulation → array factor weighting
 - **Mutual coupling**: Full-wave S-matrix between adjacent elements → impairment modeling
 - **Scan impedance**: Port impedance vs. scan angle → active VSWR prediction
 
 ### Integration with Metasurface Package (planned)
 
-VectorEM will provide unit cell characterization for metasurface/metamaterial design:
+EdgeFEM will provide unit cell characterization for metasurface/metamaterial design:
 - **Reflection/transmission coefficients**: Floquet-port S-parameters under oblique incidence
 - **Surface impedance**: Extracted Zs for equivalent surface models
 - **Dispersion curves**: Frequency-dependent effective parameters (ε_eff, μ_eff)
@@ -69,7 +69,7 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 
 # With Python SDK
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVECTOREM_PYTHON=ON
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_PYTHON=ON
 cmake --build build -j
 ```
 
@@ -104,16 +104,16 @@ clang-tidy -p build -warnings-as-errors='*' $(git ls-files 'src/*.cpp')
 
 ```bash
 # Scalar Helmholtz cavity
-./build/src/vectorem_scalar_demo examples/cube_cavity.msh 1
+./build/src/edgefem_scalar_demo examples/cube_cavity.msh 1
 
 # Waveguide S-parameters
-./build/src/vectorem_waveguide_demo
+./build/src/edgefem_waveguide_demo
 python3 examples/plot_waveguide_sparams.py
 ```
 
 ## Architecture
 
-### Core Modules (`include/vectorem/`)
+### Core Modules (`include/edgefem/`)
 
 | Module | Purpose |
 |--------|---------|
@@ -153,14 +153,14 @@ Automation agents in `tools/agents/` follow the MCP server pattern:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `VECTOREM_BUILD_SCALAR` | ON | Scalar Helmholtz path |
-| `VECTOREM_BUILD_VECTOR` | ON | Maxwell vector path |
-| `VECTOREM_PYTHON` | OFF | pybind11 Python bindings |
+| `EDGEFEM_BUILD_SCALAR` | ON | Scalar Helmholtz path |
+| `EDGEFEM_BUILD_VECTOR` | ON | Maxwell vector path |
+| `EDGEFEM_PYTHON` | OFF | pybind11 Python bindings |
 
 ## Code Conventions
 
-- All code in `namespace vectorem`
-- Public headers in `include/vectorem/`, implementations in `src/`
+- All code in `namespace edgefem`
+- Public headers in `include/edgefem/`, implementations in `src/`
 - Tests use simple `assert()` macros (no external framework)
 - Edge canonical form: `(n0 < n1)` stored in `mesh.edges`
 

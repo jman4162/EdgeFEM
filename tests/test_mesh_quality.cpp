@@ -2,10 +2,10 @@
 #include <cmath>
 #include <iostream>
 
-#include "vectorem/mesh.hpp"
-#include "vectorem/mesh_quality.hpp"
+#include "edgefem/mesh.hpp"
+#include "edgefem/mesh_quality.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 void test_tet_volume_positive() {
   std::cout << "test_tet_volume_positive..." << std::endl;

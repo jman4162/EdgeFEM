@@ -4,9 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "vectorem/sweep.hpp"
+#include "edgefem/sweep.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main(int argc, char **argv) {
   SweepPolicy policy = SweepPolicy::Discrete;

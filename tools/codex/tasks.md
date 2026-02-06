@@ -1,4 +1,4 @@
-# VectorEM — Codex Tasks
+# EdgeFEM — Codex Tasks
 
 ## How to use
 At the start of each Codex session:
@@ -17,7 +17,7 @@ At the start of each Codex session:
 
 **Prompt:**
 
-> You are contributing to the **VectorEM** repo. Before doing anything, read `README.md`, `AGENTS.md`, and `tools/scripts/setup_macos.sh`. Do not change public APIs unless tests and docs are updated in the same PR. Prefer small diffs. After edits, run the exact build/test commands above. Return a unified diff, a concise commit message, and the full configure/build/test logs.
+> You are contributing to the **EdgeFEM** repo. Before doing anything, read `README.md`, `AGENTS.md`, and `tools/scripts/setup_macos.sh`. Do not change public APIs unless tests and docs are updated in the same PR. Prefer small diffs. After edits, run the exact build/test commands above. Return a unified diff, a concise commit message, and the full configure/build/test logs.
 
 ---
 
@@ -39,7 +39,7 @@ At the start of each Codex session:
 
 * Add `examples/cube_cavity.geo` and script `examples/make_mesh.sh` to generate `examples/cube_cavity.msh` (Gmsh v2 tetra). Ensure exterior Tri faces carry `phys=1`.
 * Add `examples/README.md` with generation steps.
-  **DoD:** `vectorem_scalar_demo examples/cube_cavity.msh 1` finishes < 60 s on macOS; `ctest -L smoke` passes.
+  **DoD:** `edgefem_scalar_demo examples/cube_cavity.msh 1` finishes < 60 s on macOS; `ctest -L smoke` passes.
 
 ### T3 — clang‑tidy + format guardrails
 
@@ -59,7 +59,7 @@ At the start of each Codex session:
 **Goal:** Introduce edge DOFs and local basis utilities.
 **Edits:**
 
-* Add `include/vectorem/edge_basis.hpp` and `src/edge_basis.cpp` with Whitney 1‑forms on Tet(1), routines for `curl(N_i)` and integrals `∫ curl(N_i)·curl(N_j) dV` and `∫ N_i·N_j dV`.
+* Add `include/edgefem/edge_basis.hpp` and `src/edge_basis.cpp` with Whitney 1‑forms on Tet(1), routines for `curl(N_i)` and integrals `∫ curl(N_i)·curl(N_j) dV` and `∫ N_i·N_j dV`.
 * Add a global edge indexing map and element→edge connectivity.
 * Keep scalar prototype behind a flag; both paths must build.
   **DoD:** New unit test `tests/test_edge_indexing.cpp` validates consistent edge numbering and local→global mappings; smoke still passes.
@@ -82,7 +82,7 @@ At the start of each Codex session:
 **Goal:** Solve port cross‑section eigenmodes.
 **Edits:**
 
-* Add `src/ports/port_eigensolve.cpp` and headers in `include/vectorem/ports/`.
+* Add `src/ports/port_eigensolve.cpp` and headers in `include/edgefem/ports/`.
 * Minimal 2D triangular mesher or load a 2D mesh; shift‑invert eigen solve; compute `Z0` and 1 W normalization.
   **DoD:** WR‑90 port example outputs cutoff freq and `Z0` close to analytic.
 
@@ -151,15 +151,15 @@ At the start of each Codex session:
 **Goal:** Scriptability.
 **Edits:**
 
-* Build `pyvectorem` exposing: mesh load, scalar assemble/solve, and Touchstone export.
+* Build `pyedgefem` exposing: mesh load, scalar assemble/solve, and Touchstone export.
 * Add a tiny Python smoke test runnable in CI (< 30 s).
-  **DoD:** `python -c "import pyvectorem as em; print('ok')"` works; CI job runs the Python smoke test.
+  **DoD:** `python -c "import pyedgefem as em; print('ok')"` works; CI job runs the Python smoke test.
 
 ---
 
 ## Prompt Template (reuse)
 
-> **Context:** VectorEM repository. Read `README.md`, `AGENTS.md`, and `tools/scripts/setup_macos.sh` first.
+> **Context:** EdgeFEM repository. Read `README.md`, `AGENTS.md`, and `tools/scripts/setup_macos.sh` first.
 > **Task:** \<one clear, small objective>
 > **Constraints:** Keep public APIs stable; minimal diffs; add/adjust tests; support macOS Apple Silicon (CPU) and Linux.
 > **Commands:**

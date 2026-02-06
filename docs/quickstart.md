@@ -1,10 +1,10 @@
 # Quick Start
 
-This guide gets you running your first VectorEM simulation in 5 minutes.
+This guide gets you running your first EdgeFEM simulation in 5 minutes.
 
 ## Prerequisites
 
-- VectorEM built with Python SDK (see [Installation](installation.md))
+- EdgeFEM built with Python SDK (see [Installation](installation.md))
 - Python path configured: `export PYTHONPATH="build/python:python:$PYTHONPATH"`
 
 ## Your First Simulation: Waveguide S-Parameters
@@ -14,7 +14,7 @@ Let's compute the S-parameters of a simple WR-90 rectangular waveguide at 10 GHz
 ### Using High-Level Design Class
 
 ```python
-from vectorem.designs import RectWaveguideDesign
+from edgefem.designs import RectWaveguideDesign
 import numpy as np
 
 # Create WR-90 waveguide (X-band standard)
@@ -64,7 +64,7 @@ print("Saved: waveguide_sweep.s2p")
 ### Plotting Results
 
 ```python
-import vectorem.plots as vp
+import edgefem.plots as vp
 
 # Plot S-parameters vs frequency
 vp.plot_sparams_vs_freq(
@@ -80,7 +80,7 @@ vp.plot_sparams_vs_freq(
 Design a 2.4 GHz microstrip patch antenna:
 
 ```python
-from vectorem.designs import PatchAntennaDesign
+from edgefem.designs import PatchAntennaDesign
 import numpy as np
 
 # Create patch antenna on FR-4 substrate
@@ -116,7 +116,7 @@ print(f"Directivity: {10*np.log10(D):.1f} dBi")
 Analyze a periodic unit cell:
 
 ```python
-from vectorem.designs import UnitCellDesign
+from edgefem.designs import UnitCellDesign
 
 # Create unit cell
 cell = UnitCellDesign(
@@ -146,7 +146,7 @@ print(f"Surface impedance: {Zs.real:.1f} + j{Zs.imag:.1f} ohms")
 For more control, use the core API directly:
 
 ```python
-import pyvectorem as em
+import pyedgefem as em
 import numpy as np
 
 # Load mesh from Gmsh file

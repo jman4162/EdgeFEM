@@ -1,11 +1,11 @@
-#include "vectorem/io/json_export.hpp"
+#include "edgefem/io/json_export.hpp"
 
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 
@@ -121,4 +121,4 @@ void write_sparams_json(const std::string &path,
   ofs << "}\n";
 }
 
-} // namespace vectorem
+} // namespace edgefem

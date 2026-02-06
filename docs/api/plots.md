@@ -1,9 +1,9 @@
 # Plotting Module API Reference
 
-The `vectorem.plots` module provides publication-quality plotting functions for common EM visualization tasks.
+The `edgefem.plots` module provides publication-quality plotting functions for common EM visualization tasks.
 
 ```python
-import vectorem.plots as vp
+import edgefem.plots as vp
 ```
 
 ## Dependencies
@@ -47,7 +47,7 @@ Plot 2D radiation pattern in rectangular coordinates.
 
 **Example:**
 ```python
-import vectorem.plots as vp
+import edgefem.plots as vp
 import numpy as np
 
 # Plot E-plane cut
@@ -439,8 +439,8 @@ vp.plot_field_magnitude(x_mm, y_mm, E_mag,
 
 ```python
 import numpy as np
-from vectorem.designs import RectWaveguideDesign, PatchAntennaDesign
-import vectorem.plots as vp
+from edgefem.designs import RectWaveguideDesign, PatchAntennaDesign
+import edgefem.plots as vp
 
 # --- Waveguide S-parameters ---
 wg = RectWaveguideDesign(a=22.86e-3, b=10.16e-3, length=50e-3)

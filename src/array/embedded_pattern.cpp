@@ -1,12 +1,12 @@
-#include "vectorem/array/embedded_pattern.hpp"
+#include "edgefem/array/embedded_pattern.hpp"
 
 #include <Eigen/Geometry>
 #include <algorithm>
 #include <cmath>
 
-#include "vectorem/solver.hpp"
+#include "edgefem/solver.hpp"
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 
@@ -143,4 +143,4 @@ void normalize_pattern(std::vector<FFPoint2D> &pattern) {
   }
 }
 
-} // namespace vectorem
+} // namespace edgefem

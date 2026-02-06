@@ -1,4 +1,4 @@
-#include "vectorem/post/ntf.hpp"
+#include "edgefem/post/ntf.hpp"
 
 #include <Eigen/Geometry>
 #include <algorithm>
@@ -6,7 +6,7 @@
 #include <fstream>
 #include <limits>
 
-namespace vectorem {
+namespace edgefem {
 
 static constexpr double Z0 = 376.730313668; // free-space impedance [ohm]
 
@@ -414,5 +414,5 @@ void write_pattern_3d_vtk(const std::string &path, const FFPattern3D &pattern,
   f << "</VTKFile>\n";
 }
 
-} // namespace vectorem
+} // namespace edgefem
 

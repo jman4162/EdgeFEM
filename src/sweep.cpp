@@ -1,9 +1,9 @@
-#include "vectorem/sweep.hpp"
+#include "edgefem/sweep.hpp"
 
 #include <Eigen/Dense>
 #include <chrono>
 
-namespace vectorem {
+namespace edgefem {
 namespace {
 
 Eigen::Matrix2d build_A(double f) {
@@ -69,4 +69,4 @@ SweepLog sweep_two_resonator(const std::vector<double> &freqs,
   return log;
 }
 
-} // namespace vectorem
+} // namespace edgefem

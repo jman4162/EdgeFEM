@@ -1,11 +1,11 @@
-#include "vectorem/periodic.hpp"
+#include "edgefem/periodic.hpp"
 
 #include <cmath>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 
@@ -227,4 +227,4 @@ int count_surface_edges(const Mesh &mesh, int surface_tag) {
   return static_cast<int>(edges.size());
 }
 
-} // namespace vectorem
+} // namespace edgefem

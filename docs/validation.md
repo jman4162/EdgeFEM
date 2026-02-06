@@ -1,6 +1,6 @@
 # Validation Report
 
-VectorEM has been validated against analytical solutions and published benchmarks. This document summarizes the key validation results.
+EdgeFEM has been validated against analytical solutions and published benchmarks. This document summarizes the key validation results.
 
 ## S-Parameter Accuracy
 
@@ -30,7 +30,7 @@ A matched waveguide section should have:
 
 Tested across X-band (8-12 GHz):
 
-| Frequency | |S21| Analytical | |S21| VectorEM | Error |
+| Frequency | |S21| Analytical | |S21| EdgeFEM | Error |
 |-----------|-----------------|---------------|-------|
 | 8.0 GHz | 1.000 | 0.9918 | 0.8% |
 | 9.0 GHz | 1.000 | 0.9932 | 0.7% |
@@ -42,7 +42,7 @@ Tested across X-band (8-12 GHz):
 
 S21 phase compared to analytical β = (2π/c)√(f² - fc²):
 
-| Frequency | β·L Analytical | Phase(S21) VectorEM | Error |
+| Frequency | β·L Analytical | Phase(S21) EdgeFEM | Error |
 |-----------|----------------|---------------------|-------|
 | 8.0 GHz | -84.3° | -83.9° | 0.4° |
 | 10.0 GHz | -136.2° | -135.1° | 1.1° |
@@ -127,7 +127,7 @@ Two-port waveguide reciprocity:
 
 ## Acceptance Criteria
 
-For production use, VectorEM results should meet:
+For production use, EdgeFEM results should meet:
 
 | Metric | Threshold | Typical |
 |--------|-----------|---------|
@@ -167,7 +167,7 @@ ctest --test-dir build -L validation
 
 ## Continuous Validation
 
-VectorEM includes automated validation in CI/CD:
+EdgeFEM includes automated validation in CI/CD:
 
 ```yaml
 # .github/workflows/validate.yml

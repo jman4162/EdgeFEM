@@ -1,6 +1,6 @@
 # Unit Cell Simulation Workflow
 
-This guide explains how to simulate phased array unit cells using periodic boundary conditions (Floquet analysis) in VectorEM.
+This guide explains how to simulate phased array unit cells using periodic boundary conditions (Floquet analysis) in EdgeFEM.
 
 ## Overview
 
@@ -12,9 +12,9 @@ Periodic boundary conditions enable efficient simulation of infinite arrays by m
 
 ## Prerequisites
 
-- VectorEM built with `VECTOREM_BUILD_VECTOR=ON`
+- EdgeFEM built with `EDGEFEM_BUILD_VECTOR=ON`
 - Gmsh for mesh generation
-- Python bindings (recommended): `VECTOREM_PYTHON=ON`
+- Python bindings (recommended): `EDGEFEM_PYTHON=ON`
 
 ## Step 1: Create Unit Cell Geometry
 
@@ -51,10 +51,10 @@ gmsh unit_cell.geo -3 -o unit_cell.msh
 ### C++ API
 
 ```cpp
-#include "vectorem/periodic.hpp"
-#include "vectorem/maxwell.hpp"
+#include "edgefem/periodic.hpp"
+#include "edgefem/maxwell.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 // Load mesh
 Mesh mesh = load_gmsh_v2("unit_cell.msh");
@@ -75,7 +75,7 @@ assert(validate_periodic_bc(mesh, pbc_y));
 ### Python API
 
 ```python
-import pyvectorem as em
+import pyedgefem as em
 import numpy as np
 
 mesh = em.load_gmsh("unit_cell.msh")

@@ -5,9 +5,9 @@
 #include <iostream>
 #include <sstream>
 
-#include "vectorem/io/touchstone.hpp"
+#include "edgefem/io/touchstone.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 void test_touchstone_extension() {
   std::cout << "test_touchstone_extension..." << std::endl;

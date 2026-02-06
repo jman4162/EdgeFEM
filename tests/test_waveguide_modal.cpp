@@ -3,9 +3,9 @@
 #include <cmath>
 #include <iostream>
 
-#include "vectorem/maxwell.hpp"
+#include "edgefem/maxwell.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main() {
   Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");

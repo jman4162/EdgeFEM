@@ -1,4 +1,4 @@
-#include "vectorem/ports/port_eigensolve.hpp"
+#include "edgefem/ports/port_eigensolve.hpp"
 
 #include <cmath>
 #include <stdexcept>
@@ -6,9 +6,9 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-#include "vectorem/fem.hpp"
+#include "edgefem/fem.hpp"
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 constexpr double c0 = 299792458.0;     // speed of light in vacuum (m/s)
@@ -85,9 +85,9 @@ SParams2 straight_waveguide_sparams(const RectWaveguidePort &port,
   return s;
 }
 
-} // namespace vectorem
+} // namespace edgefem
 
-namespace vectorem {
+namespace edgefem {
 
 using TripletC = Eigen::Triplet<std::complex<double>>;
 

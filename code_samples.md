@@ -12,11 +12,11 @@ Heck yeah—let’s get you from spec → code. Below is a minimal, *buildable* 
 # Repo layout
 
 ```
-vectorem/
+edgefem/
 ├─ CMakeLists.txt
 ├─ cmake/FindEigen3.cmake              # fallback if needed
 ├─ external/                           # optional: vendored deps later
-├─ include/vectorem/
+├─ include/edgefem/
 │  ├─ mesh.hpp
 │  ├─ fem.hpp
 │  ├─ solver.hpp
@@ -30,7 +30,7 @@ vectorem/
 │  └─ utils.cpp
 ├─ python/
 │  ├─ CMakeLists.txt
-│  └─ pyvectorem.cpp                   # pybind11 (later)
+│  └─ pyedgefem.cpp                   # pybind11 (later)
 └─ examples/
    ├─ cube_cavity.msh                  # gmsh v2 tetra mesh (placeholder)
    └─ run_scalar_demo.sh
@@ -42,7 +42,7 @@ vectorem/
 
 ```cmake
 cmake_minimum_required(VERSION 3.20)
-project(vectorem LANGUAGES CXX)
+project(edgefem LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -56,32 +56,32 @@ if(NOT Eigen3_FOUND)
   find_package(Eigen3 REQUIRED)
 endif()
 
-add_library(vectorem
+add_library(edgefem
   src/mesh_gmsh.cpp
   src/fem_scalar.cpp
   src/solver.cpp
   src/utils.cpp
 )
-target_include_directories(vectorem PUBLIC include)
-target_link_libraries(vectorem PUBLIC Eigen3::Eigen)
+target_include_directories(edgefem PUBLIC include)
+target_link_libraries(edgefem PUBLIC Eigen3::Eigen)
 
-add_executable(vectorem_scalar_demo src/main_scalar_demo.cpp)
-target_link_libraries(vectorem_scalar_demo PRIVATE vectorem)
+add_executable(edgefem_scalar_demo src/main_scalar_demo.cpp)
+target_link_libraries(edgefem_scalar_demo PRIVATE edgefem)
 
 # Python bindings (optional; enable later)
-option(VECTOREM_PYTHON "Build Python bindings" OFF)
-if(VECTOREM_PYTHON)
+option(EDGEFEM_PYTHON "Build Python bindings" OFF)
+if(EDGEFEM_PYTHON)
   find_package(pybind11 CONFIG REQUIRED)
-  add_library(pyvectorem MODULE python/pyvectorem.cpp)
-  target_link_libraries(pyvectorem PRIVATE vectorem pybind11::module)
-  target_include_directories(pyvectorem PRIVATE include)
-  set_target_properties(pyvectorem PROPERTIES PREFIX "" OUTPUT_NAME "pyvectorem")
+  add_library(pyedgefem MODULE python/pyedgefem.cpp)
+  target_link_libraries(pyedgefem PRIVATE edgefem pybind11::module)
+  target_include_directories(pyedgefem PRIVATE include)
+  set_target_properties(pyedgefem PROPERTIES PREFIX "" OUTPUT_NAME "pyedgefem")
 endif()
 ```
 
 ---
 
-# include/vectorem/mesh.hpp
+# include/edgefem/mesh.hpp
 
 ```cpp
 #pragma once
@@ -125,7 +125,7 @@ Mesh load_gmsh_v2(const std::string& path);
 
 ---
 
-# include/vectorem/bc.hpp
+# include/edgefem/bc.hpp
 
 ```cpp
 #pragma once
@@ -148,7 +148,7 @@ BC build_scalar_pec(const Mesh& mesh, int pec_tag);
 
 ---
 
-# include/vectorem/fem.hpp
+# include/edgefem/fem.hpp
 
 ```cpp
 #pragma once
@@ -184,7 +184,7 @@ Assembly assemble_scalar_helmholtz(const Mesh& mesh,
 
 ---
 
-# include/vectorem/solver.hpp
+# include/edgefem/solver.hpp
 
 ```cpp
 #pragma once
@@ -222,7 +222,7 @@ SolveResult solve_linear(const SpMatC& A, const VecC& b, const SolveOptions& opt
 # src/mesh\_gmsh.cpp
 
 ```cpp
-#include "vectorem/mesh.hpp"
+#include "edgefem/mesh.hpp"
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -281,7 +281,7 @@ Mesh em::load_gmsh_v2(const std::string& path) {
 # src/fem\_scalar.cpp
 
 ```cpp
-#include "vectorem/fem.hpp"
+#include "edgefem/fem.hpp"
 #include <Eigen/Dense>
 #include <unordered_set>
 
@@ -396,7 +396,7 @@ Assembly em::assemble_scalar_helmholtz(const Mesh& mesh,
 # src/solver.cpp
 
 ```cpp
-#include "vectorem/solver.hpp"
+#include "edgefem/solver.hpp"
 #include <Eigen/IterativeLinearSolvers>
 
 using namespace em;
@@ -431,10 +431,10 @@ SolveResult em::solve_linear(const SpMatC& A, const VecC& b, const SolveOptions&
 
 ---
 
-# src/utils.cpp & include/vectorem/utils.hpp
+# src/utils.cpp & include/edgefem/utils.hpp
 
 ```cpp
-// include/vectorem/utils.hpp
+// include/edgefem/utils.hpp
 #pragma once
 #include <Eigen/Core>
 #include <vector>
@@ -450,7 +450,7 @@ inline std::unordered_set<int> nodes_from_tri_faces(
 
 ```cpp
 // src/utils.cpp
-#include "vectorem/utils.hpp"
+#include "edgefem/utils.hpp"
 // (intentionally empty for now)
 ```
 
@@ -459,17 +459,17 @@ inline std::unordered_set<int> nodes_from_tri_faces(
 # src/main\_scalar\_demo.cpp
 
 ```cpp
-#include "vectorem/mesh.hpp"
-#include "vectorem/fem.hpp"
-#include "vectorem/solver.hpp"
-#include "vectorem/bc.hpp"
+#include "edgefem/mesh.hpp"
+#include "edgefem/fem.hpp"
+#include "edgefem/solver.hpp"
+#include "edgefem/bc.hpp"
 #include <iostream>
 
 using namespace em;
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    std::cerr << "Usage: vectorem_scalar_demo <mesh.msh> [pec_phys_tag=1]\n";
+    std::cerr << "Usage: edgefem_scalar_demo <mesh.msh> [pec_phys_tag=1]\n";
     return 1;
   }
   std::string mesh_path = argv[1];
@@ -512,7 +512,7 @@ int main(int argc, char** argv) {
 # src/bc.cpp (inlined for brevity)
 
 ```cpp
-#include "vectorem/bc.hpp"
+#include "edgefem/bc.hpp"
 #include <unordered_set>
 
 using namespace em;
@@ -532,7 +532,7 @@ BC em::build_scalar_pec(const Mesh& mesh, int pec_tag) {
 }
 ```
 
-> Add `src/bc.cpp` to `vectorem` target in CMake if you split files.
+> Add `src/bc.cpp` to `edgefem` target in CMake if you split files.
 
 ---
 
@@ -545,7 +545,7 @@ set -euo pipefail
 build_dir=${1:-build}
 cmake -S . -B "$build_dir" -DCMAKE_BUILD_TYPE=Release
 cmake --build "$build_dir" -j
-"$build_dir/vectorem_scalar_demo" examples/cube_cavity.msh 1
+"$build_dir/edgefem_scalar_demo" examples/cube_cavity.msh 1
 ```
 
 ---

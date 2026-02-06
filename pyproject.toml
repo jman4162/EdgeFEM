@@ -3,7 +3,7 @@ requires = ["scikit-build-core>=0.5", "pybind11>=2.11"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "vectorem"
+name = "edgefem"
 version = "1.0.0"
 description = "3D FEM Electromagnetics Simulator for RF and mmWave"
 readme = "README.md"
@@ -33,22 +33,22 @@ dev = ["pytest", "pytest-cov"]
 all = ["matplotlib>=3.5", "pytest", "pytest-cov"]
 
 [project.urls]
-Homepage = "https://github.com/jman4162/VectorEM"
-Documentation = "https://github.com/jman4162/VectorEM#readme"
-Repository = "https://github.com/jman4162/VectorEM"
-Issues = "https://github.com/jman4162/VectorEM/issues"
+Homepage = "https://github.com/jman4162/EdgeFEM"
+Documentation = "https://github.com/jman4162/EdgeFEM#readme"
+Repository = "https://github.com/jman4162/EdgeFEM"
+Issues = "https://github.com/jman4162/EdgeFEM/issues"
 
 [tool.scikit-build]
 cmake.minimum-version = "3.20"
 cmake.build-type = "Release"
-# Install the compiled pyvectorem module at the root level
+# Install the compiled pyedgefem module at the root level
 wheel.install-dir = "."
 
 [tool.scikit-build.cmake.define]
-VECTOREM_PYTHON = "ON"
-VECTOREM_BUILD_VECTOR = "ON"
-VECTOREM_BUILD_SCALAR = "ON"
+EDGEFEM_PYTHON = "ON"
+EDGEFEM_BUILD_VECTOR = "ON"
+EDGEFEM_BUILD_SCALAR = "ON"
 
-# Include the vectorem Python package
+# Include the edgefem Python package
 [tool.scikit-build.wheel.packages]
-vectorem = "python/vectorem"
+edgefem = "python/edgefem"

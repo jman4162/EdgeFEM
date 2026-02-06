@@ -2,9 +2,9 @@
 #include <vector>
 #include <cmath>
 
-#include "vectorem/post/ntf.hpp"
+#include "edgefem/post/ntf.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main() {
   // Zero-current sanity check

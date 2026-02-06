@@ -3,9 +3,9 @@
 #include <complex>
 #include <iostream>
 
-#include "vectorem/periodic.hpp"
+#include "edgefem/periodic.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 void test_floquet_phase_from_angle_broadside() {
   std::cout << "test_floquet_phase_from_angle_broadside..." << std::endl;

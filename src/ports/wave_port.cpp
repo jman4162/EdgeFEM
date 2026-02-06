@@ -1,4 +1,4 @@
-#include "vectorem/ports/wave_port.hpp"
+#include "edgefem/ports/wave_port.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,9 +14,9 @@
 #include <Eigen/Eigenvalues>
 #include <Eigen/Geometry>
 
-#include "vectorem/edge_basis.hpp"
+#include "edgefem/edge_basis.hpp"
 
-namespace vectorem {
+namespace edgefem {
 
 namespace {
 struct ArrayHash {
@@ -400,5 +400,5 @@ Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
   return v_full;
 }
 
-} // namespace vectorem
+} // namespace edgefem
 

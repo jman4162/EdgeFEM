@@ -1,9 +1,9 @@
 #include <Eigen/Dense>
 #include <cassert>
 
-#include "vectorem/maxwell.hpp"
+#include "edgefem/maxwell.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 void test_symmetry() {
   Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");

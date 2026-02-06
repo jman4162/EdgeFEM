@@ -1,11 +1,11 @@
-#include "vectorem/materials/dispersive.hpp"
+#include "edgefem/materials/dispersive.hpp"
 
 #include <cassert>
 #include <cmath>
 #include <complex>
 #include <iostream>
 
-using namespace vectorem::materials;
+using namespace edgefem::materials;
 
 constexpr double PI = 3.14159265358979323846;
 

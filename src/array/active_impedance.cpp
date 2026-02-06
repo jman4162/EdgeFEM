@@ -1,9 +1,9 @@
-#include "vectorem/array/active_impedance.hpp"
+#include "edgefem/array/active_impedance.hpp"
 
 #include <cmath>
 #include <stdexcept>
 
-namespace vectorem {
+namespace edgefem {
 
 Eigen::VectorXcd uniform_scan_excitation(int num_elements,
                                          const std::vector<Eigen::Vector3d> &positions,
@@ -137,4 +137,4 @@ std::map<int, std::vector<double>> find_scan_blindness(
   return blindness;
 }
 
-} // namespace vectorem
+} // namespace edgefem

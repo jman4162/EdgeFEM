@@ -1,6 +1,6 @@
 # Tutorial: Microstrip Patch Antenna Design
 
-This tutorial covers designing and simulating microstrip patch antennas with VectorEM. You'll learn to:
+This tutorial covers designing and simulating microstrip patch antennas with EdgeFEM. You'll learn to:
 
 - Design a patch antenna for a target frequency
 - Configure feed mechanisms (probe and edge feed)
@@ -23,7 +23,7 @@ Microstrip patch antennas are popular for their low profile, ease of fabrication
 Let's design a 2.4 GHz patch antenna on FR-4 substrate:
 
 ```python
-from vectorem.designs import PatchAntennaDesign
+from edgefem.designs import PatchAntennaDesign
 import numpy as np
 
 # Target frequency
@@ -55,7 +55,7 @@ patch = PatchAntennaDesign(
     substrate_tan_d=tan_d,
 )
 
-# VectorEM estimates resonant frequency
+# EdgeFEM estimates resonant frequency
 print(f"Estimated resonant frequency: {patch.estimated_resonant_frequency/1e9:.3f} GHz")
 ```
 
@@ -164,7 +164,7 @@ Plot the results:
 
 ```python
 import matplotlib.pyplot as plt
-import vectorem.plots as vp
+import edgefem.plots as vp
 
 # Return loss plot
 vp.plot_return_loss(freqs, S11_array,
@@ -374,8 +374,8 @@ print(f"\nBest match at y = {best['y_pos']:.1f} mm: Z = {best['R']:.0f}+j{best['
 """
 Complete Patch Antenna Design Script
 """
-from vectorem.designs import PatchAntennaDesign
-import vectorem.plots as vp
+from edgefem.designs import PatchAntennaDesign
+import edgefem.plots as vp
 import numpy as np
 import matplotlib.pyplot as plt
 

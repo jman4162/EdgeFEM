@@ -2,9 +2,9 @@
 #include <numeric>
 #include <vector>
 
-#include "vectorem/sweep.hpp"
+#include "edgefem/sweep.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 int main() {
   std::vector<double> freqs;

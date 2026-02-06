@@ -1,6 +1,6 @@
 # Wave Port Workflow Guide
 
-This guide explains how to set up and extract S-parameters using modal wave ports in VectorEM.
+This guide explains how to set up and extract S-parameters using modal wave ports in EdgeFEM.
 
 ## Overview
 
@@ -15,9 +15,9 @@ Wave ports provide accurate S-parameter extraction for waveguide-based structure
 
 ## Prerequisites
 
-- VectorEM built with `VECTOREM_BUILD_VECTOR=ON`
+- EdgeFEM built with `EDGEFEM_BUILD_VECTOR=ON`
 - Gmsh for mesh generation
-- Python bindings (optional): build with `VECTOREM_PYTHON=ON`
+- Python bindings (optional): build with `EDGEFEM_PYTHON=ON`
 
 ## Step 1: Create Geometry with Port Surfaces
 
@@ -65,13 +65,13 @@ gmsh rect_waveguide.geo -3 -o rect_waveguide.msh
 ### C++ API
 
 ```cpp
-#include "vectorem/mesh.hpp"
-#include "vectorem/bc.hpp"
-#include "vectorem/maxwell.hpp"
-#include "vectorem/ports/wave_port.hpp"
-#include "vectorem/ports/port_eigensolve.hpp"
+#include "edgefem/mesh.hpp"
+#include "edgefem/bc.hpp"
+#include "edgefem/maxwell.hpp"
+#include "edgefem/ports/wave_port.hpp"
+#include "edgefem/ports/port_eigensolve.hpp"
 
-using namespace vectorem;
+using namespace edgefem;
 
 // Load mesh
 Mesh mesh = load_gmsh_v2("rect_waveguide.msh");
@@ -83,7 +83,7 @@ BC bc = build_edge_pec(mesh, 1);  // Physical tag 1 = PEC
 ### Python API
 
 ```python
-import pyvectorem as em
+import pyedgefem as em
 
 mesh = em.load_gmsh("rect_waveguide.msh")
 bc = em.build_edge_pec(mesh, 1)

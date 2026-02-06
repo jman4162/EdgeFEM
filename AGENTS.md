@@ -82,7 +82,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vectorem-artifacts
+          name: edgefem-artifacts
           path: artifacts
 ````
 
