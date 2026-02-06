@@ -5,7 +5,7 @@ description = "CAD import and meshing utilities for VectorEM"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{name = "VectorEM contributors"}]
+authors = [{name = "John Hodge"}]
 dependencies = []
 
 [project.scripts]
