@@ -560,16 +560,17 @@ class UnitCellDesign:
         lines.append("")
 
         # Physical groups
+        # Note: Use integer tags (not strings) to ensure consistent tag IDs in mesh
         lines.append("// Physical groups")
 
         # PEC surfaces
         if self.has_ground_plane and 'ground' in surf_data:
-            lines.append(f'Physical Surface("{self._TAG_GROUND_PLANE}") = {{{surf_data["ground"]}}};')
+            lines.append(f'Physical Surface({self._TAG_GROUND_PLANE}) = {{{surf_data["ground"]}}};')
 
         # Ports
-        lines.append(f'Physical Surface("{self._TAG_PORT_TOP}") = {{{surf_data["port_top"]}}};')
+        lines.append(f'Physical Surface({self._TAG_PORT_TOP}) = {{{surf_data["port_top"]}}};')
         if pt_bottom:
-            lines.append(f'Physical Surface("{self._TAG_PORT_BOTTOM}") = {{{surf_data["port_bottom"]}}};')
+            lines.append(f'Physical Surface({self._TAG_PORT_BOTTOM}) = {{{surf_data["port_bottom"]}}};')
 
         # Periodic boundaries (combine all layers)
         x_neg_surfs = [surf_data['per_x_neg_air'], surf_data['per_x_neg_sub']]
@@ -583,16 +584,41 @@ class UnitCellDesign:
             y_neg_surfs.append(surf_data['per_y_neg_below'])
             y_pos_surfs.append(surf_data['per_y_pos_below'])
 
-        lines.append(f'Physical Surface("{self._TAG_PERIODIC_X_NEG}") = {{{", ".join(map(str, x_neg_surfs))}}};')
-        lines.append(f'Physical Surface("{self._TAG_PERIODIC_X_POS}") = {{{", ".join(map(str, x_pos_surfs))}}};')
-        lines.append(f'Physical Surface("{self._TAG_PERIODIC_Y_NEG}") = {{{", ".join(map(str, y_neg_surfs))}}};')
-        lines.append(f'Physical Surface("{self._TAG_PERIODIC_Y_POS}") = {{{", ".join(map(str, y_pos_surfs))}}};')
+        lines.append(f'Physical Surface({self._TAG_PERIODIC_X_NEG}) = {{{", ".join(map(str, x_neg_surfs))}}};')
+        lines.append(f'Physical Surface({self._TAG_PERIODIC_X_POS}) = {{{", ".join(map(str, x_pos_surfs))}}};')
+        lines.append(f'Physical Surface({self._TAG_PERIODIC_Y_NEG}) = {{{", ".join(map(str, y_neg_surfs))}}};')
+        lines.append(f'Physical Surface({self._TAG_PERIODIC_Y_POS}) = {{{", ".join(map(str, y_pos_surfs))}}};')
 
         # Volumes
-        lines.append(f'Physical Volume("{self._TAG_AIR_ABOVE}") = {{{vol_air_above}}};')
-        lines.append(f'Physical Volume("{self._TAG_SUBSTRATE}") = {{{vol_substrate}}};')
+        lines.append(f'Physical Volume({self._TAG_AIR_ABOVE}) = {{{vol_air_above}}};')
+        lines.append(f'Physical Volume({self._TAG_SUBSTRATE}) = {{{vol_substrate}}};')
         if vol_air_below:
-            lines.append(f'Physical Volume("{self._TAG_AIR_BELOW}") = {{{vol_air_below}}};')
+            lines.append(f'Physical Volume({self._TAG_AIR_BELOW}) = {{{vol_air_below}}};')
+
+        lines.append("")
+        lines.append("// Periodic surface constraints")
+        lines.append("// These ensure matching meshes on opposite periodic faces")
+        lines.append("")
+
+        # X-direction periodic pairs: per_x_neg -> per_x_pos with translation (px, 0, 0)
+        # Air above substrate
+        lines.append(f"Periodic Surface{{{surf_data['per_x_pos_air']}}} = {{{surf_data['per_x_neg_air']}}} Translate{{{px}, 0, 0}};")
+        # Substrate
+        lines.append(f"Periodic Surface{{{surf_data['per_x_pos_sub']}}} = {{{surf_data['per_x_neg_sub']}}} Translate{{{px}, 0, 0}};")
+        # Air below (if FSS)
+        if pt_bottom:
+            lines.append(f"Periodic Surface{{{surf_data['per_x_pos_below']}}} = {{{surf_data['per_x_neg_below']}}} Translate{{{px}, 0, 0}};")
+
+        lines.append("")
+
+        # Y-direction periodic pairs: per_y_neg -> per_y_pos with translation (0, py, 0)
+        # Air above substrate
+        lines.append(f"Periodic Surface{{{surf_data['per_y_pos_air']}}} = {{{surf_data['per_y_neg_air']}}} Translate{{0, {py}, 0}};")
+        # Substrate
+        lines.append(f"Periodic Surface{{{surf_data['per_y_pos_sub']}}} = {{{surf_data['per_y_neg_sub']}}} Translate{{0, {py}, 0}};")
+        # Air below (if FSS)
+        if pt_bottom:
+            lines.append(f"Periodic Surface{{{surf_data['per_y_pos_below']}}} = {{{surf_data['per_y_neg_below']}}} Translate{{0, {py}, 0}};")
 
         lines.append("")
         lines.append("// Mesh settings")
@@ -648,9 +674,9 @@ class UnitCellDesign:
         kx = k0 * np.sin(theta_rad) * np.cos(phi_rad)
         ky = k0 * np.sin(theta_rad) * np.sin(phi_rad)
 
-        # Set phase shifts
-        em.set_floquet_phase(self._pbc_x, np.array([kx, 0.0, 0.0]))
-        em.set_floquet_phase(self._pbc_y, np.array([0.0, ky, 0.0]))
+        # Set phase shifts (k_transverse is 2D: [kx, ky])
+        em.set_floquet_phase(self._pbc_x, np.array([kx, ky]))
+        em.set_floquet_phase(self._pbc_y, np.array([kx, ky]))
 
     def _setup_boundary_conditions(self):
         """Set up PEC boundary conditions."""
