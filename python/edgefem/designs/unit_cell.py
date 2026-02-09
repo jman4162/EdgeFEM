@@ -720,8 +720,9 @@ class UnitCellDesign:
 
         # Set up Maxwell parameters
         c0 = 299792458.0
+        omega = 2 * np.pi * freq
         params = em.MaxwellParams()
-        params.omega = 2 * np.pi * freq
+        params.omega = omega
 
         # Set material regions
         params.eps_r_regions = {
@@ -734,33 +735,42 @@ class UnitCellDesign:
         params.use_port_abc = True
         params.port_abc_scale = 0.5
 
-        # For periodic structures, we use the periodic S-parameter calculation
-        # This is a simplified implementation - full Floquet port handling would be more complex
-
-        # Build wave ports for top (and bottom if FSS)
+        # Build Floquet ports
+        # For a periodic unit cell, we create wave ports on the top (and bottom for FSS)
+        # port surfaces. These represent plane wave modes in free space.
         ports = []
+        mode_pol = em.ModePolarization.TE if pol == 'TE' else em.ModePolarization.TM
 
-        # Create simple Floquet-like ports
-        # Note: This is a simplified implementation
-        # Full implementation would compute proper Floquet modes
+        # Top port (always present)
+        top_surface = em.extract_surface_mesh(self._mesh, self._TAG_PORT_TOP)
+        top_modes = em.solve_port_eigens(
+            top_surface.mesh, 1, omega, 1.0, 1.0, mode_pol
+        )
+        if top_modes:
+            top_port = em.build_wave_port(self._mesh, top_surface, top_modes[0])
+            ports.append(top_port)
 
-        # Use the periodic assembly function
-        try:
-            S = em.calculate_sparams_periodic(
-                self._mesh, params, self._bc, self._pbc_x, ports
+        # Bottom port (only for FSS - structures without ground plane)
+        if self.is_fss:
+            bottom_surface = em.extract_surface_mesh(self._mesh, self._TAG_PORT_BOTTOM)
+            bottom_modes = em.solve_port_eigens(
+                bottom_surface.mesh, 1, omega, 1.0, 1.0, mode_pol
             )
+            if bottom_modes:
+                bottom_port = em.build_wave_port(self._mesh, bottom_surface, bottom_modes[0])
+                ports.append(bottom_port)
 
-            if S.shape[0] >= 1:
-                R = S[0, 0]
-                T = S[1, 0] if S.shape[0] >= 2 else 0.0
-            else:
-                R = 0.0
-                T = 0.0
+        # Calculate S-parameters with periodic BCs
+        S = em.calculate_sparams_periodic(
+            self._mesh, params, self._bc, self._pbc_x, ports
+        )
 
-        except Exception as e:
-            # Fallback: estimate from basic reflection
-            R = 0.0 + 0.0j
-            T = 1.0 + 0.0j if self.is_fss else 0.0 + 0.0j
+        # Extract reflection and transmission
+        if S.shape[0] >= 1:
+            R = S[0, 0]
+            T = S[1, 0] if S.shape[0] >= 2 and S.shape[1] >= 1 else 0.0
+        else:
+            raise RuntimeError("S-parameter calculation returned empty matrix")
 
         # Cache results
         self._last_results[(freq, theta, phi, pol)] = {'R': R, 'T': T}
