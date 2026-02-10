@@ -1,0 +1,9 @@
+# Placeholder for figure files
+#
+# Planned figures:
+# - waveguide_geometry.pdf: 3D view of WR-90 waveguide mesh
+# - s_parameters.pdf: S21 magnitude and phase vs frequency
+# - mesh_convergence.pdf: Error vs DOF count
+# - field_distribution.pdf: E-field magnitude in waveguide cross-section
+#
+# Generate with: python3 ../generate_figures.py
