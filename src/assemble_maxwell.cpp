@@ -16,6 +16,25 @@
 namespace edgefem {
 
 namespace {
+/// Check solver convergence and warn to stderr if it failed.
+/// Returns true if converged, false otherwise.
+bool check_solver_convergence(const SolveResult &res,
+                              const std::string &context) {
+  if (!res.converged) {
+    std::cerr << "WARNING: Solver did not converge in " << context
+              << " (method=" << res.method << ", iters=" << res.iters
+              << ", residual=" << res.residual;
+    if (!res.error_message.empty()) {
+      std::cerr << ", error: " << res.error_message;
+    }
+    std::cerr << "). S-parameters may be unreliable." << std::endl;
+    return false;
+  }
+  return true;
+}
+} // namespace
+
+namespace {
 constexpr double c0 = 299792458.0;        // speed of light in vacuum (m/s)
 constexpr double mu0 = 4.0 * M_PI * 1e-7; // permeability of free space (H/m)
 constexpr double eps0 =
@@ -332,6 +351,17 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
     auto asmbl = assemble_maxwell(mesh, p, bc, ports, i);
     auto res = solve_linear(asmbl.A, asmbl.b, {});
 
+    if (!check_solver_convergence(
+            res, "calculate_sparams (active port " + std::to_string(i) + ")")) {
+      // Fill column with NaN to signal bad results
+      for (int j = 0; j < num_ports; ++j) {
+        S(j, i) = std::complex<double>(
+            std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN());
+      }
+      continue;
+    }
+
     const std::complex<double> V_inc_i = std::sqrt(ports[i].mode.Z0);
 
     for (int j = 0; j < num_ports; ++j) { // passive port
@@ -385,6 +415,24 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
 
     // Solve A * y = w to get y = A^-1 * w
     auto sol = solve_linear(asmbl.A, rhs, {});
+
+    if (!check_solver_convergence(sol, "normalize_port_weights")) {
+      std::cerr << "  Skipping normalization for this port due to solver "
+                   "failure."
+                << std::endl;
+      continue;
+    }
+
+    // Check port weight norm sanity
+    double weight_norm = port.weights.norm();
+    if (weight_norm < 1e-15) {
+      std::cerr << "WARNING: Port weight vector norm is near-zero ("
+                << weight_norm
+                << "). This indicates a port formulation issue — check that "
+                   "port edges and mode weights are correctly assigned."
+                << std::endl;
+      continue;
+    }
 
     // Compute w^H * y = w^H * A^-1 * w
     std::complex<double> wAinvw = 0.0;
@@ -534,6 +582,17 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
     auto asmbl = assemble_maxwell_periodic(mesh, p, bc, pbc, ports, i);
     auto res = solve_linear(asmbl.A, asmbl.b, {});
 
+    if (!check_solver_convergence(
+            res, "calculate_sparams_periodic (active port " +
+                     std::to_string(i) + ")")) {
+      for (int j = 0; j < num_ports; ++j) {
+        S(j, i) = std::complex<double>(
+            std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN());
+      }
+      continue;
+    }
+
     // Recover slave DOF values from master DOFs
     VecC x_full = res.x;
     for (const auto &kv : slave_to_master) {
@@ -583,6 +642,13 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
 
   if (beta_sq <= 0) {
     // Mode is evanescent at this frequency
+    const double freq_hz = p.omega / (2.0 * M_PI);
+    const double fc_hz = kc * c0 / (2.0 * M_PI);
+    std::cerr << "WARNING: Frequency " << freq_hz / 1e9
+              << " GHz is below cutoff " << fc_hz / 1e9
+              << " GHz for the port mode — mode is evanescent, "
+                 "S-parameters may be meaningless."
+              << std::endl;
     return S;
   }
   const double beta = std::sqrt(beta_sq);
@@ -631,6 +697,17 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
 
     // Solve
     auto res = solve_linear(asmbl.A, asmbl.b, {});
+
+    if (!check_solver_convergence(
+            res, "calculate_sparams_eigenmode (active port " +
+                     std::to_string(active_port) + ")")) {
+      for (int j = 0; j < num_ports; ++j) {
+        S(j, active_port) = std::complex<double>(
+            std::numeric_limits<double>::quiet_NaN(),
+            std::numeric_limits<double>::quiet_NaN());
+      }
+      continue;
+    }
 
     // Extract S-parameters from overlap integrals
     std::complex<double> V_inc(

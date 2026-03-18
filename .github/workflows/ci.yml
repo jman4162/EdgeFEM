@@ -18,7 +18,7 @@ jobs:
           sudo ln -sf /usr/bin/clang-tidy-19 /usr/bin/clang-tidy
           python -m pip install --upgrade pip
           python -m pip install -r tools/requirements.txt
-          python -m pip install pybind11 matplotlib
+          python -m pip install pybind11 matplotlib pytest numpy
       - name: Get pybind11 CMake dir
         id: pybind11_dir
         run: echo "dir=$(python3 -c 'import pybind11; print(pybind11.get_cmake_dir())')" >> $GITHUB_ENV
@@ -29,7 +29,11 @@ jobs:
       - name: Static analysis
         run: bash tools/lint.sh build
       - name: Unit tests
-        run: ctest --test-dir build -L smoke -j || (cat build/Testing/Temporary/LastTest.log; exit 1)
+        run: ctest --test-dir build -j --output-on-failure
+      - name: Python integration tests
+        env:
+          PYTHONPATH: build/python:python
+        run: pytest python/tests/ -v --tb=short
       - name: Mesh QA (agents)
         run: python tools/agents/mesh_qa.py --in examples --out artifacts/mesh_qa
       - name: Upload artifacts

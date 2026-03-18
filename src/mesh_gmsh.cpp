@@ -1,7 +1,9 @@
 #include "edgefem/mesh.hpp"
+#include "edgefem/mesh_quality.hpp"
 
 #include <array>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 
@@ -70,6 +72,32 @@ Mesh load_gmsh_v2(const std::string &path) {
     }
   }
   build_edges(mesh);
+
+  // Validate mesh quality and warn about issues
+  if (!mesh.tets.empty()) {
+    auto report = validate_mesh(mesh);
+    if (report.num_degenerate_tets > 0) {
+      std::cerr << "WARNING: Mesh '" << path << "' contains "
+                << report.num_degenerate_tets
+                << " degenerate (zero-volume) tetrahedra. "
+                   "Results may be inaccurate."
+                << std::endl;
+    }
+    if (report.num_inverted_tets > 0) {
+      std::cerr << "WARNING: Mesh '" << path << "' contains "
+                << report.num_inverted_tets
+                << " inverted tetrahedra. Results may be inaccurate."
+                << std::endl;
+    }
+    if (report.max_aspect_ratio > 100.0) {
+      std::cerr << "WARNING: Mesh '" << path
+                << "' has extreme aspect ratio ("
+                << report.max_aspect_ratio
+                << "). Consider refining the mesh for better accuracy."
+                << std::endl;
+    }
+  }
+
   return mesh;
 }
 
