@@ -159,6 +159,36 @@ target_link_libraries(test_dispersive_materials PRIVATE edgefem)
 add_test(NAME test_dispersive_materials COMMAND test_dispersive_materials)
 set_tests_properties(test_dispersive_materials PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
 
+add_executable(test_abc_scaling_sweep test_abc_scaling_sweep.cpp)
+target_link_libraries(test_abc_scaling_sweep PRIVATE edgefem)
+add_test(NAME test_abc_scaling_sweep COMMAND test_abc_scaling_sweep)
+set_tests_properties(test_abc_scaling_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS benchmark)
+
+add_executable(test_cavity_eigenmodes test_cavity_eigenmodes.cpp)
+target_link_libraries(test_cavity_eigenmodes PRIVATE edgefem)
+add_test(NAME test_cavity_eigenmodes COMMAND test_cavity_eigenmodes)
+set_tests_properties(test_cavity_eigenmodes PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_wr42_waveguide test_wr42_waveguide.cpp)
+target_link_libraries(test_wr42_waveguide PRIVATE edgefem)
+add_test(NAME test_wr42_waveguide COMMAND test_wr42_waveguide)
+set_tests_properties(test_wr42_waveguide PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_mesh_convergence test_mesh_convergence.cpp)
+target_link_libraries(test_mesh_convergence PRIVATE edgefem)
+add_test(NAME test_mesh_convergence COMMAND test_mesh_convergence)
+set_tests_properties(test_mesh_convergence PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_coax_waveguide test_coax_waveguide.cpp)
+target_link_libraries(test_coax_waveguide PRIVATE edgefem)
+add_test(NAME test_coax_waveguide COMMAND test_coax_waveguide)
+set_tests_properties(test_coax_waveguide PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_dielectric_slab_fresnel test_dielectric_slab_fresnel.cpp)
+target_link_libraries(test_dielectric_slab_fresnel PRIVATE edgefem)
+add_test(NAME test_dielectric_slab_fresnel COMMAND test_dielectric_slab_fresnel)
+set_tests_properties(test_dielectric_slab_fresnel PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
 if (VECTOREM_PYTHON)
   find_package(Python3 COMPONENTS Interpreter REQUIRED)
   add_test(NAME python_smoke

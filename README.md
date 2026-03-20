@@ -59,12 +59,15 @@ print(f"|S11| = {abs(S[0,0]):.4f}")  # ~0.001 (matched)
 print(f"|S21| = {abs(S[1,0]):.4f}")  # ~0.994 (99.4% transmission)
 ```
 
-### Patch Antenna Example
+### Patch Antenna Example (Analytical Estimates)
 
 ```python
 from edgefem.designs import PatchAntennaDesign
 
 # 2.4 GHz WiFi patch on FR-4
+# Note: input_impedance() and radiation_pattern() use analytical
+# approximations (transmission-line / cavity model), not full-wave FEM.
+# Full-wave patch simulation requires lumped ports (planned v1.1).
 patch = PatchAntennaDesign(
     patch_length=29e-3, patch_width=38e-3,
     substrate_height=1.6e-3, substrate_eps_r=4.4
@@ -72,7 +75,7 @@ patch = PatchAntennaDesign(
 patch.set_probe_feed(y_offset=-5e-3)
 patch.generate_mesh(density=15)
 
-# Analyze
+# Analyze (analytical model — suitable for initial design)
 Z_in = patch.input_impedance(2.4e9)
 pattern = patch.radiation_pattern(2.4e9)
 D = patch.directivity(2.4e9)

@@ -3,11 +3,20 @@ Microstrip Patch Antenna Design Class
 
 High-level interface for microstrip patch antenna simulation.
 Supports rectangular patch with probe or edge feed.
+
+.. warning::
+    ``input_impedance()``, ``return_loss()``, ``frequency_sweep()``, and
+    ``radiation_pattern()`` currently use **analytical approximations**
+    (transmission-line model and cavity model), **not** a full-wave FEM solve.
+    Results are textbook-quality estimates suitable for initial design but
+    should not be treated as full-wave simulation data.  Full-wave patch
+    antenna simulation requires lumped port support (planned for v1.1).
 """
 
 import subprocess
 import tempfile
 import os
+import warnings
 from typing import Optional, Tuple, List, Dict, Union
 import numpy as np
 
@@ -18,12 +27,17 @@ class PatchAntennaDesign:
     """
     Microstrip patch antenna design class.
 
+    .. warning::
+        ``input_impedance()`` and ``radiation_pattern()`` use **analytical
+        approximations** (transmission-line model / cavity model), not full-wave
+        FEM.  Full-wave patch simulation requires lumped ports (planned v1.1).
+
     A microstrip patch antenna consists of a conducting patch on a grounded
     dielectric substrate. This class provides methods for:
     - Mesh generation for rectangular patches
     - Feed modeling (coax probe or edge microstrip)
-    - Input impedance and return loss computation
-    - Radiation pattern calculation using 3D far-field
+    - Input impedance and return loss computation (analytical model)
+    - Radiation pattern calculation (analytical cavity model)
     - Bandwidth and directivity analysis
 
     The antenna is oriented with:
@@ -116,6 +130,7 @@ class PatchAntennaDesign:
         self._feed_type = None
         self._feed_params = {}
         self._last_results = {}
+        self._analytical_warning_shown = False
 
         # Estimate resonant frequency using transmission line model
         # f_r ~ c / (2 * L_eff * sqrt(eps_eff))
@@ -472,9 +487,24 @@ class PatchAntennaDesign:
         for edge in bc_patch.dirichlet_edges:
             self._bc.dirichlet_edges.add(edge)
 
+    def _warn_analytical(self):
+        """Issue a one-time warning that results use analytical approximations."""
+        if not self._analytical_warning_shown:
+            warnings.warn(
+                "PatchAntennaDesign.input_impedance() and radiation_pattern() "
+                "use analytical approximations (transmission-line / cavity model), "
+                "not full-wave FEM. Results are suitable for initial design estimates. "
+                "Full-wave patch simulation requires lumped ports (planned v1.1).",
+                stacklevel=3,
+            )
+            self._analytical_warning_shown = True
+
     def input_impedance(self, freq: float) -> complex:
         """
-        Compute input impedance at given frequency.
+        Compute input impedance at given frequency using analytical model.
+
+        .. note::
+            Uses transmission-line model approximation, not full-wave FEM.
 
         Args:
             freq: Frequency in Hz
@@ -482,34 +512,13 @@ class PatchAntennaDesign:
         Returns:
             Complex input impedance in ohms
         """
-        if self._mesh is None:
-            raise RuntimeError("Mesh not generated. Call generate_mesh() first.")
+        self._warn_analytical()
 
-        self._setup_simulation(freq)
+        if self._feed_type is None:
+            self.set_probe_feed()
 
-        # Set up Maxwell parameters
-        params = em.MaxwellParams()
-        params.omega = 2 * np.pi * freq
-
-        # Material regions
-        eps_sub = complex(self.substrate_eps_r,
-                         -self.substrate_eps_r * self.substrate_tan_d)
-        params.eps_r_regions = {
-            self._TAG_SUBSTRATE: eps_sub,
-            self._TAG_AIR: complex(1.0, 0.0),
-        }
-
-        # Enable ABC on outer boundaries
-        params.use_abc = True
-
-        # For probe feed, we compute impedance from port S-parameter
-        # This is a simplified implementation - full version would properly model probe
-
-        # Use eigenmode S-parameter calculation if ports are set up
-        # For now, return an estimated impedance based on transmission line model
-        # Full implementation would solve FEM system and extract port impedance
-
-        # Transmission line model approximation for edge impedance
+        # Analytical transmission-line model — does not require mesh
+        # Full-wave FEM path will replace this when lumped ports are available (v1.1)
         c0 = 299792458.0
         lambda0 = c0 / freq
         eps_eff = (self.substrate_eps_r + 1) / 2 + \
@@ -610,9 +619,11 @@ class PatchAntennaDesign:
         n_phi: int = 73,
     ) -> "em.FFPattern3D":
         """
-        Compute 3D radiation pattern at given frequency.
+        Compute 3D radiation pattern at given frequency using analytical model.
 
-        Uses Huygens surface integration (Stratton-Chu) for far-field.
+        .. note::
+            Uses cavity model with analytical aperture distribution, not
+            full-wave FEM with Stratton-Chu integration.
 
         Args:
             freq: Frequency in Hz
@@ -622,24 +633,14 @@ class PatchAntennaDesign:
         Returns:
             FFPattern3D object with far-field data
         """
-        if self._mesh is None:
-            raise RuntimeError("Mesh not generated. Call generate_mesh() first.")
+        self._warn_analytical()
 
-        self._setup_simulation(freq)
+        # Analytical cavity model — does not require mesh
+        # Full-wave FEM + Stratton-Chu path will replace this when lumped ports
+        # are available (v1.1)
 
-        c0 = 299792458.0
-        k0 = 2 * np.pi * freq / c0
-
-        # Set up theta/phi sampling
         theta_rad = np.linspace(0, np.pi, n_theta)
         phi_rad = np.linspace(0, 2 * np.pi, n_phi)
-
-        # For far-field, we need to solve the FEM problem and extract
-        # fields on a Huygens surface. This is a simplified implementation
-        # that uses analytical patch current distribution.
-
-        # Simplified analytical model for rectangular patch radiation
-        # Based on cavity model with uniform aperture distribution
 
         pattern = self._compute_analytical_pattern(freq, theta_rad, phi_rad)
 

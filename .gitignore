@@ -24,3 +24,12 @@ examples/*.png
 
 # Misc
 *.log
+.DS_Store
+
+# CSV output from benchmarks
+abc_scaling_sweep.csv
+mesh_convergence.csv
+
+# Papers (keep private until review)
+/papers/ieee_tap/
+/papers/theory/

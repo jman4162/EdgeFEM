@@ -107,6 +107,30 @@ Two-port waveguide reciprocity:
 | Magnitude diff | < 0.001 | PASS |
 | Phase diff | < 0.5° | PASS |
 
+## Dielectric Slab Fresnel Validation
+
+A dielectric slab (εr = 4.0, d = 3 mm) illuminated at normal incidence produces Fabry-Pérot oscillations in reflection and transmission. The analytical Fresnel coefficients serve as a rigorous benchmark.
+
+**Run the validation example:**
+
+```bash
+python examples/validation_fresnel.py
+```
+
+This produces a comparison plot (`examples/validation_fresnel.png`) showing |R|² and |T|² vs frequency across 5–15 GHz.
+
+**Spot-check results (analytical):**
+
+| Frequency | |R|² | |T|² | R+T |
+|-----------|------|------|-----|
+| 5.0 GHz | 0.1629 | 0.8371 | 1.000000 |
+| 7.5 GHz | 0.2693 | 0.7307 | 1.000000 |
+| 10.0 GHz | 0.3373 | 0.6627 | 1.000000 |
+| 12.5 GHz | 0.3600 | 0.6400 | 1.000000 |
+| 15.0 GHz | 0.3370 | 0.6630 | 1.000000 |
+
+Energy is conserved (R+T = 1) at all frequencies. The first Fabry-Pérot resonance (|T|² → 1) occurs at ~25 GHz for this slab thickness. The FEM C++ test (`tests/test_dielectric_slab_fresnel.cpp`) validates mesh setup and material regions against these analytical values.
+
 ## Known Limitations
 
 ### Frequency Restrictions
