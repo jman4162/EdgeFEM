@@ -114,4 +114,37 @@ Eigen::Vector3d compute_grad_lambda(const std::array<Eigen::Vector3d, 4> &v,
   return g[i];
 }
 
+Eigen::Vector3cd evaluate_edge_field(
+    const std::array<Eigen::Vector3d, 4> &vertices,
+    const std::array<int, 6> &edge_orient,
+    const std::array<std::complex<double>, 6> &edge_dofs,
+    const Eigen::Vector3d &point) {
+
+  Eigen::Vector4d lambda = compute_barycentric(vertices, point);
+
+  Eigen::Vector3cd E = Eigen::Vector3cd::Zero();
+
+  constexpr int edge_nodes[6][2] = {{0, 1}, {0, 2}, {0, 3},
+                                    {1, 2}, {1, 3}, {2, 3}};
+
+  for (int e = 0; e < 6; ++e) {
+    int n0 = edge_nodes[e][0];
+    int n1 = edge_nodes[e][1];
+
+    Eigen::Vector3d grad_l0 = compute_grad_lambda(vertices, n0);
+    Eigen::Vector3d grad_l1 = compute_grad_lambda(vertices, n1);
+
+    // Whitney basis: W_e = lambda_n0 * grad(lambda_n1) - lambda_n1 *
+    // grad(lambda_n0)
+    Eigen::Vector3d W_e = lambda(n0) * grad_l1 - lambda(n1) * grad_l0;
+
+    std::complex<double> coeff =
+        edge_dofs[e] * static_cast<double>(edge_orient[e]);
+
+    E += coeff * W_e;
+  }
+
+  return E;
+}
+
 } // namespace edgefem

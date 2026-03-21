@@ -14,6 +14,7 @@
 #include "edgefem/periodic.hpp"
 #include "edgefem/ports/port_eigensolve.hpp"
 #include "edgefem/ports/wave_port.hpp"
+#include "edgefem/solver.hpp"
 
 namespace edgefem {
 
@@ -70,6 +71,10 @@ struct MaxwellParams {
   bool enforce_pml_heuristics = true;
   // Enable simple first-order absorbing boundary condition on outer faces
   bool use_abc = false;
+  // Surface tags to apply ABC to. When non-empty, ABC is only applied to
+  // triangles matching these physical tags. When empty, ABC applies to ALL
+  // boundary triangles (backward-compatible default).
+  std::unordered_set<int> abc_surface_tags;
   // Enable ABC damping at port edges (j*beta added to diagonal)
   // This improves wave absorption at ports for better S-parameter accuracy
   bool use_port_abc = false;
@@ -165,7 +170,8 @@ MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
 
 Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
                                    const BC &bc,
-                                   const std::vector<WavePort> &ports);
+                                   const std::vector<WavePort> &ports,
+                                   const SolveOptions &opts = SolveOptions());
 
 /// Normalize port weights for self-consistent port loading.
 /// Computes w^H A^-1 w and scales weights so that w^H A^-1 w = Z0/2,
@@ -180,7 +186,8 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
 /// @param bc PEC boundary conditions
 /// @param ports Wave ports to normalize (modified in place)
 void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, std::vector<WavePort> &ports);
+                            const BC &bc, std::vector<WavePort> &ports,
+                            const SolveOptions &opts = SolveOptions());
 
 /// Calculate S-parameters with periodic boundary conditions.
 /// Useful for unit cell simulations under Floquet excitation.

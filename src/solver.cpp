@@ -1,6 +1,7 @@
 #include "edgefem/solver.hpp"
 
 #include <Eigen/IterativeLinearSolvers>
+#include <Eigen/SparseLU>
 #include <iomanip>
 #include <iostream>
 
@@ -12,14 +13,35 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
 
   // Print header if verbose
   if (opt.verbose) {
-    std::cerr << "Solver: Starting " << (opt.use_bicgstab ? "BiCGSTAB" : "CG")
+    const char *method = opt.use_direct ? "SparseLU"
+                         : opt.use_bicgstab ? "BiCGSTAB" : "CG";
+    std::cerr << "Solver: Starting " << method
               << " solve (N=" << A.rows() << ", nnz=" << A.nonZeros()
-              << ", tol=" << std::scientific << std::setprecision(2)
-              << opt.tolerance << ", max_iter=" << opt.max_iterations << ")\n";
+              << ")\n";
     std::cerr << std::fixed << std::setprecision(6);
   }
 
-  if (opt.use_bicgstab) {
+  if (opt.use_direct) {
+    Eigen::SparseLU<SpMatC> solver;
+    solver.compute(A);
+    if (solver.info() != Eigen::Success) {
+      res.method = "SparseLU";
+      res.converged = false;
+      res.error_message = "SparseLU factorization failed";
+      if (opt.verbose) {
+        std::cerr << "Solver: SparseLU factorization FAILED\n";
+      }
+      return res;
+    }
+    res.x = solver.solve(b);
+    res.method = "SparseLU";
+    res.iters = 1;
+    res.residual = (A * res.x - b).norm() / b.norm();
+    res.converged = (solver.info() == Eigen::Success);
+    if (!res.converged) {
+      res.error_message = "SparseLU solve failed";
+    }
+  } else if (opt.use_bicgstab) {
     Eigen::BiCGSTAB<SpMatC> solver;
     solver.setTolerance(opt.tolerance);
     solver.setMaxIterations(opt.max_iterations);

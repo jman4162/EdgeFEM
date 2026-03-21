@@ -482,10 +482,8 @@ class PatchAntennaDesign:
 
         # Combine BCs
         self._bc = em.BC()
-        for edge in bc_ground.dirichlet_edges:
-            self._bc.dirichlet_edges.add(edge)
-        for edge in bc_patch.dirichlet_edges:
-            self._bc.dirichlet_edges.add(edge)
+        self._bc.merge(bc_ground)
+        self._bc.merge(bc_patch)
 
     def _warn_analytical(self):
         """Issue a one-time warning that results use analytical approximations."""

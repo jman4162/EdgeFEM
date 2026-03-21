@@ -184,6 +184,16 @@ target_link_libraries(test_coax_waveguide PRIVATE edgefem)
 add_test(NAME test_coax_waveguide COMMAND test_coax_waveguide)
 set_tests_properties(test_coax_waveguide PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
+add_executable(test_lumped_port test_lumped_port.cpp)
+target_link_libraries(test_lumped_port PRIVATE edgefem)
+add_test(NAME test_lumped_port COMMAND test_lumped_port)
+set_tests_properties(test_lumped_port PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
+add_executable(test_huygens_surface test_huygens_surface.cpp)
+target_link_libraries(test_huygens_surface PRIVATE edgefem)
+add_test(NAME test_huygens_surface COMMAND test_huygens_surface)
+set_tests_properties(test_huygens_surface PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+
 add_executable(test_dielectric_slab_fresnel test_dielectric_slab_fresnel.cpp)
 target_link_libraries(test_dielectric_slab_fresnel PRIVATE edgefem)
 add_test(NAME test_dielectric_slab_fresnel COMMAND test_dielectric_slab_fresnel)

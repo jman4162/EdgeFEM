@@ -6,8 +6,9 @@ for common electromagnetic structures.
 
 Available designs:
     - RectWaveguideDesign: Rectangular waveguide S-parameter analysis
-    - PatchAntennaDesign: Microstrip patch antenna simulation
+    - PatchAntennaDesign: Microstrip patch antenna simulation (analytical)
     - UnitCellDesign: Periodic unit cell for metasurface/FSS analysis
+    - StackedPatchDesign: Multi-layer stacked patch with cavity feed (full-wave)
 
 Example - Rectangular Waveguide:
     from edgefem.designs import RectWaveguideDesign
@@ -66,5 +67,7 @@ Example - Unit Cell:
 from .waveguide import RectWaveguideDesign
 from .patch_antenna import PatchAntennaDesign
 from .unit_cell import UnitCellDesign
+from .stacked_patch import StackedPatchDesign
 
-__all__ = ["RectWaveguideDesign", "PatchAntennaDesign", "UnitCellDesign"]
+__all__ = ["RectWaveguideDesign", "PatchAntennaDesign", "UnitCellDesign",
+           "StackedPatchDesign"]

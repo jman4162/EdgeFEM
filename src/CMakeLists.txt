@@ -7,6 +7,7 @@ add_library(edgefem
   periodic.cpp
   ports/port_eigensolve.cpp
   ports/wave_port.cpp
+  ports/lumped_port.cpp
   io/touchstone.cpp
   io/json_export.cpp
   io/array_export.cpp
@@ -15,6 +16,7 @@ add_library(edgefem
   array/active_impedance.cpp
   array/coupling_extract.cpp
   post/ntf.cpp
+  post/huygens_surface.cpp
   sweep.cpp
   mor/vector_fit.cpp
   materials/dispersive.cpp

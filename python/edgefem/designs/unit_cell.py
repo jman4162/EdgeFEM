@@ -725,12 +725,13 @@ class UnitCellDesign:
         params.omega = omega
 
         # Set material regions
-        params.eps_r_regions = {
+        eps_regions = {
             self._TAG_SUBSTRATE: complex(self.substrate_eps_r, -self.substrate_eps_r * self.substrate_tan_d),
             self._TAG_AIR_ABOVE: complex(1.0, 0.0),
         }
         if self.air_height_below:
-            params.eps_r_regions[self._TAG_AIR_BELOW] = complex(1.0, 0.0)
+            eps_regions[self._TAG_AIR_BELOW] = complex(1.0, 0.0)
+        params.eps_r_regions = eps_regions
 
         params.use_port_abc = True
         params.port_abc_scale = 0.5

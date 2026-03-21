@@ -241,18 +241,26 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   }
 
   if (p.use_abc) {
-    // Simple first-order absorbing boundary: add imaginary damping to
-    // diagonal entries of boundary edges not marked as PEC.
+    // Simple first-order absorbing boundary: add jk₀ damping to diagonal
+    // entries of boundary edges not marked as PEC.
+    // With the normalized formulation (K/μ_r - k₀²ε_r M), the ABC coefficient
+    // is jk₀ (wavenumber), NOT jω (angular frequency).
     std::unordered_set<int> boundary_edges;
     for (const auto &tri : mesh.tris) {
+      // If abc_surface_tags is specified, only apply ABC to those surfaces
+      if (!p.abc_surface_tags.empty() &&
+          !p.abc_surface_tags.count(tri.phys)) {
+        continue;
+      }
       for (int e = 0; e < 3; ++e) {
         int ge = tri.edges[e];
         if (!bc.dirichlet_edges.count(ge))
           boundary_edges.insert(ge);
       }
     }
+    const double k0_abc = p.omega / c0;
     for (int e : boundary_edges) {
-      asmbl.A.coeffRef(e, e) += std::complex<double>(0.0, p.omega);
+      asmbl.A.coeffRef(e, e) += std::complex<double>(0.0, k0_abc);
     }
   }
 
@@ -343,13 +351,14 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
 
 Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
                                    const BC &bc,
-                                   const std::vector<WavePort> &ports) {
+                                   const std::vector<WavePort> &ports,
+                                   const SolveOptions &opts) {
   const int num_ports = static_cast<int>(ports.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
 
   for (int i = 0; i < num_ports; ++i) { // active port
     auto asmbl = assemble_maxwell(mesh, p, bc, ports, i);
-    auto res = solve_linear(asmbl.A, asmbl.b, {});
+    auto res = solve_linear(asmbl.A, asmbl.b, opts);
 
     if (!check_solver_convergence(
             res, "calculate_sparams (active port " + std::to_string(i) + ")")) {
@@ -385,7 +394,8 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
 }
 
 void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, std::vector<WavePort> &ports) {
+                            const BC &bc, std::vector<WavePort> &ports,
+                            const SolveOptions &opts) {
   if (ports.empty())
     return;
 
@@ -414,7 +424,7 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
     }
 
     // Solve A * y = w to get y = A^-1 * w
-    auto sol = solve_linear(asmbl.A, rhs, {});
+    auto sol = solve_linear(asmbl.A, rhs, opts);
 
     if (!check_solver_convergence(sol, "normalize_port_weights")) {
       std::cerr << "  Skipping normalization for this port due to solver "

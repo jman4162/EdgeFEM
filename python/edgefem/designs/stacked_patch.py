@@ -164,6 +164,8 @@ class StackedPatchDesign:
         self._bc = None
         self._ports = None
         self._last_solutions = {}
+        if hasattr(self, '_port_alpha_sq'):
+            del self._port_alpha_sq
 
     def _build_gmsh_geometry(self, gmsh, lc: float, msh_path: str):
         """Build antenna geometry using Gmsh Python API with OCC kernel."""
@@ -171,7 +173,11 @@ class StackedPatchDesign:
         cd = self.cavity_depth
         h_air = self._air_box_height
 
-        pw = max(self.probe_radius, lc / 4, 2e-3)
+        # Probe inner conductor half-width (the actual probe)
+        pr = max(self.probe_radius, lc / 8, 0.5e-3)
+        # Probe hole half-width (outer conductor / ground plane hole)
+        # Must be larger than pr to create a coaxial gap
+        pw = max(2.5 * pr, lc / 4, 2e-3)
         cx = gp / 2 + self.probe_offset[0]
         cy = gp / 2 + self.probe_offset[1]
 
@@ -192,26 +198,19 @@ class StackedPatchDesign:
 
         # Ground plane at z=0 (will be split by probe hole via fragment)
         sf_gnd = occ.addRectangle(0, 0, 0, gp, gp)
-        # Probe hole outline at z=0 — fragments the ground plane
+        # Probe hole outline at z=0 — larger than probe to create coaxial gap
         sf_probe_hole = occ.addRectangle(cx - pw, cy - pw, 0, 2 * pw, 2 * pw)
 
-        # Port: vertical rectangle in x-z plane at probe y-location.
-        # E-field direction is z, so port edges must have z-components.
-        p1 = occ.addPoint(cx - pw, cy, z_bot)
-        p2 = occ.addPoint(cx + pw, cy, z_bot)
-        p3 = occ.addPoint(cx + pw, cy, 0)
-        p4 = occ.addPoint(cx - pw, cy, 0)
-        l1 = occ.addLine(p1, p2)
-        l2 = occ.addLine(p2, p3)
-        l3 = occ.addLine(p3, p4)
-        l4 = occ.addLine(p4, p1)
-        cl_port = occ.addCurveLoop([l1, l2, l3, l4])
-        sf_port = occ.addPlaneSurface([cl_port])
+        # Port: horizontal surface at z=0 in the gap between probe and ground.
+        # This represents the coaxial cross-section.
+        # E-field direction is x (radial, from inner to outer conductor).
+        # Port strip: from probe edge (cx+pr) to hole edge (cx+pw), at z=0
+        sf_port = occ.addRectangle(cx + pr, cy - pr, 0, pw - pr, 2 * pr)
 
         # Probe conductor: thin PEC box from cavity bottom to first patch
         z_patch0 = self.patches[0]['height']
         probe_box = occ.addBox(
-            cx - pw, cy - pw, z_bot, 2 * pw, 2 * pw, z_patch0 - z_bot
+            cx - pr, cy - pr, z_bot, 2 * pr, 2 * pr, z_patch0 - z_bot
         )
 
         embed_list = [
@@ -237,8 +236,7 @@ class StackedPatchDesign:
         tol = 1e-4
 
         gnd_surfs = []
-        probe_hole_surf = None
-        port_surf = None
+        port_surfs = []
         probe_surfs = []
         patch_surfs = []
         bot_surfs = []
@@ -257,11 +255,21 @@ class StackedPatchDesign:
 
             if ze < tol:  # Flat in z
                 if abs(zc) < tol:
-                    # Distinguish ground plane from probe hole at z=0
-                    if (xe < pw * 4 and ye < pw * 4 and
-                        abs(xc - cx) < pw * 2 and
-                        abs(yc - cy) < pw * 2):
-                        probe_hole_surf = tag  # Small square = probe hole
+                    # At z=0: distinguish ground, port, and probe hole
+                    near_probe = (abs(xc - cx) < pw * 2 and
+                                  abs(yc - cy) < pw * 2)
+                    is_small = (xe < pw * 4 and ye < pw * 4)
+                    # Port surface: strip between probe (pr) and hole (pw)
+                    # centered on x > cx (right side of probe)
+                    is_port = (is_small and near_probe and
+                               bb[0] > cx + pr - tol and
+                               xe < (pw - pr) * 2 + tol)
+                    if is_port:
+                        port_surfs.append(tag)
+                    elif is_small and near_probe:
+                        # Other small surfaces at z=0 near probe = probe hole
+                        # Not PEC (it's the gap)
+                        pass
                     else:
                         gnd_surfs.append(tag)  # Large = ground plane
                 elif abs(zc - z_bot) < tol:
@@ -274,24 +282,16 @@ class StackedPatchDesign:
                             patch_surfs.append((pi, tag))
                             break
             elif ye < tol:  # Flat in y — vertical surface
-                near_probe = (abs(xc - cx) < pw * 2 and abs(yc - cy) < tol)
-                is_small = (xe < pw * 4)
-                if is_small and near_probe and ze > cd / 2:
-                    # Port surface: vertical rect spanning cavity depth
-                    # at probe y-location
-                    if bb[2] < -tol:
-                        port_surf = tag
-                    else:
-                        probe_surfs.append(tag)
-                elif is_small and abs(yc - cy) < pw * 2:
-                    # Small vertical surface near probe = probe conductor
+                near_probe = (abs(yc - cy) < pr * 2 + tol)
+                is_small = (xe < pr * 4 and near_probe)
+                if is_small:
                     probe_surfs.append(tag)
                 else:
                     side_surfs.append(tag)
             elif xe < tol:  # Flat in x — vertical surface
-                near_probe = (abs(xc - cx) < tol and abs(yc - cy) < pw * 2)
-                is_small = (ye < pw * 4)
-                if is_small and near_probe:
+                near_probe = (abs(xc - cx) < pr * 2 + tol)
+                is_small = (ye < pr * 4 and near_probe)
+                if is_small:
                     probe_surfs.append(tag)
                 else:
                     side_surfs.append(tag)
@@ -301,12 +301,17 @@ class StackedPatchDesign:
             gmsh.model.addPhysicalGroup(2, gnd_surfs, self._TAG_GROUND)
         if bot_surfs:
             gmsh.model.addPhysicalGroup(2, bot_surfs, self._TAG_CAVITY_BOTTOM)
-        if port_surf is not None:
-            gmsh.model.addPhysicalGroup(2, [port_surf], self._TAG_PORT)
+        if port_surfs:
+            gmsh.model.addPhysicalGroup(2, port_surfs, self._TAG_PORT)
         if probe_surfs:
             gmsh.model.addPhysicalGroup(2, probe_surfs, self._TAG_PROBE)
+        # Group patch surfaces by patch index (fragment may split one patch
+        # rectangle into multiple surfaces)
+        patch_by_index = {}
         for pi, sf in patch_surfs:
-            gmsh.model.addPhysicalGroup(2, [sf], self._TAG_PATCH_BASE + pi)
+            patch_by_index.setdefault(pi, []).append(sf)
+        for pi, sfs in patch_by_index.items():
+            gmsh.model.addPhysicalGroup(2, sfs, self._TAG_PATCH_BASE + pi)
 
         # Cavity walls: outer side surfaces below ground plane
         for tag in side_surfs:
@@ -328,22 +333,80 @@ class StackedPatchDesign:
         if abc_list:
             gmsh.model.addPhysicalGroup(2, abc_list, self._TAG_ABC)
 
-        if vols:
-            gmsh.model.addPhysicalGroup(3, vols, self._TAG_AIR)
+        # Classify volumes by z-position into cavity, substrate, and air
+        cavity_vols = []
+        substrate_vols = {si: [] for si in range(len(self.substrates))}
+        air_vols = []
 
-        # Mesh sizing
-        gmsh.option.setNumber("Mesh.MeshSizeMin", pw / 3)
+        for vtag in vols:
+            bb = gmsh.model.getBoundingBox(3, vtag)
+            z_center = (bb[2] + bb[5]) / 2
+            z_min = bb[2]
+            z_max = bb[5]
+
+            if z_max < tol:
+                # Entirely below ground plane → cavity
+                cavity_vols.append(vtag)
+            elif z_min < -tol:
+                # Straddles ground plane — treat as cavity
+                cavity_vols.append(vtag)
+            else:
+                # Above ground plane: check if in substrate or air
+                assigned = False
+                cum_z = 0.0
+                for si, sub in enumerate(self.substrates):
+                    sub_top = cum_z + sub['thickness']
+                    if z_center < sub_top + tol:
+                        substrate_vols[si].append(vtag)
+                        assigned = True
+                        break
+                    cum_z = sub_top
+                if not assigned:
+                    air_vols.append(vtag)
+
+        if cavity_vols:
+            gmsh.model.addPhysicalGroup(3, cavity_vols, self._TAG_CAVITY_VOL)
+        for si, sv in substrate_vols.items():
+            if sv:
+                gmsh.model.addPhysicalGroup(3, sv, self._TAG_SUBSTRATE_BASE + si)
+        if air_vols:
+            gmsh.model.addPhysicalGroup(3, air_vols, self._TAG_AIR)
+
+        # Mesh sizing: ensure at least 3 elements through the thinnest
+        # substrate layer for proper field resolution
+        min_sub_t = min(s['thickness'] for s in self.substrates)
+        sub_mesh_size = min_sub_t / 3.0
+        # Coaxial gap size needs at least 2-3 elements
+        gap_size = pw - pr
+        gap_mesh_size = gap_size / 3.0
+        global_min = min(pr / 2, sub_mesh_size, gap_mesh_size)
+        gmsh.option.setNumber("Mesh.MeshSizeMin", global_min)
         gmsh.option.setNumber("Mesh.MeshSizeMax", lc)
         gmsh.option.setNumber("Mesh.Algorithm3D", 1)
 
-        # Local refinement near probe for proper ground plane hole resolution
+        # Local refinement: probe region AND substrate region
         probe_pts = [
             occ.addPoint(cx - pw, cy - pw, 0),
             occ.addPoint(cx + pw, cy - pw, 0),
             occ.addPoint(cx + pw, cy + pw, 0),
             occ.addPoint(cx - pw, cy + pw, 0),
         ]
+        # Substrate region refinement points (patch corners at substrate top)
+        sub_pts = []
+        for patch in self.patches:
+            z_p = patch['height']
+            pw_h = patch['width'] / 2
+            pl_h = patch['length'] / 2
+            sub_pts.extend([
+                occ.addPoint(gp/2 - pw_h, gp/2 - pl_h, z_p),
+                occ.addPoint(gp/2 + pw_h, gp/2 - pl_h, z_p),
+                occ.addPoint(gp/2 + pw_h, gp/2 + pl_h, z_p),
+                occ.addPoint(gp/2 - pw_h, gp/2 + pl_h, z_p),
+                occ.addPoint(gp/2, gp/2, z_p),  # center
+            ])
         occ.synchronize()
+
+        # Field 1: probe refinement
         gmsh.model.mesh.field.add("Distance", 1)
         gmsh.model.mesh.field.setNumbers(1, "PointsList", probe_pts)
         gmsh.model.mesh.field.add("Threshold", 2)
@@ -352,13 +415,54 @@ class StackedPatchDesign:
         gmsh.model.mesh.field.setNumber(2, "SizeMax", lc)
         gmsh.model.mesh.field.setNumber(2, "DistMin", pw)
         gmsh.model.mesh.field.setNumber(2, "DistMax", 4 * pw)
-        gmsh.model.mesh.field.setAsBackgroundMesh(2)
+
+        # Field 3: substrate/patch refinement
+        gmsh.model.mesh.field.add("Distance", 3)
+        gmsh.model.mesh.field.setNumbers(3, "PointsList", sub_pts)
+        gmsh.model.mesh.field.add("Threshold", 4)
+        gmsh.model.mesh.field.setNumber(4, "InField", 3)
+        gmsh.model.mesh.field.setNumber(4, "SizeMin", sub_mesh_size)
+        gmsh.model.mesh.field.setNumber(4, "SizeMax", lc)
+        gmsh.model.mesh.field.setNumber(4, "DistMin", min_sub_t)
+        gmsh.model.mesh.field.setNumber(4, "DistMax", max(patch['width'], patch['length']))
+
+        # Combine refinement fields
+        gmsh.model.mesh.field.add("Min", 5)
+        gmsh.model.mesh.field.setNumbers(5, "FieldsList", [2, 4])
+        gmsh.model.mesh.field.setAsBackgroundMesh(5)
 
         gmsh.model.mesh.generate(3)
 
         gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
         gmsh.write(msh_path)
         gmsh.finalize()
+
+    def _compute_gamma(self, params, opts):
+        """Compute gamma = w^H * A^{-1} * w for the lumped port."""
+        port = self._ports[0]
+        pec_edges = set(self._bc.dirichlet_edges)
+
+        # Assemble bare FEM (no port loading) and port excitation
+        assembly = em.assemble_maxwell(
+            self._mesh, params, self._bc, [], -1
+        )
+        assembly_port = em.assemble_maxwell(
+            self._mesh, params, self._bc, self._ports, 0
+        )
+
+        # Solve: x = A^{-1} * b where b = 2*w/sqrt(Z0)
+        result = em.solve_linear(assembly.A, assembly_port.b, opts)
+
+        # V = w^H * x = 2*gamma/sqrt(Z0)
+        V_port = 0j
+        for k in range(len(port.edges)):
+            e = port.edges[k]
+            if e not in pec_edges:
+                V_port += np.conj(port.weights[k]) * result.x[e]
+
+        Z0 = complex(port.mode.Z0)
+        gamma = V_port * np.sqrt(Z0) / 2.0
+        return gamma
 
     def _setup_simulation(self, freq: float):
         """Set up boundary conditions and ports."""
@@ -384,11 +488,12 @@ class StackedPatchDesign:
 
         self._bc = bc
 
-        # Build lumped port
+        # Build lumped port — E-field in x-direction (radial, from probe
+        # inner conductor to ground outer conductor in coaxial gap)
         config = em.LumpedPortConfig()
         config.surface_tag = self._TAG_PORT
         config.z0 = self.z0
-        config.e_direction = np.array([0.0, 0.0, 1.0])
+        config.e_direction = np.array([1.0, 0.0, 0.0])
 
         port = em.build_lumped_port(self._mesh, config)
         self._ports = [port]
@@ -413,23 +518,63 @@ class StackedPatchDesign:
         params = em.MaxwellParams()
         params.omega = omega
         params.use_abc = True
+        params.abc_surface_tags = {self._TAG_ABC}
 
         # Set substrate material properties
         for si, sub in enumerate(self.substrates):
             tag = self._TAG_SUBSTRATE_BASE + si
             eps_r = sub['eps_r']
             tan_d = sub.get('tan_d', 0.0)
-            params.eps_r_regions[tag] = complex(eps_r, -eps_r * tan_d)
+            params.set_eps_r_region(tag, complex(eps_r, -eps_r * tan_d))
 
-        # Validated C++ S-parameter extraction
-        S = em.calculate_sparams(self._mesh, params, self._bc, self._ports)
-        S11 = S[0, 0]
+        # Impedance-based S-parameter extraction for lumped port.
+        # We compute gamma = w^H * A^{-1} * w (bare FEM, no port loading)
+        # and apply a frequency-independent normalization factor from a
+        # reference frequency to get the physical impedance.
+        opts = em.SolveOptions()
+        opts.use_direct = True
 
-        # Get solution vector for post-processing (patterns, near-field, etc.)
+        # Compute normalization factor at reference frequency (first call only)
+        port = self._ports[0]
+        Z0 = complex(port.mode.Z0)
+        if not hasattr(self, '_port_alpha_sq'):
+            # Use a low frequency (well below resonance) for stable normalization
+            params_ref = em.MaxwellParams()
+            f_ref = freq * 0.7  # Below expected resonance
+            params_ref.omega = 2 * np.pi * f_ref
+            params_ref.use_abc = True
+            params_ref.abc_surface_tags = {self._TAG_ABC}
+            for si, sub in enumerate(self.substrates):
+                tag = self._TAG_SUBSTRATE_BASE + si
+                eps_r_s = sub['eps_r']
+                tan_d_s = sub.get('tan_d', 0.0)
+                params_ref.set_eps_r_region(tag, complex(eps_r_s, -eps_r_s * tan_d_s))
+
+            gamma_ref = self._compute_gamma(params_ref, opts)
+            # Target: |gamma_norm| = Z0 => alpha^2 = Z0 / |gamma_ref|
+            # Use magnitude to avoid complex phase rotation artifacts
+            if abs(gamma_ref) > 1e-15:
+                self._port_alpha_sq = Z0.real / abs(gamma_ref)
+            else:
+                self._port_alpha_sq = 1.0
+
+        # Compute gamma at the actual frequency
+        gamma_bare = self._compute_gamma(params, opts)
+
+        # Apply normalization: gamma_norm = alpha^2 * gamma_bare
+        gamma_norm = self._port_alpha_sq * gamma_bare
+
+        # S11 = (gamma - Z0)/(gamma + Z0) from Woodbury identity
+        S11 = (gamma_norm - Z0) / (gamma_norm + Z0)
+
+        # Get solution vector for post-processing
         assembly = em.assemble_maxwell(
+            self._mesh, params, self._bc, [], -1
+        )
+        assembly_port = em.assemble_maxwell(
             self._mesh, params, self._bc, self._ports, 0
         )
-        result = em.solve_linear(assembly.A, assembly.b)
+        result = em.solve_linear(assembly.A, assembly_port.b, opts)
         if not result.converged:
             raise RuntimeError(
                 f"Solver did not converge: residual={result.residual}"

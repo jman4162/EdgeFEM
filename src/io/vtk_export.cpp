@@ -11,48 +11,22 @@ namespace edgefem {
 namespace {
 
 /// Compute E-field at a point within a tetrahedron from edge DOFs.
-/// Uses Whitney (Nédélec) edge basis interpolation.
+/// Delegates to the shared evaluate_edge_field() in edge_basis.
 Eigen::Vector3cd compute_field_at_point(const Mesh &mesh, const Element &tet,
                                         const VecC &solution,
                                         const Eigen::Vector3d &point) {
-  // Get node positions for this tet
   std::array<Eigen::Vector3d, 4> X;
   for (int i = 0; i < 4; ++i) {
     int idx = mesh.nodeIndex.at(tet.conn[i]);
     X[i] = mesh.nodes[idx].xyz;
   }
 
-  // Compute barycentric coordinates
-  Eigen::Vector4d lambda = compute_barycentric(X, point);
-
-  // Sum contributions from all 6 edges
-  Eigen::Vector3cd E = Eigen::Vector3cd::Zero();
-
-  // Edge connectivity: (n0,n1) for local nodes
-  constexpr int edge_nodes[6][2] = {{0, 1}, {0, 2}, {0, 3},
-                                    {1, 2}, {1, 3}, {2, 3}};
-
+  std::array<std::complex<double>, 6> edge_dofs;
   for (int e = 0; e < 6; ++e) {
-    int n0 = edge_nodes[e][0];
-    int n1 = edge_nodes[e][1];
-
-    // Whitney basis: W_e = lambda_n0 * grad(lambda_n1) - lambda_n1 *
-    // grad(lambda_n0)
-    Eigen::Vector3d grad_lambda0 = compute_grad_lambda(X, n0);
-    Eigen::Vector3d grad_lambda1 = compute_grad_lambda(X, n1);
-
-    Eigen::Vector3d W_e = lambda(n0) * grad_lambda1 - lambda(n1) * grad_lambda0;
-
-    // Get solution coefficient for this edge (with orientation)
-    int global_edge = tet.edges[e];
-    int orient = tet.edge_orient[e];
-    std::complex<double> coeff =
-        solution(global_edge) * static_cast<double>(orient);
-
-    E += coeff * W_e;
+    edge_dofs[e] = solution(tet.edges[e]);
   }
 
-  return E;
+  return evaluate_edge_field(X, tet.edge_orient, edge_dofs, point);
 }
 
 /// Compute centroid of tetrahedron

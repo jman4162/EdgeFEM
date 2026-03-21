@@ -15,6 +15,7 @@ using SolverProgressCallback =
 
 struct SolveOptions {
   bool use_bicgstab = true;
+  bool use_direct = false;  // Use SparseLU direct solver (more robust, uses more memory)
   double tolerance = 1e-10;
   int max_iterations = 10000;
 

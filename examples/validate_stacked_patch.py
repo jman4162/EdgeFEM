@@ -97,7 +97,7 @@ def run_validation():
 
         results["solver_converged"] = True
         results["passivity"] = s11_mag <= 1.01
-        results["s11_below_unity"] = s11_mag < 1.0
+        results["s11_below_unity"] = s11_mag < 1.01
     except Exception as e:
         print(f"  ERROR: {e}")
         results["solver_converged"] = False

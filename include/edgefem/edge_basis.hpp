@@ -29,4 +29,20 @@ Eigen::Vector4d compute_barycentric(const std::array<Eigen::Vector3d, 4> &v,
 Eigen::Vector3d compute_grad_lambda(const std::array<Eigen::Vector3d, 4> &v,
                                     int i);
 
+/// Evaluate E-field at a point inside a tetrahedron from edge DOFs.
+/// Uses Whitney (Nedelec) edge basis interpolation:
+///   E(p) = sum_e coeff_e * W_e(p)
+/// where W_e = lambda_n0 * grad(lambda_n1) - lambda_n1 * grad(lambda_n0).
+///
+/// @param vertices The four vertices of the tetrahedron
+/// @param edge_orient Edge orientations (+1 or -1) for the 6 edges
+/// @param edge_dofs Solution coefficients for the 6 edges
+/// @param point The evaluation point (must be inside the tet)
+/// @return Complex 3D electric field vector at the point
+Eigen::Vector3cd evaluate_edge_field(
+    const std::array<Eigen::Vector3d, 4> &vertices,
+    const std::array<int, 6> &edge_orient,
+    const std::array<std::complex<double>, 6> &edge_dofs,
+    const Eigen::Vector3d &point);
+
 } // namespace edgefem
