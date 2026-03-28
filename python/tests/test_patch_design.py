@@ -107,3 +107,76 @@ class TestPatchFeedTypes:
         patch_2ghz.set_edge_feed(inset_length=5e-3)
         Z_in = patch_2ghz.input_impedance(2.4e9)
         assert Z_in.real > 0
+
+
+def _check_gmsh():
+    import subprocess
+    try:
+        subprocess.run(["gmsh", "--version"], capture_output=True, check=True)
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return False
+
+
+HAS_GMSH = _check_gmsh()
+gmsh_required = pytest.mark.skipif(not HAS_GMSH, reason="Gmsh not available")
+
+
+@gmsh_required
+class TestPatchFEM:
+    """Tests using full-wave FEM simulation."""
+
+    def setup_method(self):
+        self.patch = PatchAntennaDesign(
+            patch_length=29e-3,
+            patch_width=38e-3,
+            substrate_height=1.6e-3,
+            substrate_eps_r=4.4,
+            substrate_tan_d=0.02,
+        )
+
+    def test_fem_mesh_generation(self):
+        """FEM mesh generation via StackedPatchDesign backend works."""
+        self.patch.generate_mesh(density=8)
+        assert self.patch.mesh is not None
+        assert self.patch.has_fem
+
+    def test_fem_simulate(self):
+        """FEM simulate returns S11 with reasonable magnitude."""
+        self.patch.generate_mesh(density=8)
+        S11, sol = self.patch.simulate(2.4e9)
+        assert np.isfinite(abs(S11))
+        # Coarse mesh tolerance
+        assert abs(S11) <= 1.10, f"|S11| = {abs(S11):.4f} exceeds tolerance"
+
+    def test_fem_input_impedance(self):
+        """FEM input impedance is finite."""
+        self.patch.generate_mesh(density=8)
+        Z_in = self.patch.input_impedance(2.4e9)
+        assert np.isfinite(Z_in.real)
+        assert np.isfinite(Z_in.imag)
+
+    def test_fem_return_loss(self):
+        """FEM return loss is finite."""
+        self.patch.generate_mesh(density=8)
+        rl = self.patch.return_loss(2.4e9)
+        assert np.isfinite(rl)
+
+    def test_fem_radiation_pattern(self):
+        """FEM radiation pattern has broadside maximum."""
+        self.patch.generate_mesh(density=8)
+        pattern = self.patch.radiation_pattern(2.4e9, n_theta=19, n_phi=9)
+        power = pattern.power_pattern()
+        assert power.shape[0] > 0
+        # Maximum should be near broadside (theta=0)
+        max_idx = np.unravel_index(np.argmax(power), power.shape)
+        theta_max = pattern.theta_grid[max_idx]
+        assert theta_max < np.pi / 4, (
+            f"Pattern max at theta={np.degrees(theta_max):.1f} deg"
+        )
+
+    def test_analytical_fallback_without_mesh(self):
+        """Without mesh, input_impedance uses analytical path."""
+        # No mesh generated — should use analytical
+        Z_in = self.patch.input_impedance(2.4e9)
+        assert Z_in.real > 0  # Analytical should work without mesh

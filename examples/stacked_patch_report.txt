@@ -1,0 +1,79 @@
+======================================================================
+EdgeFEM Stacked Patch Antenna Case Study
+======================================================================
+
+1. DESIGN PARAMETERS
+----------------------------------------
+  Patch width:       38.0 mm
+  Patch length:      29.0 mm
+  Substrate height:  1.6 mm
+  Substrate eps_r:   4.4
+  Loss tangent:      0.02
+  Cavity size:       45.0 mm
+  Cavity depth:      5.0 mm
+  Probe radius:      5.0 mm
+  Probe Y offset:    -4.83 mm
+  Reference Z0:      50.0 ohm
+
+2. MESH
+----------------------------------------
+  Nodes:             5539
+  Tetrahedra:        30917
+  Edges (DOFs):      37370
+  Mesh density:      10 elements/wavelength
+
+3. ANALYTICAL REFERENCE
+----------------------------------------
+  f_r (TL model):    2.4332 GHz
+
+4. FEM RESULTS
+----------------------------------------
+  Frequency range:   2.00 - 3.50 GHz
+  Number of points:  11
+  Best match freq:   3.5000 GHz
+  Min |S11|:         0.1 dB
+  Z_in at resonance: -0.2 + j-0.0 ohm
+  Max |S11|:         1.0280 (passivity)
+
+5. FREQUENCY SWEEP DATA
+----------------------------------------
+    Freq (GHz)   |S11| (dB)       R_in       X_in
+        2.0000         0.20       -0.6       -0.0
+        2.1500         0.16       -0.5       -0.0
+        2.3000         0.12       -0.3       -0.0
+        2.4500         0.24       -0.7       -0.3
+        2.6000         0.14       -0.4       -0.0
+        2.7500         0.11       -0.3       -0.0
+        2.9000         0.10       -0.3       -0.0
+        3.0500         0.08       -0.2       -0.0
+        3.2000         0.08       -0.2       -0.0
+        3.3500         0.07       -0.2       -0.0
+        3.5000         0.06       -0.2       -0.0
+
+6. COMPARISON: ANALYTICAL vs FEM
+----------------------------------------
+  Analytical f_r:    2.4332 GHz
+  FEM f_r:           3.5000 GHz
+  Shift:             +43.8%
+
+  Note: The FEM resonance may shift from the analytical TL model
+  prediction due to: (1) cavity-backing lowers the effective
+  resonant frequency, (2) coarse mesh (~10 elem/lambda) affects
+  accuracy, and (3) frequency-independent normalization is an
+  approximation. The cavity effect typically dominates, pulling
+  the resonance lower than the free-space TL model predicts.
+
+7. KNOWN LIMITATIONS
+----------------------------------------
+  - Coarse mesh (10 elem/lambda) shifts resonance upward
+  - Impedance normalization uses frequency-independent factor
+  - Radiation patterns not available (Huygens surface not meshed)
+  - Single probe feed; dual-polarization not modeled
+
+8. VALIDATION CHECKS
+----------------------------------------
+  [FAIL] Passivity (|S11| <= 1)
+  [FAIL] Resonance dip (< -1 dB)
+  [FAIL] Reasonable impedance
+
+======================================================================

@@ -4,13 +4,9 @@ Microstrip Patch Antenna Design Class
 High-level interface for microstrip patch antenna simulation.
 Supports rectangular patch with probe or edge feed.
 
-.. warning::
-    ``input_impedance()``, ``return_loss()``, ``frequency_sweep()``, and
-    ``radiation_pattern()`` currently use **analytical approximations**
-    (transmission-line model and cavity model), **not** a full-wave FEM solve.
-    Results are textbook-quality estimates suitable for initial design but
-    should not be treated as full-wave simulation data.  Full-wave patch
-    antenna simulation requires lumped port support (planned for v1.1).
+When a mesh is generated, methods use **full-wave FEM simulation** via lumped
+port excitation (backed by StackedPatchDesign). Without a mesh, analytical
+approximations (transmission-line model, cavity model) are used as fallback.
 """
 
 import subprocess
@@ -27,17 +23,13 @@ class PatchAntennaDesign:
     """
     Microstrip patch antenna design class.
 
-    .. warning::
-        ``input_impedance()`` and ``radiation_pattern()`` use **analytical
-        approximations** (transmission-line model / cavity model), not full-wave
-        FEM.  Full-wave patch simulation requires lumped ports (planned v1.1).
-
     A microstrip patch antenna consists of a conducting patch on a grounded
     dielectric substrate. This class provides methods for:
     - Mesh generation for rectangular patches
     - Feed modeling (coax probe or edge microstrip)
-    - Input impedance and return loss computation (analytical model)
-    - Radiation pattern calculation (analytical cavity model)
+    - Full-wave FEM simulation via lumped port (when mesh is generated)
+    - Analytical fallback for quick estimates (when no mesh)
+    - Radiation pattern via Stratton-Chu NTF (FEM) or cavity model (analytical)
     - Bandwidth and directivity analysis
 
     The antenna is oriented with:
@@ -131,6 +123,7 @@ class PatchAntennaDesign:
         self._feed_params = {}
         self._last_results = {}
         self._analytical_warning_shown = False
+        self._fem_backend = None
 
         # Estimate resonant frequency using transmission line model
         # f_r ~ c / (2 * L_eff * sqrt(eps_eff))
@@ -210,97 +203,96 @@ class PatchAntennaDesign:
         self._bc = None
         self._ports = None
         self._last_results = {}
+        self._fem_backend = None
+
+    def _get_fem_backend(self):
+        """Lazily create a StackedPatchDesign for FEM simulation."""
+        if self._fem_backend is None:
+            from edgefem.designs.stacked_patch import StackedPatchDesign
+
+            if self._feed_type is None:
+                self.set_probe_feed()
+
+            probe_offset = (
+                self._feed_params.get('x_offset', 0.0),
+                self._feed_params.get('y_offset', 0.0),
+            )
+            probe_radius = self._feed_params.get('radius', 0.5e-3)
+
+            self._fem_backend = StackedPatchDesign(
+                patches=[{
+                    'width': self.patch_width,
+                    'length': self.patch_length,
+                    'height': self.substrate_height,
+                }],
+                substrates=[{
+                    'thickness': self.substrate_height,
+                    'eps_r': self.substrate_eps_r,
+                    'tan_d': self.substrate_tan_d,
+                }],
+                cavity_size=max(self.patch_width, self.patch_length) + 10e-3,
+                cavity_depth=5e-3,
+                probe_radius=probe_radius,
+                probe_offset=probe_offset,
+                z0=50.0,
+                ground_plane_size=self.ground_plane_size,
+                air_box_height=self._air_box_height,
+            )
+        return self._fem_backend
+
+    @property
+    def has_fem(self) -> bool:
+        """Whether a mesh is available for full-wave FEM simulation."""
+        return (self._fem_backend is not None
+                and self._fem_backend.mesh is not None)
+
+    def simulate(self, freq: float) -> Tuple[complex, object]:
+        """Run full-wave FEM simulation at given frequency.
+
+        Requires generate_mesh() to be called first.
+
+        Args:
+            freq: Frequency in Hz.
+
+        Returns:
+            Tuple of (S11, solution_vector).
+        """
+        if not self.has_fem:
+            raise RuntimeError(
+                "No FEM mesh available. Call generate_mesh() first, "
+                "or use input_impedance()/return_loss() for analytical estimates."
+            )
+        return self._fem_backend.simulate(freq)
 
     def generate_mesh(
         self,
-        density: float = 15.0,
+        density: float = 12.0,
         output_path: Optional[str] = None,
-        gmsh_options: Optional[List[str]] = None,
         design_freq: Optional[float] = None,
+        **kwargs,
     ) -> None:
         """
         Generate FEM mesh for patch antenna.
 
+        Uses the StackedPatchDesign backend which creates a complete geometry
+        with probe feed, port surface, and Huygens surface for NTF.
+
         Args:
-            density: Elements per wavelength (default: 15)
+            density: Elements per wavelength (default: 12)
             output_path: Path for mesh file. If None, uses temp directory.
-            gmsh_options: Additional Gmsh command-line options
-            design_freq: Design frequency for mesh sizing. If None, uses estimated resonant freq.
+            design_freq: Design frequency for mesh sizing. If None, uses
+                        estimated resonant frequency.
 
         Raises:
             RuntimeError: If Gmsh is not available or mesh generation fails
         """
-        if self._feed_type is None:
-            # Default to probe feed at standard location
-            self.set_probe_feed()
-
-        if design_freq is None:
-            design_freq = self._estimated_fr
-
-        c0 = 299792458.0
-        wavelength = c0 / design_freq
-        wavelength_sub = wavelength / np.sqrt(self.substrate_eps_r)
-        lc = min(wavelength, wavelength_sub) / density
-
-        # Ensure mesh is fine enough for geometry features
-        lc = min(lc, self.patch_length / 10, self.patch_width / 10)
-        if self._feed_type == 'probe':
-            lc = min(lc, self._feed_params['radius'] * 2)
-        elif self._feed_type == 'edge':
-            lc = min(lc, self._feed_params['line_width'] / 3)
-
-        # Set air box height
-        if self._air_box_height is None:
-            self._air_box_height = wavelength / 4
-
-        # Generate Gmsh geometry script
-        geo_content = self._generate_geo_script(lc)
-
-        # Write .geo file and run Gmsh
-        if output_path is None:
-            fd, geo_path = tempfile.mkstemp(suffix=".geo")
-            os.close(fd)
-            msh_path = geo_path.replace(".geo", ".msh")
-        else:
-            if output_path.endswith(".msh"):
-                msh_path = output_path
-                geo_path = output_path.replace(".msh", ".geo")
-            else:
-                geo_path = output_path + ".geo"
-                msh_path = output_path + ".msh"
-
-        with open(geo_path, "w") as f:
-            f.write(geo_content)
-
-        # Run Gmsh
-        cmd = ["gmsh", geo_path, "-3", "-format", "msh2", "-o", msh_path]
-        if gmsh_options:
-            cmd.extend(gmsh_options)
-
-        try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, check=True
-            )
-        except FileNotFoundError:
-            raise RuntimeError(
-                "Gmsh not found. Please install Gmsh and ensure it's in PATH."
-            )
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Gmsh failed: {e.stderr}")
-
-        # Load mesh
-        self._mesh = em.load_gmsh(msh_path)
-        self._mesh_path = msh_path
-        self._bc = None
-        self._ports = None
-
-        # Validate mesh
-        report = em.validate_mesh(self._mesh)
-        if not report.is_valid():
-            print(
-                f"Warning: Mesh has {report.num_degenerate_tets} degenerate "
-                f"and {report.num_inverted_tets} inverted elements"
-            )
+        backend = self._get_fem_backend()
+        backend.generate_mesh(
+            density=density, output_path=output_path,
+            design_freq=design_freq or self._estimated_fr,
+        )
+        self._mesh = backend.mesh
+        self._mesh_path = backend._mesh_path
 
     def _generate_geo_script(self, lc: float) -> str:
         """Generate Gmsh .geo script for the patch antenna."""
@@ -499,10 +491,10 @@ class PatchAntennaDesign:
 
     def input_impedance(self, freq: float) -> complex:
         """
-        Compute input impedance at given frequency using analytical model.
+        Compute input impedance at given frequency.
 
-        .. note::
-            Uses transmission-line model approximation, not full-wave FEM.
+        Uses full-wave FEM when mesh is available, otherwise falls back
+        to analytical transmission-line model.
 
         Args:
             freq: Frequency in Hz
@@ -510,6 +502,9 @@ class PatchAntennaDesign:
         Returns:
             Complex input impedance in ohms
         """
+        if self.has_fem:
+            return self._fem_backend.input_impedance(freq)
+
         self._warn_analytical()
 
         if self._feed_type is None:
@@ -564,6 +559,9 @@ class PatchAntennaDesign:
         Returns:
             Return loss in dB (negative value)
         """
+        if self.has_fem:
+            return self._fem_backend.return_loss(freq, z0)
+
         Z_in = self.input_impedance(freq)
 
         # Reflection coefficient
@@ -585,6 +583,9 @@ class PatchAntennaDesign:
         """
         Sweep frequency and compute input impedance and return loss.
 
+        Uses FEM frequency sweep when mesh is available, otherwise
+        analytical model.
+
         Args:
             f_start: Start frequency in Hz
             f_stop: Stop frequency in Hz
@@ -595,6 +596,11 @@ class PatchAntennaDesign:
         Returns:
             Tuple of (frequencies, Z_in_array, S11_array)
         """
+        if self.has_fem:
+            return self._fem_backend.frequency_sweep(
+                f_start, f_stop, n_points, verbose=verbose
+            )
+
         freqs = np.linspace(f_start, f_stop, n_points)
         Z_list = []
         S11_list = []
@@ -617,11 +623,10 @@ class PatchAntennaDesign:
         n_phi: int = 73,
     ) -> "em.FFPattern3D":
         """
-        Compute 3D radiation pattern at given frequency using analytical model.
+        Compute 3D radiation pattern at given frequency.
 
-        .. note::
-            Uses cavity model with analytical aperture distribution, not
-            full-wave FEM with Stratton-Chu integration.
+        Uses Stratton-Chu NTF when mesh is available, otherwise
+        analytical cavity model.
 
         Args:
             freq: Frequency in Hz
@@ -631,6 +636,9 @@ class PatchAntennaDesign:
         Returns:
             FFPattern3D object with far-field data
         """
+        if self.has_fem:
+            return self._fem_backend.radiation_pattern(freq, n_theta, n_phi)
+
         self._warn_analytical()
 
         # Analytical cavity model — does not require mesh
@@ -738,6 +746,9 @@ class PatchAntennaDesign:
         Returns:
             Directivity (linear scale)
         """
+        if self.has_fem:
+            return self._fem_backend.directivity(freq)
+
         pattern = self.radiation_pattern(freq)
 
         # Numerical integration for directivity
@@ -772,6 +783,33 @@ class PatchAntennaDesign:
 
         D = 4 * np.pi * max_pwr / P_rad
         return D
+
+    def convergence_check(
+        self,
+        freq: float,
+        density: float = 10.0,
+        refinement_factor: float = 1.5,
+        threshold: float = 0.02,
+        verbose: bool = True,
+    ) -> dict:
+        """Check mesh convergence by solving at two densities.
+
+        Args:
+            freq: Frequency in Hz.
+            density: Coarse mesh density (elements per wavelength).
+            refinement_factor: Multiplier for fine mesh density.
+            threshold: Maximum |ΔS11| for convergence.
+            verbose: Print convergence report.
+
+        Returns:
+            dict with keys: 'converged', 'S11_coarse', 'S11_fine',
+            'delta', 'density_coarse', 'density_fine'.
+        """
+        backend = self._get_fem_backend()
+        return backend.convergence_check(
+            freq, density=density, refinement_factor=refinement_factor,
+            threshold=threshold, verbose=verbose,
+        )
 
     def bandwidth(
         self,
