@@ -90,8 +90,7 @@ Mesh load_gmsh_v2(const std::string &path) {
                 << std::endl;
     }
     if (report.max_aspect_ratio > 100.0) {
-      std::cerr << "WARNING: Mesh '" << path
-                << "' has extreme aspect ratio ("
+      std::cerr << "WARNING: Mesh '" << path << "' has extreme aspect ratio ("
                 << report.max_aspect_ratio
                 << "). Consider refining the mesh for better accuracy."
                 << std::endl;

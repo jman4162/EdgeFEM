@@ -14,23 +14,25 @@ namespace {
 /// Uses 21-bit packing: key = (a << 42) | (b << 21) | c where a < b < c.
 uint64_t make_tri_key(int64_t a, int64_t b, int64_t c) {
   // Sort three values
-  if (a > b) std::swap(a, b);
-  if (b > c) std::swap(b, c);
-  if (a > b) std::swap(a, b);
-  return (static_cast<uint64_t>(a) << 42) |
-         (static_cast<uint64_t>(b) << 21) |
+  if (a > b)
+    std::swap(a, b);
+  if (b > c)
+    std::swap(b, c);
+  if (a > b)
+    std::swap(a, b);
+  return (static_cast<uint64_t>(a) << 42) | (static_cast<uint64_t>(b) << 21) |
          static_cast<uint64_t>(c);
 }
 
 } // namespace
 
 HuygensSurfaceData extract_huygens_surface(const Mesh &mesh,
-                                            const VecC &solution,
-                                            int surface_tag, double omega,
-                                            std::complex<double> mu_r) {
+                                           const VecC &solution,
+                                           int surface_tag, double omega,
+                                           std::complex<double> mu_r) {
   const double mu0 = 4.0e-7 * M_PI;
-  const std::complex<double> j_omega_mu = std::complex<double>(0, 1) *
-                                           omega * mu0 * mu_r;
+  const std::complex<double> j_omega_mu =
+      std::complex<double>(0, 1) * omega * mu0 * mu_r;
 
   // Step 1: Build lookup from sorted node triple -> tet index
   // Each tet has 4 faces; store face -> (tet_index, local_face_index)
@@ -41,15 +43,14 @@ HuygensSurfaceData extract_huygens_surface(const Mesh &mesh,
   // Face 1 (opposite vertex 1): nodes 0,2,3
   // Face 2 (opposite vertex 2): nodes 0,1,3
   // Face 3 (opposite vertex 3): nodes 0,1,2
-  constexpr int face_nodes[4][3] = {
-      {1, 2, 3}, {0, 2, 3}, {0, 1, 3}, {0, 1, 2}};
+  constexpr int face_nodes[4][3] = {{1, 2, 3}, {0, 2, 3}, {0, 1, 3}, {0, 1, 2}};
 
   for (size_t t = 0; t < mesh.tets.size(); ++t) {
     const auto &tet = mesh.tets[t];
     for (int f = 0; f < 4; ++f) {
-      uint64_t key = make_tri_key(tet.conn[face_nodes[f][0]],
-                                   tet.conn[face_nodes[f][1]],
-                                   tet.conn[face_nodes[f][2]]);
+      uint64_t key =
+          make_tri_key(tet.conn[face_nodes[f][0]], tet.conn[face_nodes[f][1]],
+                       tet.conn[face_nodes[f][2]]);
       tri_to_tet[key] = t;
     }
   }
@@ -111,8 +112,8 @@ HuygensSurfaceData extract_huygens_surface(const Mesh &mesh,
     }
 
     // Evaluate E at centroid using Whitney interpolation
-    Eigen::Vector3cd E = evaluate_edge_field(X, tet.edge_orient, edge_dofs,
-                                              centroid);
+    Eigen::Vector3cd E =
+        evaluate_edge_field(X, tet.edge_orient, edge_dofs, centroid);
 
     // Compute H = (1 / j*omega*mu) * curl(E)
     // For Whitney elements, curl is piecewise constant per tet

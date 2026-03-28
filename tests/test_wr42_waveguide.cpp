@@ -22,38 +22,40 @@ constexpr double c0 = 299792458.0;
 constexpr double mu0 = 4.0 * M_PI * 1e-7;
 
 struct FrequencyResult {
-  double freq;         // Hz
-  double beta_ana;     // Analytical propagation constant
-  double Z0_ana;       // Analytical impedance
-  double s11_mag;      // |S11|
-  double s21_mag;      // |S21|
-  double s21_phase;    // arg(S21) in degrees
-  double phase_ana;    // Analytical phase
-  double phase_error;  // Error in degrees
+  double freq;        // Hz
+  double beta_ana;    // Analytical propagation constant
+  double Z0_ana;      // Analytical impedance
+  double s11_mag;     // |S11|
+  double s21_mag;     // |S21|
+  double s21_phase;   // arg(S21) in degrees
+  double phase_ana;   // Analytical phase
+  double phase_error; // Error in degrees
 };
 
 int main() {
   std::cout << std::setprecision(6);
   std::cout << "=== WR-42 Waveguide S-Parameter Validation ===" << std::endl;
-  std::cout << "Purpose: Validate frequency scaling at Ka-band" << std::endl << std::endl;
+  std::cout << "Purpose: Validate frequency scaling at Ka-band" << std::endl
+            << std::endl;
 
   // Load mesh
   Mesh mesh = load_gmsh_v2("examples/wr42_waveguide.msh");
   BC bc = build_edge_pec(mesh, 1);
 
-  std::cout << "Mesh: " << mesh.nodes.size() << " nodes, "
-            << mesh.tets.size() << " tets, " << mesh.edges.size() << " edges" << std::endl;
+  std::cout << "Mesh: " << mesh.nodes.size() << " nodes, " << mesh.tets.size()
+            << " tets, " << mesh.edges.size() << " edges" << std::endl;
 
   // WR-42 dimensions
-  RectWaveguidePort dims{0.010668, 0.004318};  // a=10.668mm, b=4.318mm
-  double L = 0.030;  // 30mm waveguide length
+  RectWaveguidePort dims{0.010668, 0.004318}; // a=10.668mm, b=4.318mm
+  double L = 0.030;                           // 30mm waveguide length
 
   double kc = M_PI / dims.a;
   double kc_sq = kc * kc;
   double fc = c0 * kc / (2 * M_PI);
 
   std::cout << "WR-42 Parameters:" << std::endl;
-  std::cout << "  Dimensions: " << dims.a * 1000 << " x " << dims.b * 1000 << " mm" << std::endl;
+  std::cout << "  Dimensions: " << dims.a * 1000 << " x " << dims.b * 1000
+            << " mm" << std::endl;
   std::cout << "  Length: " << L * 1000 << " mm" << std::endl;
   std::cout << "  Cutoff frequency: " << fc / 1e9 << " GHz" << std::endl;
   std::cout << "  Operating band: 18-26.5 GHz" << std::endl << std::endl;
@@ -63,7 +65,8 @@ int main() {
   PortSurfaceMesh port2_surf = extract_surface_mesh(mesh, 3);
 
   // Compute eigenvector for TE10 mode
-  Eigen::VectorXd v_te10 = compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
+  Eigen::VectorXd v_te10 =
+      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
 
   // Test frequencies
   std::vector<double> test_freqs = {20e9, 22e9, 24e9, 26e9};
@@ -114,24 +117,25 @@ int main() {
     // Expected phase: -beta*L
     r.phase_ana = -beta * L * 180.0 / M_PI;
     // Normalize to [-180, 180]
-    while (r.phase_ana < -180.0) r.phase_ana += 360.0;
-    while (r.phase_ana > 180.0) r.phase_ana -= 360.0;
+    while (r.phase_ana < -180.0)
+      r.phase_ana += 360.0;
+    while (r.phase_ana > 180.0)
+      r.phase_ana -= 360.0;
 
     r.phase_error = std::abs(r.s21_phase - r.phase_ana);
-    if (r.phase_error > 180.0) r.phase_error = 360.0 - r.phase_error;
+    if (r.phase_error > 180.0)
+      r.phase_error = 360.0 - r.phase_error;
 
     double passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
 
     results.push_back(r);
 
-    std::cout << std::setw(10) << std::fixed << std::setprecision(1) << freq / 1e9
-              << std::setw(10) << std::setprecision(4) << r.s11_mag
-              << std::setw(10) << r.s21_mag
-              << std::setw(12) << std::setprecision(1) << r.s21_phase
-              << std::setw(12) << r.phase_ana
-              << std::setw(12) << r.phase_error
-              << std::setw(12) << std::setprecision(4) << passivity
-              << std::endl;
+    std::cout << std::setw(10) << std::fixed << std::setprecision(1)
+              << freq / 1e9 << std::setw(10) << std::setprecision(4)
+              << r.s11_mag << std::setw(10) << r.s21_mag << std::setw(12)
+              << std::setprecision(1) << r.s21_phase << std::setw(12)
+              << r.phase_ana << std::setw(12) << r.phase_error << std::setw(12)
+              << std::setprecision(4) << passivity << std::endl;
   }
 
   // Validation criteria
@@ -140,10 +144,11 @@ int main() {
   int num_pass = 0;
   int total = static_cast<int>(results.size());
 
-  for (const auto& r : results) {
-    bool s11_pass = r.s11_mag < 0.20;       // |S11| < -14 dB (relaxed for coarser mesh)
+  for (const auto &r : results) {
+    bool s11_pass =
+        r.s11_mag < 0.20; // |S11| < -14 dB (relaxed for coarser mesh)
     bool s21_pass = r.s21_mag > 0.90;       // |S21| > -0.9 dB
-    bool phase_pass = r.phase_error < 15.0;  // Phase error < 15°
+    bool phase_pass = r.phase_error < 15.0; // Phase error < 15°
 
     if (s11_pass && s21_pass && phase_pass) {
       num_pass++;
@@ -152,7 +157,7 @@ int main() {
 
   // Compute averages
   double avg_s11 = 0.0, avg_s21 = 0.0, avg_phase_err = 0.0;
-  for (const auto& r : results) {
+  for (const auto &r : results) {
     avg_s11 += r.s11_mag;
     avg_s21 += r.s21_mag;
     avg_phase_err += r.phase_error;
@@ -163,12 +168,15 @@ int main() {
 
   std::cout << "Average |S11|: " << avg_s11 << " (target: < 0.15)" << std::endl;
   std::cout << "Average |S21|: " << avg_s21 << " (target: > 0.90)" << std::endl;
-  std::cout << "Average phase error: " << avg_phase_err << "° (target: < 15°)" << std::endl;
+  std::cout << "Average phase error: " << avg_phase_err << "° (target: < 15°)"
+            << std::endl;
   std::cout << "Frequencies passing: " << num_pass << "/" << total << std::endl;
 
   // Overall pass: at least 3 of 4 frequencies pass all criteria
   bool overall_pass = (num_pass >= 3) && (avg_s21 > 0.90);
-  std::cout << std::endl << "=== OVERALL: " << (overall_pass ? "PASS" : "FAIL") << " ===" << std::endl;
+  std::cout << std::endl
+            << "=== OVERALL: " << (overall_pass ? "PASS" : "FAIL")
+            << " ===" << std::endl;
 
   return overall_pass ? 0 : 1;
 }

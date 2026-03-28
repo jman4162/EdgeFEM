@@ -193,7 +193,8 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
     // Fast path: pre-assemble K and M once
     if (opts.verbose) {
       std::cerr << "FrequencySweep: Using K/M separation ("
-                << frequencies.size() << " points, " << num_ports << " ports)\n";
+                << frequencies.size() << " points, " << num_ports
+                << " ports)\n";
     }
 
     KMMatrices km = assemble_maxwell_km(mesh, p, bc);
@@ -215,9 +216,9 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
           int gb = port.edges[b];
           if (bc.dirichlet_edges.count(gb))
             continue;
-          port_trips.emplace_back(
-              ga, gb,
-              port.weights[a] * std::conj(port.weights[b]) / port.mode.Z0);
+          port_trips.emplace_back(ga, gb,
+                                  port.weights[a] * std::conj(port.weights[b]) /
+                                      port.mode.Z0);
         }
       }
     }
@@ -300,9 +301,9 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
 
         if (!sol.converged) {
           for (int j = 0; j < num_ports; ++j) {
-            S(j, active) = std::complex<double>(
-                std::numeric_limits<double>::quiet_NaN(),
-                std::numeric_limits<double>::quiet_NaN());
+            S(j, active) =
+                std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
+                                     std::numeric_limits<double>::quiet_NaN());
           }
           continue;
         }
@@ -339,8 +340,7 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
       MaxwellParams p_freq = p;
       p_freq.omega = 2.0 * M_PI * frequencies[fi];
 
-      Eigen::MatrixXcd S =
-          calculate_sparams(mesh, p_freq, bc, ports, opts);
+      Eigen::MatrixXcd S = calculate_sparams(mesh, p_freq, bc, ports, opts);
       result.S_matrices.push_back(S);
     }
   }

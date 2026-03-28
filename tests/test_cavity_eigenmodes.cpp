@@ -109,8 +109,8 @@ int main() {
   double f_max = 500e6;
   auto analytical_modes = get_analytical_modes(a, b, d, f_max);
   std::cout << std::endl
-            << "Analytical resonant frequencies (< " << f_max / 1e6 << " MHz):"
-            << std::endl;
+            << "Analytical resonant frequencies (< " << f_max / 1e6
+            << " MHz):" << std::endl;
   for (size_t i = 0; i < std::min(analytical_modes.size(), size_t(10)); ++i) {
     const auto &m = analytical_modes[i];
     std::cout << "  " << m.type << "_" << m.m << m.n << m.p << ": "
@@ -225,7 +225,8 @@ int main() {
   std::sort(fem_frequencies.begin(), fem_frequencies.end());
 
   std::cout << std::endl
-            << "FEM computed frequencies (first " << std::min(size_t(10), fem_frequencies.size())
+            << "FEM computed frequencies (first "
+            << std::min(size_t(10), fem_frequencies.size())
             << "):" << std::endl;
   for (size_t i = 0; i < std::min(fem_frequencies.size(), size_t(10)); ++i) {
     std::cout << "  Mode " << i + 1 << ": " << fem_frequencies[i] / 1e6
@@ -239,7 +240,8 @@ int main() {
             << std::endl;
   std::cout << std::string(65, '-') << std::endl;
 
-  int n_compare = std::min({analytical_modes.size(), fem_frequencies.size(), size_t(8)});
+  int n_compare =
+      std::min({analytical_modes.size(), fem_frequencies.size(), size_t(8)});
   double max_error = 0.0;
   int num_pass = 0;
 

@@ -81,15 +81,13 @@ static Eigen::VectorXcd compute_surface_integral_weights(
 
       // ∫(λ_i ∇λ_j - λ_j ∇λ_i) · e_dir dS
       // = (∇λ_j · e_dir) ∫ λ_i dS/1 - ... but with cross terms:
-      // ∫ λ_i (∇λ_j · e_dir) dS = (∇λ_j · e_dir) * ∫ λ_i dS = (∇λ_j · e_dir) * A/3
-      // ∫ λ_j (∇λ_i · e_dir) dS = (∇λ_i · e_dir) * A/3
-      // So integral = (A/3)(∇λ_j · e_dir - ∇λ_i · e_dir)
+      // ∫ λ_i (∇λ_j · e_dir) dS = (∇λ_j · e_dir) * ∫ λ_i dS = (∇λ_j · e_dir) *
+      // A/3 ∫ λ_j (∇λ_i · e_dir) dS = (∇λ_i · e_dir) * A/3 So integral =
+      // (A/3)(∇λ_j · e_dir - ∇λ_i · e_dir)
       double integral =
-          (area / 3.0) *
-          ((grad_lam[lj] - grad_lam[li]).dot(e_dir));
+          (area / 3.0) * ((grad_lam[lj] - grad_lam[li]).dot(e_dir));
 
-      weights(it->second) +=
-          std::complex<double>(orient * integral, 0.0);
+      weights(it->second) += std::complex<double>(orient * integral, 0.0);
     }
   }
 

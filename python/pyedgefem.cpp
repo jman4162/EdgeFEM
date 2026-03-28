@@ -10,8 +10,8 @@
 #include "edgefem/array/coupling_extract.hpp"
 #include "edgefem/array/embedded_pattern.hpp"
 #include "edgefem/bc.hpp"
-#include "edgefem/edge_basis.hpp"
 #include "edgefem/coupling.hpp"
+#include "edgefem/edge_basis.hpp"
 #include "edgefem/fem.hpp"
 #include "edgefem/io/array_export.hpp"
 #include "edgefem/io/touchstone.hpp"
@@ -21,8 +21,8 @@
 #include "edgefem/mesh.hpp"
 #include "edgefem/mesh_quality.hpp"
 #include "edgefem/periodic.hpp"
-#include "edgefem/ports/port_eigensolve.hpp"
 #include "edgefem/ports/lumped_port.hpp"
+#include "edgefem/ports/port_eigensolve.hpp"
 #include "edgefem/ports/wave_port.hpp"
 #include "edgefem/post/huygens_surface.hpp"
 #include "edgefem/post/ntf.hpp"
@@ -87,19 +87,25 @@ PYBIND11_MODULE(pyedgefem, m) {
                                    b.dirichlet_nodes.begin(),
                                    b.dirichlet_nodes.end());
                              })
-      .def_property_readonly("dirichlet_edges", [](const BC &b) {
-        return std::vector<int>(b.dirichlet_edges.begin(),
-                                b.dirichlet_edges.end());
-      })
-      .def("add_pec_edge", [](BC &b, int edge) {
-        b.dirichlet_edges.insert(edge);
-      }, "Add a single edge to PEC boundary.", py::arg("edge"))
-      .def("merge", [](BC &b, const BC &other) {
-        b.dirichlet_edges.insert(other.dirichlet_edges.begin(),
-                                 other.dirichlet_edges.end());
-        b.dirichlet_nodes.insert(other.dirichlet_nodes.begin(),
-                                 other.dirichlet_nodes.end());
-      }, "Merge another BC into this one.", py::arg("other"));
+      .def_property_readonly("dirichlet_edges",
+                             [](const BC &b) {
+                               return std::vector<int>(
+                                   b.dirichlet_edges.begin(),
+                                   b.dirichlet_edges.end());
+                             })
+      .def(
+          "add_pec_edge",
+          [](BC &b, int edge) { b.dirichlet_edges.insert(edge); },
+          "Add a single edge to PEC boundary.", py::arg("edge"))
+      .def(
+          "merge",
+          [](BC &b, const BC &other) {
+            b.dirichlet_edges.insert(other.dirichlet_edges.begin(),
+                                     other.dirichlet_edges.end());
+            b.dirichlet_nodes.insert(other.dirichlet_nodes.begin(),
+                                     other.dirichlet_nodes.end());
+          },
+          "Merge another BC into this one.", py::arg("other"));
 
   m.def("build_scalar_pec", &build_scalar_pec,
         "Build scalar PEC BC from mesh surface tag.\n"
@@ -251,8 +257,7 @@ PYBIND11_MODULE(pyedgefem, m) {
           py::arg("phys_tag"), py::arg("eps_r"),
           "Set region permittivity for a physical tag.")
       .def_property(
-          "mu_r_regions",
-          [](const MaxwellParams &p) { return p.mu_r_regions; },
+          "mu_r_regions", [](const MaxwellParams &p) { return p.mu_r_regions; },
           [](MaxwellParams &p,
              const std::unordered_map<int, std::complex<double>> &m) {
             p.mu_r_regions = m;
@@ -417,8 +422,9 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("surface_tag"));
 
   // Lumped port
-  py::enum_<LumpedPortWeightMode>(m, "LumpedPortWeightMode",
-                                   "Weight computation strategy for lumped ports.")
+  py::enum_<LumpedPortWeightMode>(
+      m, "LumpedPortWeightMode",
+      "Weight computation strategy for lumped ports.")
       .value("Projection", LumpedPortWeightMode::Projection,
              "Simple edge projection (fast, not mesh-convergent)")
       .value("SurfaceIntegral", LumpedPortWeightMode::SurfaceIntegral,
@@ -426,7 +432,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .export_values();
 
   py::class_<LumpedPortConfig>(m, "LumpedPortConfig",
-                                "Configuration for a lumped port excitation.")
+                               "Configuration for a lumped port excitation.")
       .def(py::init<>())
       .def_readwrite("surface_tag", &LumpedPortConfig::surface_tag,
                      "Physical tag of port gap surface")
@@ -458,20 +464,22 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("mesh"), py::arg("solution"), py::arg("surface_tag"),
         py::arg("omega"), py::arg("mu_r") = std::complex<double>(1.0, 0.0));
 
-  m.def("evaluate_edge_field", [](
-        const std::array<Eigen::Vector3d, 4> &vertices,
-        const std::array<int, 6> &edge_orient,
-        py::array_t<std::complex<double>> edge_dofs_arr,
-        const Eigen::Vector3d &point) {
-          auto buf = edge_dofs_arr.request();
-          auto *ptr = static_cast<std::complex<double>*>(buf.ptr);
-          std::array<std::complex<double>, 6> edge_dofs;
-          for (int i = 0; i < 6; ++i) edge_dofs[i] = ptr[i];
-          return evaluate_edge_field(vertices, edge_orient, edge_dofs, point);
-        },
-        "Evaluate E-field at a point inside a tetrahedron from edge DOFs.",
-        py::arg("vertices"), py::arg("edge_orient"), py::arg("edge_dofs"),
-        py::arg("point"));
+  m.def(
+      "evaluate_edge_field",
+      [](const std::array<Eigen::Vector3d, 4> &vertices,
+         const std::array<int, 6> &edge_orient,
+         py::array_t<std::complex<double>> edge_dofs_arr,
+         const Eigen::Vector3d &point) {
+        auto buf = edge_dofs_arr.request();
+        auto *ptr = static_cast<std::complex<double> *>(buf.ptr);
+        std::array<std::complex<double>, 6> edge_dofs;
+        for (int i = 0; i < 6; ++i)
+          edge_dofs[i] = ptr[i];
+        return evaluate_edge_field(vertices, edge_orient, edge_dofs, point);
+      },
+      "Evaluate E-field at a point inside a tetrahedron from edge DOFs.",
+      py::arg("vertices"), py::arg("edge_orient"), py::arg("edge_dofs"),
+      py::arg("point"));
 
   m.def("build_wave_port", &build_wave_port,
         "Project a modal field onto port edges.", py::arg("volume_mesh"),
@@ -481,7 +489,8 @@ PYBIND11_MODULE(pyedgefem, m) {
         "Populate TE10 mode field on a surface mesh using analytical formula.",
         py::arg("surface"), py::arg("port"), py::arg("mode"));
 
-  // Solver options and results must be registered before functions that use them
+  // Solver options and results must be registered before functions that use
+  // them
   py::class_<SolveOptions>(m, "SolveOptions", "Options for the linear solver.")
       .def(py::init<>())
       .def_readwrite("use_bicgstab", &SolveOptions::use_bicgstab,
@@ -492,14 +501,16 @@ PYBIND11_MODULE(pyedgefem, m) {
                      "Convergence tolerance.")
       .def_readwrite("max_iterations", &SolveOptions::max_iterations,
                      "Maximum iterations.")
-      .def_readwrite("use_ilut", &SolveOptions::use_ilut,
-                     "Use ILUT preconditioner for iterative solvers (default: true).")
+      .def_readwrite(
+          "use_ilut", &SolveOptions::use_ilut,
+          "Use ILUT preconditioner for iterative solvers (default: true).")
       .def_readwrite("ilut_fill_factor", &SolveOptions::ilut_fill_factor,
                      "ILUT fill factor (default: 10.0).")
       .def_readwrite("ilut_drop_tolerance", &SolveOptions::ilut_drop_tolerance,
                      "ILUT drop tolerance (default: 1e-4).")
       .def_readwrite("auto_fallback", &SolveOptions::auto_fallback,
-                     "Auto-fallback to SparseLU if iterative solver fails (default: true).")
+                     "Auto-fallback to SparseLU if iterative solver fails "
+                     "(default: true).")
       .def_readwrite("verbose", &SolveOptions::verbose,
                      "Print progress to stderr.");
 
@@ -534,17 +545,18 @@ PYBIND11_MODULE(pyedgefem, m) {
       py::arg("params"), py::arg("bc"), py::arg("ports"),
       py::arg("solver_options") = SolveOptions());
 
-  m.def("normalize_port_weights",
-        [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
-           std::vector<WavePort> ports,
-           const SolveOptions &opts) -> std::vector<WavePort> {
-          normalize_port_weights(mesh, p, bc, ports, opts);
-          return ports;
-        },
-        "Normalize port weights so w^H A^-1 w = Z0 for proper S-parameter "
-        "extraction. Returns the modified ports (since Python passes by value).",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
-        py::arg("solver_options") = SolveOptions());
+  m.def(
+      "normalize_port_weights",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         std::vector<WavePort> ports,
+         const SolveOptions &opts) -> std::vector<WavePort> {
+        normalize_port_weights(mesh, p, bc, ports, opts);
+        return ports;
+      },
+      "Normalize port weights so w^H A^-1 w = Z0 for proper S-parameter "
+      "extraction. Returns the modified ports (since Python passes by value).",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("solver_options") = SolveOptions());
 
   m.def("calculate_sparams_eigenmode", &calculate_sparams_eigenmode,
         "Calculate S-parameters using direct eigenmode excitation (more "
@@ -553,7 +565,7 @@ PYBIND11_MODULE(pyedgefem, m) {
 
   // Frequency sweep
   py::class_<SweepResult>(m, "SweepResult",
-                           "Result of an S-parameter frequency sweep.")
+                          "Result of an S-parameter frequency sweep.")
       .def_readonly("frequencies", &SweepResult::frequencies,
                     "Frequency points in Hz.")
       .def_readonly("S_matrices", &SweepResult::S_matrices,

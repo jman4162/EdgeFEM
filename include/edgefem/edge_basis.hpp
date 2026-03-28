@@ -39,10 +39,10 @@ Eigen::Vector3d compute_grad_lambda(const std::array<Eigen::Vector3d, 4> &v,
 /// @param edge_dofs Solution coefficients for the 6 edges
 /// @param point The evaluation point (must be inside the tet)
 /// @return Complex 3D electric field vector at the point
-Eigen::Vector3cd evaluate_edge_field(
-    const std::array<Eigen::Vector3d, 4> &vertices,
-    const std::array<int, 6> &edge_orient,
-    const std::array<std::complex<double>, 6> &edge_dofs,
-    const Eigen::Vector3d &point);
+Eigen::Vector3cd
+evaluate_edge_field(const std::array<Eigen::Vector3d, 4> &vertices,
+                    const std::array<int, 6> &edge_orient,
+                    const std::array<std::complex<double>, 6> &edge_dofs,
+                    const Eigen::Vector3d &point);
 
 } // namespace edgefem

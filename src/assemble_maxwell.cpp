@@ -248,8 +248,7 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
     std::unordered_set<int> boundary_edges;
     for (const auto &tri : mesh.tris) {
       // If abc_surface_tags is specified, only apply ABC to those surfaces
-      if (!p.abc_surface_tags.empty() &&
-          !p.abc_surface_tags.count(tri.phys)) {
+      if (!p.abc_surface_tags.empty() && !p.abc_surface_tags.count(tri.phys)) {
         continue;
       }
       for (int e = 0; e < 3; ++e) {
@@ -360,13 +359,13 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
     auto asmbl = assemble_maxwell(mesh, p, bc, ports, i);
     auto res = solve_linear(asmbl.A, asmbl.b, opts);
 
-    if (!check_solver_convergence(
-            res, "calculate_sparams (active port " + std::to_string(i) + ")")) {
+    if (!check_solver_convergence(res, "calculate_sparams (active port " +
+                                           std::to_string(i) + ")")) {
       // Fill column with NaN to signal bad results
       for (int j = 0; j < num_ports; ++j) {
-        S(j, i) = std::complex<double>(
-            std::numeric_limits<double>::quiet_NaN(),
-            std::numeric_limits<double>::quiet_NaN());
+        S(j, i) =
+            std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
+                                 std::numeric_limits<double>::quiet_NaN());
       }
       continue;
     }
@@ -481,8 +480,8 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
 
     std::cerr << "  Port normalization: free_edges=" << free_count
               << ", wAinvw_exact=" << wAinvw_mag
-              << ", wAinvw_diag=" << wAinvw_diag_est
-              << ", target=Z0=" << target << ", ratio=" << ratio << std::endl;
+              << ", wAinvw_diag=" << wAinvw_diag_est << ", target=Z0=" << target
+              << ", ratio=" << ratio << std::endl;
 
     if (wAinvw_mag > 1e-15 && target > 1e-15) {
       // Scale factor: alpha^2 * wAinvw = target => alpha = sqrt(target/wAinvw)
@@ -592,13 +591,13 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
     auto asmbl = assemble_maxwell_periodic(mesh, p, bc, pbc, ports, i);
     auto res = solve_linear(asmbl.A, asmbl.b, {});
 
-    if (!check_solver_convergence(
-            res, "calculate_sparams_periodic (active port " +
-                     std::to_string(i) + ")")) {
+    if (!check_solver_convergence(res,
+                                  "calculate_sparams_periodic (active port " +
+                                      std::to_string(i) + ")")) {
       for (int j = 0; j < num_ports; ++j) {
-        S(j, i) = std::complex<double>(
-            std::numeric_limits<double>::quiet_NaN(),
-            std::numeric_limits<double>::quiet_NaN());
+        S(j, i) =
+            std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
+                                 std::numeric_limits<double>::quiet_NaN());
       }
       continue;
     }
@@ -708,13 +707,13 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
     // Solve
     auto res = solve_linear(asmbl.A, asmbl.b, {});
 
-    if (!check_solver_convergence(
-            res, "calculate_sparams_eigenmode (active port " +
-                     std::to_string(active_port) + ")")) {
+    if (!check_solver_convergence(res,
+                                  "calculate_sparams_eigenmode (active port " +
+                                      std::to_string(active_port) + ")")) {
       for (int j = 0; j < num_ports; ++j) {
-        S(j, active_port) = std::complex<double>(
-            std::numeric_limits<double>::quiet_NaN(),
-            std::numeric_limits<double>::quiet_NaN());
+        S(j, active_port) =
+            std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
+                                 std::numeric_limits<double>::quiet_NaN());
       }
       continue;
     }

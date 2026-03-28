@@ -25,7 +25,7 @@ using namespace edgefem;
 constexpr double c0 = 299792458.0;
 constexpr double mu0 = 4.0 * M_PI * 1e-7;
 constexpr double eps0 = 1.0 / (mu0 * c0 * c0);
-const double eta0 = std::sqrt(mu0 / eps0);  // ~377 ohms
+const double eta0 = std::sqrt(mu0 / eps0); // ~377 ohms
 
 int main() {
   std::cout << std::setprecision(6);
@@ -50,16 +50,18 @@ int main() {
   // Build BC: both inner (tag 1) and outer (tag 2) conductors are PEC
   // Note: The actual surface tags after extrusion may differ from .geo file
   // Try both tag 1 and tag 2, use whichever has edges
-  BC bc_inner = build_edge_pec(mesh, 1);  // InnerPEC
-  BC bc_outer = build_edge_pec(mesh, 2);  // OuterPEC
+  BC bc_inner = build_edge_pec(mesh, 1); // InnerPEC
+  BC bc_outer = build_edge_pec(mesh, 2); // OuterPEC
 
   BC bc;
   bc.dirichlet_edges = bc_inner.dirichlet_edges;
   bc.dirichlet_edges.insert(bc_outer.dirichlet_edges.begin(),
                             bc_outer.dirichlet_edges.end());
 
-  std::cout << "Inner PEC edges: " << bc_inner.dirichlet_edges.size() << std::endl;
-  std::cout << "Outer PEC edges: " << bc_outer.dirichlet_edges.size() << std::endl;
+  std::cout << "Inner PEC edges: " << bc_inner.dirichlet_edges.size()
+            << std::endl;
+  std::cout << "Outer PEC edges: " << bc_outer.dirichlet_edges.size()
+            << std::endl;
   std::cout << "Total PEC edges: " << bc.dirichlet_edges.size() << std::endl;
 
   // Test frequency: 10 GHz (well below any waveguide-type cutoff)
@@ -98,10 +100,10 @@ int main() {
 
   // Create simplified port modes with TEM parameters
   PortMode mode1, mode2;
-  mode1.kc = 0.0;           // TEM has no cutoff
-  mode1.fc = 0.0;           // No cutoff frequency
-  mode1.beta = beta;        // β = k0 for TEM
-  mode1.Z0 = Z0_ana;        // Analytical Z0
+  mode1.kc = 0.0;    // TEM has no cutoff
+  mode1.fc = 0.0;    // No cutoff frequency
+  mode1.beta = beta; // β = k0 for TEM
+  mode1.Z0 = Z0_ana; // Analytical Z0
   mode1.omega = omega;
   mode2 = mode1;
 
@@ -119,8 +121,9 @@ int main() {
     wp.mode = mode;
 
     // Collect unique edges from port triangles
-    // For coaxial ports, INCLUDE edges that touch conductors (they have nonzero tangential E)
-    // Only PEC edges that are ENTIRELY on the conductor surface should be excluded
+    // For coaxial ports, INCLUDE edges that touch conductors (they have nonzero
+    // tangential E) Only PEC edges that are ENTIRELY on the conductor surface
+    // should be excluded
     std::unordered_set<int> port_edges_set;
     for (const auto &tri : surf.mesh.tris) {
       for (int e = 0; e < 3; ++e) {
@@ -143,7 +146,8 @@ int main() {
     // Uniform weights (simplified - not accurate for TEM)
     int n = static_cast<int>(wp.edges.size());
     if (n > 0) {
-      wp.weights = Eigen::VectorXcd::Ones(n) / std::sqrt(static_cast<double>(n));
+      wp.weights =
+          Eigen::VectorXcd::Ones(n) / std::sqrt(static_cast<double>(n));
     } else {
       wp.weights = Eigen::VectorXcd::Zero(0);
     }
@@ -195,8 +199,8 @@ int main() {
   std::cout << "V2 (port 2): " << V2 << std::endl;
 
   // Basic sanity checks
-  // Note: The coaxial geometry currently has issues with physical group assignment
-  // This is a mesh generation issue, not a solver issue
+  // Note: The coaxial geometry currently has issues with physical group
+  // assignment This is a mesh generation issue, not a solver issue
   bool mesh_loaded = mesh.nodes.size() > 100;
   bool bc_applied = bc.dirichlet_edges.size() > 50;
   bool solution_nonzero = sol_norm > 1e-10;
@@ -212,11 +216,13 @@ int main() {
             << std::endl;
   std::cout << "Ports have edges: " << (ports_have_edges ? "PASS" : "FAIL")
             << std::endl;
-  std::cout << "Analytical Z0 ≈ 50Ω: " << (analytical_z0_correct ? "PASS" : "FAIL")
-            << std::endl;
+  std::cout << "Analytical Z0 ≈ 50Ω: "
+            << (analytical_z0_correct ? "PASS" : "FAIL") << std::endl;
 
-  // Pass if mesh setup is correct; port edge count issue is a known geometry limitation
-  bool overall = mesh_loaded && bc_applied && solution_nonzero && analytical_z0_correct;
+  // Pass if mesh setup is correct; port edge count issue is a known geometry
+  // limitation
+  bool overall =
+      mesh_loaded && bc_applied && solution_nonzero && analytical_z0_correct;
 
   std::cout << std::endl;
   std::cout << "NOTE: This test validates mesh/BC setup for coaxial geometry."
@@ -225,8 +231,8 @@ int main() {
                "computation."
             << std::endl;
   std::cout << std::endl;
-  std::cout << "=== OVERALL: " << (overall ? "PASS" : "FAIL") << " ==="
-            << std::endl;
+  std::cout << "=== OVERALL: " << (overall ? "PASS" : "FAIL")
+            << " ===" << std::endl;
 
   return overall ? 0 : 1;
 }

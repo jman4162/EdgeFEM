@@ -114,11 +114,11 @@ Eigen::Vector3d compute_grad_lambda(const std::array<Eigen::Vector3d, 4> &v,
   return g[i];
 }
 
-Eigen::Vector3cd evaluate_edge_field(
-    const std::array<Eigen::Vector3d, 4> &vertices,
-    const std::array<int, 6> &edge_orient,
-    const std::array<std::complex<double>, 6> &edge_dofs,
-    const Eigen::Vector3d &point) {
+Eigen::Vector3cd
+evaluate_edge_field(const std::array<Eigen::Vector3d, 4> &vertices,
+                    const std::array<int, 6> &edge_orient,
+                    const std::array<std::complex<double>, 6> &edge_dofs,
+                    const Eigen::Vector3d &point) {
 
   Eigen::Vector4d lambda = compute_barycentric(vertices, point);
 

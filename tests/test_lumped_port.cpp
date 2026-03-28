@@ -75,12 +75,13 @@ int main() {
 
   auto assembly = assemble_maxwell(mesh, params, bc, ports, 0);
 
-  std::cout << "System size: " << assembly.A.rows() << " x " << assembly.A.cols()
-            << "\n";
+  std::cout << "System size: " << assembly.A.rows() << " x "
+            << assembly.A.cols() << "\n";
   std::cout << "RHS norm: " << assembly.b.norm() << "\n";
 
   assert(assembly.A.rows() > 0 && "System matrix must be non-empty");
-  assert(assembly.b.norm() > 1e-15 && "RHS must be non-zero when port is active");
+  assert(assembly.b.norm() > 1e-15 &&
+         "RHS must be non-zero when port is active");
 
   // Test 4: System is solvable
   auto result = solve_linear(assembly.A, assembly.b);

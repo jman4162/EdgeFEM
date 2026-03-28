@@ -19,9 +19,9 @@ enum class LumpedPortWeightMode {
 };
 
 struct LumpedPortConfig {
-  int surface_tag;                            // Physical tag of port gap surface
-  double z0 = 50.0;                           // Reference impedance (ohms)
-  Eigen::Vector3d e_direction = {0, 0, 1};    // E-field direction across gap
+  int surface_tag;                         // Physical tag of port gap surface
+  double z0 = 50.0;                        // Reference impedance (ohms)
+  Eigen::Vector3d e_direction = {0, 0, 1}; // E-field direction across gap
   LumpedPortWeightMode weight_mode = LumpedPortWeightMode::SurfaceIntegral;
 };
 

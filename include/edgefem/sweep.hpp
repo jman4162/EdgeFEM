@@ -48,8 +48,8 @@ KMMatrices assemble_maxwell_km(const Mesh &mesh, const MaxwellParams &p,
 
 /// Result of a frequency sweep.
 struct SweepResult {
-  std::vector<double> frequencies;           // Hz
-  std::vector<Eigen::MatrixXcd> S_matrices;  // S-matrix at each frequency
+  std::vector<double> frequencies;          // Hz
+  std::vector<Eigen::MatrixXcd> S_matrices; // S-matrix at each frequency
 };
 
 /// Perform an S-parameter frequency sweep with matrix reuse.
@@ -59,8 +59,8 @@ struct SweepResult {
 /// 2. Adds port loading and ABC
 /// 3. Solves and extracts S-parameters
 ///
-/// For SparseLU direct solver, reuses symbolic factorization across frequencies.
-/// For iterative solver, uses previous solution as initial guess.
+/// For SparseLU direct solver, reuses symbolic factorization across
+/// frequencies. For iterative solver, uses previous solution as initial guess.
 ///
 /// @param mesh Volume mesh
 /// @param p Maxwell params (omega is overwritten per frequency)

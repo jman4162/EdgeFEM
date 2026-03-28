@@ -93,9 +93,8 @@ int main(int argc, char *argv[]) {
   std::vector<WavePort> ports{wp1, wp2};
 
   // Sweep alpha values
-  std::vector<double> alphas = {0.1, 0.2,  0.3,  0.35, 0.4, 0.45, 0.5,
-                                0.55, 0.6, 0.65, 0.7,  0.8, 0.9,  1.0,
-                                1.2,  1.5, 2.0};
+  std::vector<double> alphas = {0.1,  0.2, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6,
+                                0.65, 0.7, 0.8, 0.9,  1.0, 1.2,  1.5, 2.0};
 
   std::vector<SweepResult> results;
 

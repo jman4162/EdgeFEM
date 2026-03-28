@@ -12,11 +12,11 @@ namespace edgefem {
 using VecC = Eigen::VectorXcd;
 
 struct HuygensSurfaceData {
-  std::vector<Eigen::Vector3d> r;       // Triangle centroids
-  std::vector<Eigen::Vector3d> n;       // Outward normals
-  std::vector<Eigen::Vector3cd> E_tan;  // Tangential E
-  std::vector<Eigen::Vector3cd> H_tan;  // Tangential H
-  std::vector<double> area;             // Triangle areas
+  std::vector<Eigen::Vector3d> r;      // Triangle centroids
+  std::vector<Eigen::Vector3d> n;      // Outward normals
+  std::vector<Eigen::Vector3cd> E_tan; // Tangential E
+  std::vector<Eigen::Vector3cd> H_tan; // Tangential H
+  std::vector<double> area;            // Triangle areas
 };
 
 /// Extract Huygens surface data from a FEM solution on a tagged surface.
@@ -34,8 +34,8 @@ struct HuygensSurfaceData {
 /// @param mu_r Relative permeability (default: 1.0)
 /// @return HuygensSurfaceData with tangential fields at triangle centroids
 HuygensSurfaceData extract_huygens_surface(const Mesh &mesh,
-                                            const VecC &solution,
-                                            int surface_tag, double omega,
-                                            std::complex<double> mu_r = 1.0);
+                                           const VecC &solution,
+                                           int surface_tag, double omega,
+                                           std::complex<double> mu_r = 1.0);
 
 } // namespace edgefem

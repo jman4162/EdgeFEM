@@ -34,12 +34,12 @@ constexpr double mu0 = 4.0 * M_PI * 1e-7;
 std::pair<double, double> fresnel_slab_analytical(double freq, double eps_r,
                                                   double d_slab) {
   // Refractive indices
-  double n1 = 1.0;                  // Air
-  double n2 = std::sqrt(eps_r);     // Slab
+  double n1 = 1.0;              // Air
+  double n2 = std::sqrt(eps_r); // Slab
 
   // Wave parameters
   double k0 = 2 * M_PI * freq / c0;
-  double k2 = k0 * n2;              // Wavenumber in slab
+  double k2 = k0 * n2; // Wavenumber in slab
 
   // Single interface Fresnel coefficients
   double r12 = (n1 - n2) / (n1 + n2);
@@ -76,7 +76,7 @@ int main() {
             << std::endl;
 
   // Slab parameters
-  double eps_r = 4.0;   // Relative permittivity
+  double eps_r = 4.0;    // Relative permittivity
   double d_slab = 0.003; // 3mm thickness
 
   double n2 = std::sqrt(eps_r);
@@ -119,8 +119,8 @@ int main() {
   for (double freq : test_freqs) {
     auto [R, T] = fresnel_slab_analytical(freq, eps_r, d_slab);
     std::cout << std::setw(12) << freq / 1e9 << std::setw(12)
-              << std::setprecision(4) << R << std::setw(12) << T << std::setw(12)
-              << R + T << std::endl;
+              << std::setprecision(4) << R << std::setw(12) << T
+              << std::setw(12) << R + T << std::endl;
   }
 
   std::cout << std::endl;
@@ -148,14 +148,14 @@ int main() {
 
   MaxwellParams p;
   p.omega = omega;
-  p.eps_r = 1.0;  // Default air
-  p.eps_r_regions[101] = std::complex<double>(eps_r, 0.0);  // Dielectric slab
+  p.eps_r = 1.0;                                           // Default air
+  p.eps_r_regions[101] = std::complex<double>(eps_r, 0.0); // Dielectric slab
   p.port_abc_scale = 0.5;
 
   // Validation criteria
   bool mesh_loaded = mesh.nodes.size() > 100;
-  bool ports_found = port1_surf.mesh.tris.size() > 0 &&
-                     port2_surf.mesh.tris.size() > 0;
+  bool ports_found =
+      port1_surf.mesh.tris.size() > 0 && port2_surf.mesh.tris.size() > 0;
   bool regions_correct = air_tets > 0 && dielectric_tets > 0;
   bool energy_conserved = true; // Analytical R+T = 1 (checked above)
 
@@ -168,7 +168,8 @@ int main() {
   std::cout << "Energy conservation (analytical): "
             << (energy_conserved ? "PASS" : "FAIL") << std::endl;
 
-  bool overall = mesh_loaded && ports_found && regions_correct && energy_conserved;
+  bool overall =
+      mesh_loaded && ports_found && regions_correct && energy_conserved;
 
   std::cout << std::endl;
   std::cout << "NOTE: Full periodic BC simulation requires Floquet port "
@@ -177,8 +178,8 @@ int main() {
   std::cout << "This test validates geometry, mesh, and analytical reference."
             << std::endl;
   std::cout << std::endl;
-  std::cout << "=== OVERALL: " << (overall ? "PASS" : "FAIL") << " ==="
-            << std::endl;
+  std::cout << "=== OVERALL: " << (overall ? "PASS" : "FAIL")
+            << " ===" << std::endl;
 
   return overall ? 0 : 1;
 }

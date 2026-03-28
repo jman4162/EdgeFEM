@@ -38,13 +38,12 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
 
   // Print header if verbose
   if (opt.verbose) {
-    const char *method = opt.use_direct  ? "SparseLU"
+    const char *method = opt.use_direct     ? "SparseLU"
                          : opt.use_bicgstab ? "BiCGSTAB"
                                             : "CG";
     const char *precond = (!opt.use_direct && opt.use_ilut) ? "+ILUT" : "";
     std::cerr << "Solver: Starting " << method << precond
-              << " solve (N=" << A.rows() << ", nnz=" << A.nonZeros()
-              << ")\n";
+              << " solve (N=" << A.rows() << ", nnz=" << A.nonZeros() << ")\n";
     std::cerr << std::fixed << std::setprecision(6);
   }
 
@@ -76,8 +75,7 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
         res.residual = solver.error();
         res.converged = (solver.info() == Eigen::Success);
         if (!res.converged) {
-          res.error_message =
-              "Solver did not converge within max iterations";
+          res.error_message = "Solver did not converge within max iterations";
         }
       }
     } else {
@@ -100,8 +98,7 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
         res.residual = solver.error();
         res.converged = (solver.info() == Eigen::Success);
         if (!res.converged) {
-          res.error_message =
-              "Solver did not converge within max iterations";
+          res.error_message = "Solver did not converge within max iterations";
         }
       }
     }
@@ -119,9 +116,8 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
   } else {
     // CG solver
     if (opt.use_ilut) {
-      Eigen::ConjugateGradient<
-          SpMatC, Eigen::Lower | Eigen::Upper,
-          Eigen::IncompleteLUT<std::complex<double>>>
+      Eigen::ConjugateGradient<SpMatC, Eigen::Lower | Eigen::Upper,
+                               Eigen::IncompleteLUT<std::complex<double>>>
           solver;
       solver.preconditioner().setFillfactor(
           static_cast<int>(opt.ilut_fill_factor));
@@ -140,8 +136,7 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
         res.residual = solver.error();
         res.converged = (solver.info() == Eigen::Success);
         if (!res.converged) {
-          res.error_message =
-              "Solver did not converge within max iterations";
+          res.error_message = "Solver did not converge within max iterations";
         }
       }
     } else {
@@ -163,8 +158,7 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
         res.residual = solver.error();
         res.converged = (solver.info() == Eigen::Success);
         if (!res.converged) {
-          res.error_message =
-              "Solver did not converge within max iterations";
+          res.error_message = "Solver did not converge within max iterations";
         }
       }
     }

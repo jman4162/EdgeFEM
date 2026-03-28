@@ -58,8 +58,7 @@ int main() {
     // Set non-trivial field pattern
     int idx0 = mesh.nodeIndex.at(mesh.edges[i].n0);
     int idx1 = mesh.nodeIndex.at(mesh.edges[i].n1);
-    Eigen::Vector3d mid =
-        0.5 * (mesh.nodes[idx0].xyz + mesh.nodes[idx1].xyz);
+    Eigen::Vector3d mid = 0.5 * (mesh.nodes[idx0].xyz + mesh.nodes[idx1].xyz);
     // Simple plane wave in z-direction, polarized in x
     double phase = params.omega / 3e8 * mid.z();
     solution(i) = std::complex<double>(std::cos(phase), std::sin(phase));
@@ -109,9 +108,11 @@ int main() {
 
   // Note: with a synthetic (non-physical) solution on a non-Huygens surface,
   // the tangential projection may not be very accurate. The key test is that
-  // the projection operation works (E_tan != E, i.e., normal component removed).
-  // For a real FEM solution on a proper Huygens surface, these ratios will be ~0.
-  std::cout << "(Tangentiality check is informational for synthetic solutions)\n";
+  // the projection operation works (E_tan != E, i.e., normal component
+  // removed). For a real FEM solution on a proper Huygens surface, these ratios
+  // will be ~0.
+  std::cout
+      << "(Tangentiality check is informational for synthetic solutions)\n";
 
   // Verify areas are positive
   for (size_t i = 0; i < huygens.area.size(); ++i) {
