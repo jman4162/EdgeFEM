@@ -121,8 +121,9 @@ python3 examples/plot_waveguide_sparams.py
 | `maxwell.hpp` | Maxwell curl-curl FEM assembly with PML and ABC |
 | `edge_basis.hpp` | Nédélec (Whitney) edge element basis functions |
 | `ports/wave_port.hpp` | Wave port definitions with 2D eigenmode solver |
-| `solver.hpp` | BiCGSTAB + ILUT linear solver interface |
-| `sweep.hpp` | Frequency sweep orchestration |
+| `solver.hpp` | BiCGSTAB+ILUT solver with auto-fallback to SparseLU |
+| `sweep.hpp` | Frequency sweep with K/M separation and factorization reuse |
+| `ports/lumped_port.hpp` | Lumped port with surface-integral weight computation |
 | `io/touchstone.hpp` | S-parameter Touchstone export |
 | `post/ntf.hpp` | Near-to-far field via Huygens surface |
 | `mor/vector_fit.hpp` | Rational model fitting for MOR |
@@ -131,10 +132,10 @@ python3 examples/plot_waveguide_sparams.py
 
 1. **Mesh** → `load_gmsh_v2()` parses Gmsh file, builds edge connectivity
 2. **BC** → `build_edge_pec()` tags PEC edges from physical groups
-3. **Ports** → `build_wave_port()` extracts surface mesh, solves 2D eigenmode
-4. **Assembly** → `assemble_maxwell()` builds curl-curl + mass matrices with PML/ABC
-5. **Solve** → `solve_linear()` via BiCGSTAB with ILUT preconditioner
-6. **Post** → `calculate_sparams()` extracts S-matrix, exports to Touchstone
+3. **Ports** → `build_wave_port_from_eigenvector()` for wave ports, `build_lumped_port()` for antennas
+4. **Assembly** → `assemble_maxwell()` or `assemble_maxwell_km()` (K/M separation for sweeps)
+5. **Solve** → `solve_linear()` via BiCGSTAB+ILUT with auto-fallback to SparseLU
+6. **Post** → `calculate_sparams_eigenmode()` for wave ports, `calculate_sparams()` for lumped ports
 
 ### Key Types
 
@@ -231,6 +232,32 @@ Automation agents in `tools/agents/` follow the MCP server pattern:
 P = (1/2)·Re∫∫ E×H* · dS = 1
 → A² = 4·kc⁴·a / (ω·μ·β·π²·b)
 ```
+
+### Lumped Port Passivity & Weight Normalization (Fixed Mar 2026)
+
+**Problem**: Stacked patch antenna showed |S11| = 5.72 (severe passivity violation). The `simulate()` method used a hand-rolled extraction with magnitude normalization and passivity clamping that masked the real issue.
+
+**Root Cause**: `build_lumped_port()` used a crude `edge_vec.dot(e_dir)` projection for port weights, and `normalize_port_weights()` was never called before `calculate_sparams()`.
+
+**Fixes**:
+1. **Surface-integral weight computation** (`src/ports/lumped_port.cpp`): Whitney basis mass matrix integration `w_i = ∫(N_i · e_dir) dS` replaces raw edge projection. Set `LumpedPortConfig::weight_mode = SurfaceIntegral` (now the default).
+2. **Standard S-parameter path** (`python/edgefem/designs/stacked_patch.py`): `simulate()` now calls `normalize_port_weights()` → `calculate_sparams()` instead of hand-rolled extraction.
+3. **ILUT preconditioner** (`src/solver.cpp`): BiCGSTAB now uses `Eigen::IncompleteLUT` by default. Auto-fallback to SparseLU on convergence failure.
+4. **Frequency sweep efficiency** (`src/sweep.cpp`): `frequency_sweep()` pre-assembles K and M separately, reuses symbolic factorization across frequencies.
+
+**Guidelines for lumped port development**:
+- Always call `normalize_port_weights()` before `calculate_sparams()` for lumped ports
+- Use `SurfaceIntegral` weight mode (default) for mesh-convergent weights
+- Use `convergence_check()` on design classes to verify mesh adequacy
+- Passivity violations (|S11| > 1) on coarse meshes are expected; refine mesh rather than clamping
+
+### Waveguide Port/Eigenmode Path (Fixed Mar 2026)
+
+**Problem**: `RectWaveguideDesign` produced |S21| = 0.014 instead of |S21| > 0.95.
+
+**Root Cause**: `_setup_ports()` used `build_wave_port()` (analytical weights) but passed to `calculate_sparams_eigenmode()` which expects `build_wave_port_from_eigenvector()` (FEM eigenvector weights with `||w||² = sqrt(Z0)` normalization).
+
+**Fix**: `_setup_ports()` now uses `compute_te_eigenvector()` → `build_wave_port_from_eigenvector()`, matching the proven C++ test path.
 
 ## Reference Documents
 

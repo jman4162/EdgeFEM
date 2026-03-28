@@ -591,6 +591,64 @@ class StackedPatchDesign:
         S11, _ = self.simulate(freq)
         return 20 * np.log10(abs(S11) + 1e-30)
 
+    def convergence_check(
+        self,
+        freq: float,
+        density: float = 10.0,
+        refinement_factor: float = 1.5,
+        threshold: float = 0.02,
+        verbose: bool = True,
+    ) -> dict:
+        """Check mesh convergence by solving at two densities.
+
+        Solves the problem at `density` and `density * refinement_factor`,
+        then compares S11. If the difference exceeds `threshold`, the mesh
+        is not converged and the user should increase density.
+
+        Args:
+            freq: Frequency in Hz.
+            density: Coarse mesh density (elements per wavelength).
+            refinement_factor: Multiplier for fine mesh density.
+            threshold: Maximum |ΔS11| for convergence.
+            verbose: Print convergence report.
+
+        Returns:
+            dict with keys: 'converged', 'S11_coarse', 'S11_fine',
+            'delta', 'density_coarse', 'density_fine'.
+        """
+        # Solve at coarse density
+        self.generate_mesh(density=density)
+        S11_coarse, _ = self.simulate(freq)
+
+        # Solve at fine density
+        fine_density = density * refinement_factor
+        self.generate_mesh(density=fine_density)
+        S11_fine, _ = self.simulate(freq)
+
+        delta = abs(S11_fine - S11_coarse)
+        converged = delta < threshold
+
+        result = {
+            'converged': converged,
+            'S11_coarse': S11_coarse,
+            'S11_fine': S11_fine,
+            'delta': delta,
+            'density_coarse': density,
+            'density_fine': fine_density,
+        }
+
+        if verbose:
+            status = "CONVERGED" if converged else "NOT CONVERGED"
+            print(f"Mesh convergence check at {freq/1e9:.3f} GHz: {status}")
+            print(f"  Coarse (density={density:.0f}): "
+                  f"|S11| = {abs(S11_coarse):.4f}")
+            print(f"  Fine   (density={fine_density:.0f}): "
+                  f"|S11| = {abs(S11_fine):.4f}")
+            print(f"  ΔS11 = {delta:.4f} "
+                  f"({'<' if converged else '>'} {threshold} threshold)")
+
+        return result
+
     def frequency_sweep(
         self,
         f_start: float,

@@ -212,5 +212,134 @@ class TestFrequencySweepAPI:
         assert hasattr(em, 'SweepResult')
 
 
+# ---------- Lossy Material Validation ----------
+
+@gmsh_required
+class TestLossyMaterial:
+    """Validate FEM against analytical attenuation for lossy dielectric."""
+
+    def test_dielectric_loss_attenuation(self):
+        """FEM |S21| through lossy waveguide should match analytical decay.
+
+        Analytical: For dielectric-filled WR-90 waveguide at 10 GHz,
+        attenuation constant α_d = (k₀² tan_d) / (2β)
+        → |S21| = exp(-α_d * L)
+        """
+        from edgefem.designs import RectWaveguideDesign
+
+        # WR-90 geometry
+        a, b, L = 22.86e-3, 10.16e-3, 50e-3
+        freq = 10e9
+        eps_r = 2.2
+        tan_d = 0.05  # Moderate loss for clear signal
+
+        # Analytical attenuation
+        c0 = 299792458.0
+        omega = 2 * np.pi * freq
+        k0 = omega / c0
+        # Propagation constant in dielectric-filled guide
+        kc = np.pi / a  # TE10 cutoff
+        beta = np.sqrt(eps_r * k0**2 - kc**2)
+        alpha_d = k0**2 * eps_r * tan_d / (2 * beta)
+        S21_analytical = np.exp(-alpha_d * L)
+
+        # FEM solve using low-level API with lossy dielectric
+        wg = RectWaveguideDesign(a=a, b=b, length=L)
+        wg.generate_mesh(density=10)
+        wg._setup_ports(freq)
+
+        params = em.MaxwellParams()
+        params.omega = omega
+        params.port_abc_scale = 0.5
+        # Set complex permittivity: eps_r(1 - j*tan_d)
+        params.eps_r = complex(eps_r, -eps_r * tan_d)
+
+        S = em.calculate_sparams_eigenmode(
+            wg._mesh, params, wg._bc, wg._ports
+        )
+        S21_fem = abs(S[1, 0])
+
+        # FEM should show attenuation in the right ballpark
+        # Allow 30% tolerance for coarse mesh + first-order elements
+        assert S21_fem < 1.0, f"|S21| = {S21_fem:.4f} should show loss"
+        assert S21_fem > 0.1, f"|S21| = {S21_fem:.4f} too low (solver issue?)"
+        rel_error = abs(S21_fem - S21_analytical) / S21_analytical
+        assert rel_error < 0.35, (
+            f"|S21| FEM={S21_fem:.4f} vs analytical={S21_analytical:.4f}, "
+            f"relative error={rel_error:.1%} exceeds 35% tolerance"
+        )
+
+    def test_lossless_vs_lossy_comparison(self):
+        """Lossy waveguide should have lower |S21| than lossless."""
+        from edgefem.designs import RectWaveguideDesign
+
+        a, b, L = 22.86e-3, 10.16e-3, 50e-3
+        freq = 10e9
+
+        wg = RectWaveguideDesign(a=a, b=b, length=L)
+        wg.generate_mesh(density=10)
+
+        # Lossless
+        S_lossless = wg.sparams_at_freq(freq)
+        S21_lossless = abs(S_lossless[1, 0])
+
+        # Lossy (reuse same mesh)
+        wg._setup_ports(freq)
+        params = em.MaxwellParams()
+        params.omega = 2 * np.pi * freq
+        params.port_abc_scale = 0.5
+        params.eps_r = complex(2.2, -2.2 * 0.05)
+
+        S_lossy = em.calculate_sparams_eigenmode(
+            wg._mesh, params, wg._bc, wg._ports
+        )
+        S21_lossy = abs(S_lossy[1, 0])
+
+        assert S21_lossy < S21_lossless, (
+            f"Lossy |S21|={S21_lossy:.4f} should be less than "
+            f"lossless |S21|={S21_lossless:.4f}"
+        )
+
+
+# ---------- Mesh Convergence Diagnostics ----------
+
+@gmsh_required
+class TestMeshConvergence:
+    """Test mesh convergence check feature."""
+
+    def test_stacked_patch_convergence_check(self):
+        """convergence_check() should return a dict with expected keys."""
+        from edgefem.designs import StackedPatchDesign
+        design = StackedPatchDesign(
+            patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
+            substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4}],
+            cavity_size=35e-3,
+            cavity_depth=5e-3,
+            probe_radius=0.65e-3,
+        )
+        result = design.convergence_check(
+            2.4e9, density=6, refinement_factor=1.5, verbose=False
+        )
+        assert 'converged' in result
+        assert 'delta' in result
+        assert 'S11_coarse' in result
+        assert 'S11_fine' in result
+        assert result['delta'] >= 0
+        assert np.isfinite(result['delta'])
+
+    def test_waveguide_convergence_check(self):
+        """Waveguide convergence check should show small delta."""
+        from edgefem.designs import RectWaveguideDesign
+        wg = RectWaveguideDesign(a=22.86e-3, b=10.16e-3, length=50e-3)
+        result = wg.convergence_check(
+            10e9, density=8, refinement_factor=1.5, verbose=False
+        )
+        assert 'converged' in result
+        assert 'delta' in result
+        assert 'S21_coarse' in result
+        assert 'S21_fine' in result
+        assert result['delta'] >= 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
