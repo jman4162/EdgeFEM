@@ -253,30 +253,41 @@ Mesh.Algorithm3D = 1;  // Delaunay
         self._ports = None
 
     def _setup_ports(self, freq: float) -> None:
-        """Set up wave ports for the given frequency."""
+        """Set up wave ports for the given frequency.
+
+        Uses the 3D FEM eigenvector approach for proper weight normalization,
+        matching the proven path in test_eigenmode_sparams.cpp.
+        """
         if self._mesh is None:
             raise RuntimeError("Mesh not generated. Call generate_mesh() first.")
 
         # Build BC
         self._bc = em.build_edge_pec(self._mesh, self._pec_tag)
 
-        # Create port dimensions
+        # Create port dimensions and compute TE10 mode parameters
         port_dim = em.RectWaveguidePort()
         port_dim.a = self.a
         port_dim.b = self.b
-
-        # Compute TE10 mode
         mode = em.solve_te10_mode(port_dim, freq)
 
-        # Build port 1
-        surface1 = em.extract_surface_mesh(self._mesh, self._port1_tag)
-        em.populate_te10_field(surface1, port_dim, mode)
-        port1 = em.build_wave_port(self._mesh, surface1, mode)
+        # Compute TE10 cutoff wavenumber squared: kc² = (π/a)²
+        kc_sq = (np.pi / self.a) ** 2
 
-        # Build port 2
+        # Compute 3D FEM eigenvector for TE10 mode
+        pec_edges = set(self._bc.dirichlet_edges)
+        v_te10 = em.compute_te_eigenvector(self._mesh, pec_edges, kc_sq)
+
+        # Extract port surfaces
+        surface1 = em.extract_surface_mesh(self._mesh, self._port1_tag)
         surface2 = em.extract_surface_mesh(self._mesh, self._port2_tag)
-        em.populate_te10_field(surface2, port_dim, mode)
-        port2 = em.build_wave_port(self._mesh, surface2, mode)
+
+        # Build ports using eigenvector-based weights (||w||² = sqrt(Z0))
+        port1 = em.build_wave_port_from_eigenvector(
+            self._mesh, surface1, v_te10, mode, pec_edges
+        )
+        port2 = em.build_wave_port_from_eigenvector(
+            self._mesh, surface2, v_te10, mode, pec_edges
+        )
 
         self._ports = [port1, port2]
 

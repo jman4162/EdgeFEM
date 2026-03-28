@@ -1,5 +1,6 @@
 #include <pybind11/complex.h>
 #include <pybind11/eigen.h>
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -26,6 +27,7 @@
 #include "edgefem/post/huygens_surface.hpp"
 #include "edgefem/post/ntf.hpp"
 #include "edgefem/solver.hpp"
+#include "edgefem/sweep.hpp"
 
 namespace py = pybind11;
 using namespace edgefem;
@@ -159,6 +161,17 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def("nnz", [](const SpMatC &m) { return m.nonZeros(); });
 
   py::class_<VecC>(m, "VecC", "Vector with complex coefficients.")
+      .def(py::init([](py::array_t<std::complex<double>> arr) {
+             auto buf = arr.request();
+             if (buf.ndim != 1)
+               throw std::runtime_error("VecC requires a 1D array");
+             VecC v(buf.shape[0]);
+             auto ptr = static_cast<std::complex<double> *>(buf.ptr);
+             for (py::ssize_t i = 0; i < buf.shape[0]; ++i)
+               v(i) = ptr[i];
+             return v;
+           }),
+           py::arg("array"), "Construct from a numpy complex array.")
       .def("__len__", [](const VecC &v) { return v.size(); })
       .def("__getitem__",
            [](const VecC &v, int i) {
@@ -404,6 +417,14 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("surface_tag"));
 
   // Lumped port
+  py::enum_<LumpedPortWeightMode>(m, "LumpedPortWeightMode",
+                                   "Weight computation strategy for lumped ports.")
+      .value("Projection", LumpedPortWeightMode::Projection,
+             "Simple edge projection (fast, not mesh-convergent)")
+      .value("SurfaceIntegral", LumpedPortWeightMode::SurfaceIntegral,
+             "Whitney basis surface integral (mesh-convergent)")
+      .export_values();
+
   py::class_<LumpedPortConfig>(m, "LumpedPortConfig",
                                 "Configuration for a lumped port excitation.")
       .def(py::init<>())
@@ -412,7 +433,9 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("z0", &LumpedPortConfig::z0,
                      "Reference impedance in ohms (default: 50)")
       .def_readwrite("e_direction", &LumpedPortConfig::e_direction,
-                     "E-field direction across gap (default: [0,0,1])");
+                     "E-field direction across gap (default: [0,0,1])")
+      .def_readwrite("weight_mode", &LumpedPortConfig::weight_mode,
+                     "Weight computation mode (default: SurfaceIntegral)");
 
   m.def("build_lumped_port", &build_lumped_port,
         "Build a lumped port from a tagged surface.\n"
@@ -469,6 +492,14 @@ PYBIND11_MODULE(pyedgefem, m) {
                      "Convergence tolerance.")
       .def_readwrite("max_iterations", &SolveOptions::max_iterations,
                      "Maximum iterations.")
+      .def_readwrite("use_ilut", &SolveOptions::use_ilut,
+                     "Use ILUT preconditioner for iterative solvers (default: true).")
+      .def_readwrite("ilut_fill_factor", &SolveOptions::ilut_fill_factor,
+                     "ILUT fill factor (default: 10.0).")
+      .def_readwrite("ilut_drop_tolerance", &SolveOptions::ilut_drop_tolerance,
+                     "ILUT drop tolerance (default: 1e-4).")
+      .def_readwrite("auto_fallback", &SolveOptions::auto_fallback,
+                     "Auto-fallback to SparseLU if iterative solver fails (default: true).")
       .def_readwrite("verbose", &SolveOptions::verbose,
                      "Print progress to stderr.");
 
@@ -519,6 +550,26 @@ PYBIND11_MODULE(pyedgefem, m) {
         "Calculate S-parameters using direct eigenmode excitation (more "
         "accurate).",
         py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
+
+  // Frequency sweep
+  py::class_<SweepResult>(m, "SweepResult",
+                           "Result of an S-parameter frequency sweep.")
+      .def_readonly("frequencies", &SweepResult::frequencies,
+                    "Frequency points in Hz.")
+      .def_readonly("S_matrices", &SweepResult::S_matrices,
+                    "S-matrix at each frequency point.");
+
+  m.def("frequency_sweep", &frequency_sweep,
+        "Perform S-parameter frequency sweep with matrix reuse.\n"
+        "Pre-assembles K and M once, combines A = K - k₀²M at each frequency.\n"
+        "For direct solver, reuses symbolic factorization across frequencies.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+        py::arg("frequencies"), py::arg("solver_options") = SolveOptions());
+
+  m.def("assemble_maxwell_km", &assemble_maxwell_km,
+        "Assemble stiffness (K) and mass (M) matrices separately.\n"
+        "A(omega) = K - k₀² M. Only valid for non-dispersive materials.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"));
 
   m.def(
       "compute_te_eigenvector", &compute_te_eigenvector,

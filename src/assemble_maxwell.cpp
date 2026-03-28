@@ -482,7 +482,7 @@ void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
     std::cerr << "  Port normalization: free_edges=" << free_count
               << ", wAinvw_exact=" << wAinvw_mag
               << ", wAinvw_diag=" << wAinvw_diag_est
-              << ", target=Z0/2=" << target << ", ratio=" << ratio << std::endl;
+              << ", target=Z0=" << target << ", ratio=" << ratio << std::endl;
 
     if (wAinvw_mag > 1e-15 && target > 1e-15) {
       // Scale factor: alpha^2 * wAinvw = target => alpha = sqrt(target/wAinvw)

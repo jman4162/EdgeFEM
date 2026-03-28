@@ -19,6 +19,21 @@ struct SolveOptions {
   double tolerance = 1e-10;
   int max_iterations = 10000;
 
+  /// Use ILUT preconditioner for iterative solvers (BiCGSTAB/CG).
+  /// Significantly improves convergence for ill-conditioned systems.
+  bool use_ilut = true;
+
+  /// ILUT fill factor: ratio of allowed fill-in to original nnz per row.
+  /// Higher values improve preconditioner quality but use more memory.
+  double ilut_fill_factor = 10.0;
+
+  /// ILUT drop tolerance: entries smaller than this are dropped.
+  /// Smaller values improve quality but increase memory/time.
+  double ilut_drop_tolerance = 1e-4;
+
+  /// Auto-fallback to SparseLU if iterative solver fails to converge.
+  bool auto_fallback = true;
+
   /// Enable verbose output to stderr (prints iteration count and residual)
   bool verbose = false;
 

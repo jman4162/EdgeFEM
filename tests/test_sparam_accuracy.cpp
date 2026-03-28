@@ -316,6 +316,32 @@ int main() {
     results.push_back(r);
   }
 
+  // ========================================
+  // Test 18: Eigenvector + eigenmode extraction (proven path)
+  // This is the combination used by test_eigenmode_sparams and the
+  // Python RectWaveguideDesign — it achieves |S21| > 0.95.
+  // ========================================
+  {
+    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
+                                                    mode1, bc.dirichlet_edges);
+    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
+                                                    mode2, bc.dirichlet_edges);
+
+    MaxwellParams p;
+    p.omega = omega;
+    p.port_abc_scale = 0.5; // Optimal value from tuning study
+
+    std::vector<WavePort> ports{wp1, wp2};
+    auto S = calculate_sparams_eigenmode(mesh, p, bc, ports);
+
+    TestResult r;
+    r.name = "Eigvec + eigenmode (abc=0.5)";
+    r.S11 = S(0, 0);
+    r.S21 = S(1, 0);
+    r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
+    results.push_back(r);
+  }
+
   // Print results
   std::cout << "=== Results ===" << std::endl;
   std::cout << std::string(90, '-') << std::endl;

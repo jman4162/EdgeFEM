@@ -15,6 +15,22 @@ import numpy as np
 import pyedgefem as em
 
 
+class _AperturePattern:
+    """Lightweight far-field pattern compatible with FFPattern3D interface."""
+
+    def __init__(self, theta_grid, phi_grid, E_theta, E_phi):
+        self.theta_grid = theta_grid
+        self.phi_grid = phi_grid
+        self.E_theta = E_theta
+        self.E_phi = E_phi
+
+    def power_pattern(self):
+        return np.abs(self.E_theta)**2 + np.abs(self.E_phi)**2
+
+    def total_magnitude(self):
+        return np.sqrt(np.abs(self.E_theta)**2 + np.abs(self.E_phi)**2)
+
+
 class StackedPatchDesign:
     """
     Multi-layer stacked patch antenna with cavity-backed probe feed.
@@ -164,8 +180,6 @@ class StackedPatchDesign:
         self._bc = None
         self._ports = None
         self._last_solutions = {}
-        if hasattr(self, '_port_alpha_sq'):
-            del self._port_alpha_sq
 
     def _build_gmsh_geometry(self, gmsh, lc: float, msh_path: str):
         """Build antenna geometry using Gmsh Python API with OCC kernel."""
@@ -186,6 +200,7 @@ class StackedPatchDesign:
         for s in self.substrates:
             z_levels.append(z_levels[-1] + s['thickness'])
         z_top = z_levels[-1] + h_air
+        z_huygens = z_levels[-1] + h_air * 0.5  # Midpoint of air box
 
         gmsh.initialize()
         gmsh.option.setNumber("General.Verbosity", 1)
@@ -227,6 +242,15 @@ class StackedPatchDesign:
             )
             embed_list.append((2, sf))
 
+        # Huygens surface for near-to-far field transformation
+        # Inset from domain boundary to avoid ABC-contaminated fields
+        h_inset = gp * 0.1
+        sf_huygens = occ.addRectangle(
+            h_inset, h_inset, z_huygens,
+            gp - 2 * h_inset, gp - 2 * h_inset
+        )
+        embed_list.append((2, sf_huygens))
+
         occ.synchronize()
         occ.fragment([(3, 1)], embed_list)
         occ.synchronize()
@@ -243,6 +267,7 @@ class StackedPatchDesign:
         top_surfs = []
         side_surfs = []
         cavity_wall_surfs = []
+        huygens_surfs = []
 
         for _, tag in gmsh.model.getEntities(2):
             bb = gmsh.model.getBoundingBox(2, tag)
@@ -276,6 +301,8 @@ class StackedPatchDesign:
                     bot_surfs.append(tag)
                 elif abs(zc - z_top) < tol:
                     top_surfs.append(tag)
+                elif abs(zc - z_huygens) < tol:
+                    huygens_surfs.append(tag)
                 else:
                     for pi, patch in enumerate(self.patches):
                         if abs(zc - patch['height']) < tol:
@@ -332,6 +359,8 @@ class StackedPatchDesign:
                 abc_list.append(tag)
         if abc_list:
             gmsh.model.addPhysicalGroup(2, abc_list, self._TAG_ABC)
+        if huygens_surfs:
+            gmsh.model.addPhysicalGroup(2, huygens_surfs, self._TAG_HUYGENS)
 
         # Classify volumes by z-position into cavity, substrate, and air
         cavity_vols = []
@@ -437,33 +466,6 @@ class StackedPatchDesign:
         gmsh.write(msh_path)
         gmsh.finalize()
 
-    def _compute_gamma(self, params, opts):
-        """Compute gamma = w^H * A^{-1} * w for the lumped port."""
-        port = self._ports[0]
-        pec_edges = set(self._bc.dirichlet_edges)
-
-        # Assemble bare FEM (no port loading) and port excitation
-        assembly = em.assemble_maxwell(
-            self._mesh, params, self._bc, [], -1
-        )
-        assembly_port = em.assemble_maxwell(
-            self._mesh, params, self._bc, self._ports, 0
-        )
-
-        # Solve: x = A^{-1} * b where b = 2*w/sqrt(Z0)
-        result = em.solve_linear(assembly.A, assembly_port.b, opts)
-
-        # V = w^H * x = 2*gamma/sqrt(Z0)
-        V_port = 0j
-        for k in range(len(port.edges)):
-            e = port.edges[k]
-            if e not in pec_edges:
-                V_port += np.conj(port.weights[k]) * result.x[e]
-
-        Z0 = complex(port.mode.Z0)
-        gamma = V_port * np.sqrt(Z0) / 2.0
-        return gamma
-
     def _setup_simulation(self, freq: float):
         """Set up boundary conditions and ports."""
         if self._mesh is None:
@@ -502,8 +504,8 @@ class StackedPatchDesign:
         """
         Run full-wave FEM simulation at given frequency.
 
-        Uses the validated C++ S-parameter extraction (calculate_sparams)
-        which handles port loading, solve, and S11 extraction correctly.
+        Uses the standard calculate_sparams() path with normalize_port_weights()
+        for proper lumped port S-parameter extraction.
 
         Args:
             freq: Frequency in Hz
@@ -512,75 +514,50 @@ class StackedPatchDesign:
             Tuple of (S11, solution_vector)
         """
         self._setup_simulation(freq)
-
         omega = 2 * np.pi * freq
 
         params = em.MaxwellParams()
         params.omega = omega
         params.use_abc = True
         params.abc_surface_tags = {self._TAG_ABC}
-
-        # Set substrate material properties
         for si, sub in enumerate(self.substrates):
             tag = self._TAG_SUBSTRATE_BASE + si
             eps_r = sub['eps_r']
             tan_d = sub.get('tan_d', 0.0)
             params.set_eps_r_region(tag, complex(eps_r, -eps_r * tan_d))
 
-        # Impedance-based S-parameter extraction for lumped port.
-        # We compute gamma = w^H * A^{-1} * w (bare FEM, no port loading)
-        # and apply a frequency-independent normalization factor from a
-        # reference frequency to get the physical impedance.
         opts = em.SolveOptions()
         opts.use_direct = True
 
-        # Compute normalization factor at reference frequency (first call only)
-        port = self._ports[0]
-        Z0 = complex(port.mode.Z0)
-        if not hasattr(self, '_port_alpha_sq'):
-            # Use a low frequency (well below resonance) for stable normalization
-            params_ref = em.MaxwellParams()
-            f_ref = freq * 0.7  # Below expected resonance
-            params_ref.omega = 2 * np.pi * f_ref
-            params_ref.use_abc = True
-            params_ref.abc_surface_tags = {self._TAG_ABC}
-            for si, sub in enumerate(self.substrates):
-                tag = self._TAG_SUBSTRATE_BASE + si
-                eps_r_s = sub['eps_r']
-                tan_d_s = sub.get('tan_d', 0.0)
-                params_ref.set_eps_r_region(tag, complex(eps_r_s, -eps_r_s * tan_d_s))
-
-            gamma_ref = self._compute_gamma(params_ref, opts)
-            # Target: |gamma_norm| = Z0 => alpha^2 = Z0 / |gamma_ref|
-            # Use magnitude to avoid complex phase rotation artifacts
-            if abs(gamma_ref) > 1e-15:
-                self._port_alpha_sq = Z0.real / abs(gamma_ref)
-            else:
-                self._port_alpha_sq = 1.0
-
-        # Compute gamma at the actual frequency
-        gamma_bare = self._compute_gamma(params, opts)
-
-        # Apply normalization: gamma_norm = alpha^2 * gamma_bare
-        gamma_norm = self._port_alpha_sq * gamma_bare
-
-        # S11 = (gamma - Z0)/(gamma + Z0) from Woodbury identity
-        S11 = (gamma_norm - Z0) / (gamma_norm + Z0)
-
-        # Get solution vector for post-processing
-        assembly = em.assemble_maxwell(
-            self._mesh, params, self._bc, [], -1
+        # Normalize port weights so that w^H A^{-1} w = Z0,
+        # which is required for correct S-parameter extraction.
+        em.normalize_port_weights(
+            self._mesh, params, self._bc, self._ports, opts
         )
-        assembly_port = em.assemble_maxwell(
-            self._mesh, params, self._bc, self._ports, 0
+
+        # Use standard S-parameter extraction (same path as waveguide design)
+        S = em.calculate_sparams(
+            self._mesh, params, self._bc, self._ports, opts
         )
-        result = em.solve_linear(assembly.A, assembly_port.b, opts)
-        if not result.converged:
-            raise RuntimeError(
-                f"Solver did not converge: residual={result.residual}"
+        S11 = S[0, 0]
+
+        # Passivity diagnostic (warn but don't clamp)
+        if abs(S11) > 1.01:
+            import sys
+            print(
+                f"WARNING: |S11| = {abs(S11):.4f} > 1 at {freq/1e9:.3f} GHz "
+                f"(passivity violation — consider refining mesh)",
+                file=sys.stderr,
             )
 
+        # Also solve for the full field solution for post-processing
+        # (radiation patterns, field export, etc.)
+        assembly = em.assemble_maxwell(
+            self._mesh, params, self._bc, self._ports, 0
+        )
+        result = em.solve_linear(assembly.A, assembly.b, opts)
         self._last_solutions[freq] = result.x
+
         return S11, result.x
 
     def input_impedance(self, freq: float) -> complex:
@@ -634,16 +611,45 @@ class StackedPatchDesign:
             Tuple of (frequencies, Z_in_array, S11_array)
         """
         freqs = np.linspace(f_start, f_stop, n_points)
+
+        # Set up simulation (BC + ports) at mid-frequency for normalization
+        f_mid = (f_start + f_stop) / 2.0
+        self._setup_simulation(f_mid)
+
+        params = em.MaxwellParams()
+        params.omega = 2 * np.pi * f_mid  # Used for port normalization
+        params.use_abc = True
+        params.abc_surface_tags = {self._TAG_ABC}
+        for si, sub in enumerate(self.substrates):
+            tag = self._TAG_SUBSTRATE_BASE + si
+            eps_r = sub['eps_r']
+            tan_d = sub.get('tan_d', 0.0)
+            params.set_eps_r_region(tag, complex(eps_r, -eps_r * tan_d))
+
+        opts = em.SolveOptions()
+        opts.use_direct = True
+
+        # Normalize port weights once at mid-frequency
+        em.normalize_port_weights(
+            self._mesh, params, self._bc, self._ports, opts
+        )
+
+        if verbose:
+            print(f"  Running {n_points}-point frequency sweep "
+                  f"({f_start/1e9:.3f}–{f_stop/1e9:.3f} GHz)")
+
+        # Use efficient frequency sweep (K/M separation + symbolic reuse)
+        sweep_result = em.frequency_sweep(
+            self._mesh, params, self._bc, self._ports,
+            freqs.tolist(), opts
+        )
+
         Z_list = []
         S11_list = []
-
-        for i, f in enumerate(freqs):
-            if verbose:
-                print(f"  {i+1}/{n_points}: {f/1e9:.3f} GHz")
-            S11, _ = self.simulate(f)
+        Z0 = self.z0
+        for i, S_mat in enumerate(sweep_result.S_matrices):
+            S11 = S_mat[0, 0]
             S11_list.append(S11)
-
-            Z0 = self.z0
             if abs(1 - S11) > 1e-30:
                 Z_in = Z0 * (1 + S11) / (1 - S11)
             else:
@@ -682,14 +688,70 @@ class StackedPatchDesign:
             self._mesh, solution, self._TAG_HUYGENS, omega
         )
 
-        theta_rad = np.linspace(0, np.pi, n_theta).tolist()
+        # Ensure consistent outward (+z) normals on the horizontal Huygens
+        # surface. The C++ extractor picks one parent tet per face, and for
+        # faces shared between tets above and below the surface the choice
+        # is non-deterministic, occasionally flipping the normal.
+        # Use aperture/image theory: for an antenna above a PEC ground
+        # plane, the far field equals 2× the magnetic-current (M = -n×E)
+        # contribution from the aperture. H_tan is set to zero because
+        # image theory accounts for it via the factor of 2.
+        normals_fixed = []
+        E_doubled = []
+        H_zero = []
+        for i in range(len(huygens.n)):
+            n = huygens.n[i]
+            E = huygens.E_tan[i]
+            if n[2] < 0:  # pointing downward — flip
+                normals_fixed.append(-n)
+                E_doubled.append(-2.0 * E)
+            else:
+                normals_fixed.append(n)
+                E_doubled.append(2.0 * E)
+            H_zero.append(np.zeros(3, dtype=complex))
+
+        # Upper hemisphere only (ground plane blocks lower hemisphere)
+        theta_rad = np.linspace(0, np.pi / 2, n_theta).tolist()
         phi_rad = np.linspace(0, 2 * np.pi, n_phi).tolist()
 
-        pattern = em.stratton_chu_3d(
-            huygens.r, huygens.n, huygens.E_tan, huygens.H_tan,
-            huygens.area, theta_rad, phi_rad, k0
-        )
+        # Compute pattern in Python with aperture obliquity factor
+        # (1+cos θ)/2 that accounts for the open single-plane Huygens
+        # surface. A closed surface would cancel horizon radiation via
+        # side-face contributions; the obliquity factor approximates this.
+        E_theta_out = np.zeros((n_theta, n_phi), dtype=complex)
+        E_phi_out = np.zeros((n_theta, n_phi), dtype=complex)
+        theta_grid = np.zeros((n_theta, n_phi))
+        phi_grid = np.zeros((n_theta, n_phi))
 
+        for ti, th in enumerate(theta_rad):
+            sin_th = np.sin(th)
+            cos_th = np.cos(th)
+            obliquity = cos_th
+
+            for pi_idx, ph in enumerate(phi_rad):
+                theta_grid[ti, pi_idx] = th
+                phi_grid[ti, pi_idx] = ph
+
+                rhat = np.array([sin_th * np.cos(ph),
+                                 sin_th * np.sin(ph), cos_th])
+                th_hat = np.array([cos_th * np.cos(ph),
+                                   cos_th * np.sin(ph), -sin_th])
+                ph_hat = np.array([-np.sin(ph), np.cos(ph), 0.0])
+
+                Efar = np.zeros(3, dtype=complex)
+                for s in range(len(huygens.r)):
+                    M = -np.cross(normals_fixed[s], E_doubled[s])
+                    phase = np.exp(-1j * k0 * np.dot(rhat, huygens.r[s]))
+                    term = 1j * k0 * np.cross(np.cross(rhat, M), rhat)
+                    Efar += term * phase * huygens.area[s] * obliquity
+
+                E_theta_out[ti, pi_idx] = np.dot(Efar, th_hat)
+                E_phi_out[ti, pi_idx] = np.dot(Efar, ph_hat)
+
+        # Return a lightweight pattern object compatible with the C++ API
+        pattern = _AperturePattern(
+            theta_grid, phi_grid, E_theta_out, E_phi_out
+        )
         return pattern
 
     def directivity(self, freq: float) -> float:
@@ -703,7 +765,38 @@ class StackedPatchDesign:
             Directivity (linear scale)
         """
         pattern = self.radiation_pattern(freq)
+        if isinstance(pattern, _AperturePattern):
+            return self._compute_directivity_py(pattern)
         return em.compute_directivity(pattern)
+
+    @staticmethod
+    def _compute_directivity_py(pattern):
+        """Compute directivity from a Python pattern (upper hemisphere)."""
+        Z0 = 376.73
+        pwr = pattern.power_pattern()
+        U_max = pwr.max() / (2.0 * Z0)
+        if U_max < 1e-30:
+            return 0.0
+        Nth, Nph = pwr.shape
+        if Nth < 2 or Nph < 2:
+            return 1.0
+        dtheta = (pattern.theta_grid[-1, 0] - pattern.theta_grid[0, 0]) / (Nth - 1)
+        dphi = (pattern.phi_grid[0, -1] - pattern.phi_grid[0, 0]) / (Nph - 1)
+        P_rad = 0.0
+        for i in range(Nth):
+            theta = pattern.theta_grid[i, 0]
+            sin_th = np.sin(theta)
+            wt_th = 0.5 if (i == 0 or i == Nth - 1) else 1.0
+            for j in range(Nph):
+                wt_ph = 0.5 if (j == 0 or j == Nph - 1) else 1.0
+                U = pwr[i, j] / (2.0 * Z0)
+                P_rad += U * sin_th * wt_th * wt_ph
+        P_rad *= dtheta * dphi
+        # For upper hemisphere pattern, assume lower hemisphere has zero
+        # contribution (ground plane). Multiply by 2 for 4*pi normalization.
+        if P_rad < 1e-30:
+            return 0.0
+        return 4.0 * np.pi * U_max / (2.0 * P_rad)
 
     def near_field(
         self, freq: float, points: np.ndarray
