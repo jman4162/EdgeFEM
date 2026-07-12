@@ -481,6 +481,10 @@ PYBIND11_MODULE(pyedgefem, m) {
       py::arg("vertices"), py::arg("edge_orient"), py::arg("edge_dofs"),
       py::arg("point"));
 
+  m.def("compute_barycentric", &compute_barycentric,
+        "Barycentric coordinates of a point w.r.t. a tetrahedron's vertices.",
+        py::arg("vertices"), py::arg("point"));
+
   m.def("build_wave_port", &build_wave_port,
         "Project a modal field onto port edges.", py::arg("volume_mesh"),
         py::arg("surface"), py::arg("mode"));

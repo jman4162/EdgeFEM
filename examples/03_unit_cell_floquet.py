@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
 """
-Example 03: Phased Array Unit Cell with Floquet Ports
+Example 03: Phased Array Unit Cell Concepts (no FEM solve)
 
-This example demonstrates how to analyze a phased array unit cell using
-periodic boundary conditions with Floquet phase shift. This is the standard
-approach for computing embedded element patterns and scan impedance.
+This is a conceptual walkthrough: it prints Floquet phase-shift tables,
+active-impedance formulas, and the EdgeFEM periodic-BC API workflow. It does
+NOT run a simulation. For a runnable periodic solve, see
+examples/unit_cell_demo.py (UnitCellDesign.reflection_transmission).
 
 Key concepts:
 - Periodic boundary conditions pair master/slave edges with phase shift
 - Floquet phase shift depends on scan angle and element spacing
 - Active S-parameters vary with scan angle
 
-Note: This example uses a simple waveguide as a placeholder for a unit cell.
-A real phased array simulation would use a patch antenna or slot geometry.
-
-Requirements:
-    - EdgeFEM built with EDGEFEM_PYTHON=ON
-    - Mesh file with periodic surfaces
-
-For actual array simulations, the mesh should have:
-    - Periodic surfaces in X and/or Y directions
-    - A Floquet port (or wave port) for excitation
-    - PEC ground plane (if applicable)
+Current solver limitations (see README "Current Limitations"): the Bloch
+phase is applied along one lattice axis per solve, ports are waveguide modes
+rather than Floquet harmonics, and the periodic elimination is dense.
 """
 
 import numpy as np
@@ -69,6 +62,7 @@ def main():
 
     print("=" * 60)
     print("EdgeFEM Example 03: Phased Array Unit Cell Concepts")
+    print("(conceptual walkthrough - no FEM solve is run)")
     print("=" * 60)
 
     # ========================================================================
@@ -214,13 +208,10 @@ This example demonstrated:
 3. EdgeFEM periodic BC workflow for unit cell simulations
 4. Scan loss estimation for phased array design
 
-For a complete unit cell simulation, you would need:
-- A mesh with the actual antenna geometry (patch, slot, etc.)
-- Periodic surfaces matching the array lattice
-- Floquet or wave ports for excitation
+For a runnable periodic solve, see examples/unit_cell_demo.py.
 
-EdgeFEM provides all the necessary functions for full-wave
-unit cell analysis of phased array antennas.
+Current limitations: single-axis Bloch phase per solve, waveguide-mode
+ports (no Floquet harmonics), dense periodic elimination (small meshes).
 """)
 
     print("Demo complete.")

@@ -634,10 +634,9 @@ class UnitCellDesign:
         Args:
             mesh_path: Path to Gmsh v2 .msh file
         """
+        self._invalidate_mesh()
         self._mesh = em.load_gmsh(mesh_path)
         self._mesh_path = mesh_path
-        self._invalidate_mesh()
-        self._mesh = em.load_gmsh(mesh_path)  # Re-load after invalidate
 
     def _setup_periodic_bc(self, freq: float, theta: float = 0.0, phi: float = 0.0):
         """Set up periodic boundary conditions with Floquet phase."""

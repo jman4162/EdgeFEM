@@ -25,7 +25,9 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = ["electromagnetics", "fem", "simulation", "rf", "mmwave", "antenna", "s-parameters"]
-dependencies = ["numpy>=1.20"]
+# gmsh is required at runtime by every Design.generate_mesh(); the pip
+# package ships both the Python API and the gmsh executable.
+dependencies = ["numpy>=1.20", "gmsh>=4.11"]
 
 [project.optional-dependencies]
 plots = ["matplotlib>=3.5"]
