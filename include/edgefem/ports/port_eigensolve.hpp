@@ -30,6 +30,8 @@ struct PortMode {
 
 /// @deprecated Use Eigen::MatrixXcd from calculate_sparams() for N-port
 /// support.
+// clang-format 19 and 21 disagree on breaking after the struct attribute.
+// clang-format off
 struct [[deprecated("Use Eigen::MatrixXcd from calculate_sparams() instead")]]
 SParams2 {
   std::complex<double> s11;
@@ -37,6 +39,7 @@ SParams2 {
   std::complex<double> s12;
   std::complex<double> s22;
 };
+// clang-format on
 
 /// Helper to convert 2x2 S-matrix to legacy SParams2 structure.
 inline SParams2 matrix_to_sparams2(const Eigen::Matrix2cd &S) {
