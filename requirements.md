@@ -1,5 +1,11 @@
 # REQUIREMENTS.md — EdgeFEM v1.0
 
+> **Status: aspirational requirements draft.** Many requirements below are
+> not met by the current implementation (GPU/MPI scaling, cluster benchmarks,
+> CAD import, coax/planar ports, adaptive refinement). Treat this as a
+> roadmap wishlist, not a description of shipped capability; README.md
+> "Current Limitations" is authoritative.
+
 **Status:** Draft (v0.1)  
 **Owner:** Core Team (Numerics Lead + Runtime Lead)  
 **Last updated:** <set on commit>

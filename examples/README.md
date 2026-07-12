@@ -74,12 +74,11 @@ The script writes `patch_sparams.csv`, a Touchstone file
 `patch_2p45_FR4.s1p`, a `patch_antenna.geo` model, and a
 `patch_design.json` summary in this directory.
 
-To generate a coarse tetrahedral mesh and run the nascent full-wave solver,
-use:
+To run a full-wave FEM sweep of the same patch (lumped-port excitation via
+the PatchAntennaDesign backend; requires gmsh):
 
 ```bash
-PYTHONPATH=../build/python ./run_patch_fullwave.py
+PYTHONPATH=../build/python:../python ./run_patch_fullwave.py
 ```
 
-This writes `patch_antenna.msh` and a placeholder residual sweep
-`patch_fullwave_sparams.csv`.
+This writes S11 vs frequency to `patch_fullwave_sparams.csv`.

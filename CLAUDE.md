@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EdgeFEM is a 3D finite-element electromagnetics (FEM) simulator specialized for **metasurface, metamaterial, and phased array unit cell RF modeling** (100 kHz–110 GHz). It computes S-parameters, fields, and radiation patterns using Nédélec (edge) elements with periodic boundary conditions, PML for open boundaries, and scales from laptops to HPC clusters.
+EdgeFEM is a 3D finite-element electromagnetics (FEM) simulator for **waveguide, patch antenna, and periodic unit cell RF modeling** (validated ~5–26 GHz). It computes S-parameters, fields, and radiation patterns using lowest-order Nédélec (edge) elements, with single-axis Bloch periodic BCs and a graded absorbing layer for open boundaries. Execution is single-threaded, single-node; direct-solver memory limits apply.
 
-The project is MCP (Model Context Protocol) compatible, enabling LLM-augmented automation agents for mesh QA, numerical validation, and documentation sync.
+Development tooling includes small Python CLIs under `tools/` (mesh QA, simulation scaffolding, pattern plotting); see AGENTS.md. There is no MCP server.
 
 ## Ecosystem Role
 
@@ -27,7 +27,7 @@ EdgeFEM serves as the **full-wave FEM engine** in a multi-package RF modeling ec
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │                      EdgeFEM                             │   │
 │  │  Full-wave 3D FEM engine providing:                       │   │
-│  │  - Unit cell S-parameters (Floquet ports)                 │   │
+│  │  - Unit cell S-parameters (periodic BCs)                  │   │
 │  │  - Embedded element patterns                              │   │
 │  │  - Mutual coupling coefficients                           │   │
 │  │  - Near-field distributions                               │   │
@@ -143,12 +143,12 @@ python3 examples/plot_waveguide_sparams.py
 - `SpMatC = Eigen::SparseMatrix<std::complex<double>>` — sparse system matrices
 - Edge orientation stored per element: `edge_orient[i]` ∈ {+1, −1}
 
-## MCP Integration
+## Developer Tooling
 
-Automation agents in `tools/agents/` follow the MCP server pattern:
-- `mesh_qa.py` — validates mesh quality, outputs JSON diagnostics
-- `release_notes.py` — generates changelog from merged PRs
-- Designed for LLM-augmented workflows with structured output
+Python CLIs under `tools/` (see AGENTS.md):
+- `tools/agents/mesh_qa.py` — Gmsh v2 mesh quality checks (volumes, aspect ratios), JSON output; runs in CI
+- `tools/new_simulation.py` — scaffolds a `.geo` + `run_simulation.py` from templates
+- `tools/plot_pattern.py` — polar pattern plots from CSV
 
 ## CMake Options
 

@@ -1,5 +1,11 @@
 # System Design Specification
 
+> **Status: aspirational design document.** This spec describes the long-term
+> target system, including features that are not implemented (HPC/MPI/GPU
+> runtime, domain decomposition, adaptive refinement, MOR, CAD import,
+> coax/planar ports, 100 kHz–110 GHz coverage). For what the code actually
+> does today, see README.md "Features" and "Current Limitations".
+
 **Project:** EdgeFEM — 3D FEM Electromagnetics Simulator
 **Primary Modes:** Driven-modal / Driven-terminal / Eigenmode
 **Outputs:** S-parameters, port impedances, fields, near/far radiation patterns, gains, efficiencies

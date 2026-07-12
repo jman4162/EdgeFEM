@@ -9,20 +9,20 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 
-EdgeFEM is an open-source full-wave FEM solver specialized for metasurface, metamaterial, and phased array unit cell modeling (100 kHz - 110 GHz). It computes S-parameters, electromagnetic fields, and radiation patterns using Nédélec (edge) elements with industry-standard accuracy.
+EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and microwave structures: hollow waveguides, probe-fed patch antennas, and periodic unit cells. It computes S-parameters, electromagnetic fields, and radiation patterns using lowest-order Nédélec (edge) tetrahedral elements. Accuracy is validated against analytical benchmarks over roughly 5–26 GHz (see [Validation](docs/validation.md)).
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| **S-parameters** | Wave ports with eigenmode-based extraction (99.4% accuracy) |
-| **Radiation Patterns** | 3D far-field via Stratton-Chu integration |
-| **Periodic Structures** | Floquet ports for infinite array/metasurface analysis |
-| **Open Boundaries** | PML and ABC for antenna/scattering problems |
+| **S-parameters** | Wave ports with 3D-eigenvector-based extraction; lumped ports for antenna feeds |
+| **Radiation Patterns** | 3D far-field via Stratton-Chu integration over a Huygens surface |
+| **Periodic Structures** | Phase-shifted (Bloch) periodic BCs along one lattice axis, for small unit cells |
+| **Open Boundaries** | First-order ABC and a graded absorbing layer (see Limitations) |
 | **Dispersive Materials** | Debye, Lorentz, Drude, and DrudeLorentz models |
 | **Python SDK** | Full scriptable API with NumPy integration |
 | **Design Classes** | `RectWaveguideDesign`, `PatchAntennaDesign`, `UnitCellDesign` |
-| **Plotting Module** | 14 publication-quality visualization functions |
+| **Plotting Module** | 14 visualization functions |
 | **Standard Exports** | Touchstone (.sNp), VTK, CSV |
 
 ## Quick Start
@@ -55,8 +55,8 @@ wg.generate_mesh(density=10)
 
 # Compute S-parameters at 10 GHz
 S = wg.sparams_at_freq(10e9)
-print(f"|S11| = {abs(S[0,0]):.4f}")  # ~0.001 (matched)
-print(f"|S21| = {abs(S[1,0]):.4f}")  # ~0.994 (99.4% transmission)
+print(f"|S11| = {abs(S[0,0]):.4f}")  # ~0.09 (see validation report)
+print(f"|S21| = {abs(S[1,0]):.4f}")  # ~0.99 (matched transmission)
 ```
 
 ### Patch Antenna Example (Analytical Estimates)
@@ -66,8 +66,8 @@ from edgefem.designs import PatchAntennaDesign
 
 # 2.4 GHz WiFi patch on FR-4
 # Note: input_impedance() and radiation_pattern() use analytical
-# approximations (transmission-line / cavity model), not full-wave FEM.
-# Full-wave patch simulation requires lumped ports (planned v1.1).
+# approximations (transmission-line / cavity model). For full-wave FEM
+# results use patch.simulate(freq) after generate_mesh().
 patch = PatchAntennaDesign(
     patch_length=29e-3, patch_width=38e-3,
     substrate_height=1.6e-3, substrate_eps_r=4.4
@@ -97,6 +97,11 @@ cell.generate_mesh(density=20)
 R, T = cell.reflection_transmission(10e9, theta=0, phi=0)
 Zs = cell.surface_impedance(10e9)
 ```
+
+Note: the periodic solve currently applies the Bloch phase along the x lattice
+axis only (y walls are natural boundaries), so results are most reliable at
+normal incidence. The port is the cell's dominant waveguide mode, not a
+Floquet harmonic. See Current Limitations.
 
 ## Documentation
 
@@ -133,23 +138,23 @@ Zs = cell.surface_impedance(10e9)
 │  ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌─────────┐  │
 │  │   Mesh   │ │  Maxwell │ │ Ports  │ │  Solver  │ │  Post   │  │
 │  │  (Gmsh)  │ │ Assembly │ │ (Wave/ │ │(BiCGSTAB)│ │ (NTF,   │  │
-│  │          │ │(PML/ABC) │ │Floquet)│ │          │ │  VTK)   │  │
+│  │          │ │(ABC/absr)│ │ Lumped)│ │          │ │  VTK)   │  │
 │  └──────────┘ └──────────┘ └────────┘ └──────────┘ └─────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Validation
 
-EdgeFEM achieves research-grade accuracy:
+Validated against analytical benchmarks (WR-90/WR-42 waveguide dispersion, cavity eigenmodes, lossy-dielectric attenuation). Representative WR-90 results at ~10 elements/wavelength:
 
-| Metric | Target | Achieved |
-|--------|--------|----------|
-| \|S21\| transmission | > 99% | 99.4% |
-| Phase accuracy | < 5° | 1-2° |
-| Passivity | \|S11\|² + \|S21\|² ≤ 1 | PASS |
-| Reciprocity | S12 = S21 | PASS |
+| Metric | Typical (WR-90, 7-12 GHz) | Test pass criterion |
+|--------|---------------------------|---------------------|
+| \|S21\| | 0.987-0.998 | > 0.90 |
+| \|S11\| | 0.04-0.14 | < 0.15 |
+| Phase error vs. -βL | 3-13° | < 15° |
+| Passivity \|S11\|² + \|S21\|² | ≈ 1.0 | ≤ 1.05 |
 
-See [Validation Report](docs/validation.md) for full benchmark results.
+Numbers are from `tests/benchmark_wr90.cpp`, run in CI. See [Validation Report](docs/validation.md) for full results and limitations.
 
 ## Ecosystem Integration
 
@@ -239,20 +244,25 @@ If you use EdgeFEM in your research, please cite:
 
 ## Current Limitations
 
-EdgeFEM v1.0 is optimized for **unit cell and metasurface RF modeling**. The following features are not yet implemented:
+EdgeFEM v1.0 targets small-to-medium waveguide, patch antenna, and unit cell problems. Know these limits before relying on results:
 
-| Feature | Status | Workaround |
-|---------|--------|------------|
-| Higher-order elements (Tet10) | Planned v1.1 | Use finer mesh |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| True tensor (coordinate-stretched) PML | Planned v1.1 | Current absorber applies a scalar average of the stretch tensor: a graded lossy layer, not reflectionless at oblique incidence |
+| Wave port formulation | First-order ABC with modal injection | Diagonal (lumped) surface operator with tuned 0.5 scale factor; ~5% S-parameter error typical; accuracy degrades near cutoff |
+| Floquet ports / harmonic expansion | Planned | Periodic BC applies a Bloch phase along one lattice axis only; the constraint elimination is dense, limiting problem size |
+| Inhomogeneous / TEM ports (coax, microstrip) | Not supported | 2D port eigensolver is scalar (hollow homogeneous guides only) |
+| Higher-order elements (Tet10) | Planned v1.1 | Lowest-order Whitney elements; use finer mesh |
 | Adaptive mesh refinement | Planned v1.1 | Manual mesh refinement in Gmsh |
 | Higher-order modes (TE20, TM) | Planned v1.1 | Single-mode analysis only |
-| Plane wave excitation | Planned v1.2 | Use Floquet ports for periodic |
-| Lumped ports | Planned v1.1 | Use wave ports |
-| Anisotropic materials | Not planned | Isotropic only |
-| MPI/GPU parallelization | Planned v2.0 | Single-node execution |
+| Plane wave excitation (RCS) | Planned v1.2 | — |
+| Anisotropic materials | Not planned | Isotropic (complex scalar) only |
+| Parallelism (threads/MPI/GPU) | Planned | Single-threaded execution; direct-solver memory limits apply |
+| Low-frequency stabilization | Not implemented | Expect conditioning problems well below ~1 GHz |
 | Time-domain solver | Not planned | Frequency-domain only |
+| Gmsh mesh input | v2 ASCII only | Export with `gmsh -format msh2`; v4 files are not readable |
 
-For large-scale problems (>5M DOF) or features requiring adaptive refinement, consider commercial tools like HFSS or CST.
+For large problems (>1M DOF), adaptive refinement, or reference-plane modal ports, use commercial tools like HFSS or CST.
 
 ## Roadmap
 
@@ -262,13 +272,16 @@ For large-scale problems (>5M DOF) or features requiring adaptive refinement, co
 - GitHub Actions CI/CD with automated wheel builds
 
 ### v1.1 (Planned)
+- True tensor (coordinate-stretched) PML
+- Port surface mass matrix (replaces the tuned ABC scale factor)
+- Sparse periodic constraint elimination; dual-axis periodicity
 - Higher-order waveguide modes (TE20, TE01, TM modes)
-- Lumped port excitation
 - Higher-order Nédélec elements (Tet10)
 - OpenMP parallelization
 - Adaptive mesh refinement (h-adaptivity)
 
 ### v1.2 (Planned)
+- Floquet-harmonic ports for oblique-incidence unit cell analysis
 - Plane wave excitation for RCS/scattering
 - Surface impedance BC (SIBC)
 - Direct solver option (MUMPS)

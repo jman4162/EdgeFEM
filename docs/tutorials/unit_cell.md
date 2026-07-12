@@ -17,13 +17,19 @@ Periodic structures are fundamental building blocks for:
 - **Phased Arrays**: Unit cell characterizes element coupling
 - **Metamaterials**: Engineered effective ε and μ
 
-EdgeFEM uses Floquet boundary conditions to simulate an infinite periodic array from a single unit cell.
+EdgeFEM applies phase-shifted (Bloch) periodic boundary conditions to approximate an infinite periodic array from a single unit cell.
 
 **Key concepts:**
 
 - Floquet theorem: Fields repeat with phase shift across unit cell
 - Phase shift: $\phi = k_0 d \sin\theta$ for incidence angle θ
 - Normal incidence: θ = 0, no phase shift between cells
+
+**Current limitations** (see README "Current Limitations"): the Bloch phase
+is applied along the x lattice axis only (y walls are natural boundaries),
+the port is the cell's dominant waveguide mode rather than a Floquet
+harmonic, and the periodic constraint elimination is dense — keep meshes
+small and prefer normal incidence.
 
 ## Step 1: Create Unit Cell
 

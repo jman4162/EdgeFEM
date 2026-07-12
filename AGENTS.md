@@ -1,140 +1,47 @@
-# AGENTS.md — Developer Agents & CI Automation
+# AGENTS.md — Developer Tooling & CI Automation
 
-This repo uses lightweight agents (scripts + LLM prompts) to automate routine tasks: code review hints, documentation updates, mesh QA, and benchmark triage. Agents run locally via CLI and in CI on pull requests.
+This repo includes small Python CLIs under `tools/` that automate routine
+development tasks. They run locally and in CI (`.github/workflows/ci.yml`).
+None of them auto-commit; they produce artifacts for maintainers to inspect.
 
-> These are *assistive* and never auto‑commit to `main` without human review. They operate under strict permission boundaries and produce artifacts for maintainers to inspect.
+## What exists today
 
-## Agent Catalog
-
-### 1) Mesh QA Agent
-**Purpose:** Validate Gmsh meshes (or imported STEP→mesh) for quality: min dihedral angles, aspect ratios, boundary tags, and port cross‑section sanity.
-- **Inputs:** `.msh`/STEP, mesh config, thresholds
-- **Outputs:** HTML/JSON report; annotated screenshots; suggested fixes
-- **Triggers:** `tools/agents/mesh_qa.py --in examples/*.msh`
-
-### 2) Numerics QA Agent
-**Purpose:** Spot numerical risks in PRs (ill‑conditioned matrices, missing complex arithmetic, curl‑curl sign conventions, boundary application).
-- **Inputs:** Diff context, unit test logs
-- **Outputs:** Markdown review comments with citations to code lines
-- **Triggers:** CI step on PR; local pre‑commit hook
-
-### 3) Docs Agent
-**Purpose:** Keep `README.md`, API docs, and tutorials consistent with code changes.
-- **Inputs:** Public headers, CLI help, example scripts
-- **Outputs:** PR comment with proposed doc patches
-- **Triggers:** `tools/agents/docs_sync.py` or CI job
-
-### 4) Benchmark Agent
-**Purpose:** Run validation pack nightly and on PRs touching core; compare against tolerances.
-- **Inputs:** Benchmark YAML, reference results
-- **Outputs:** Trend plots, pass/fail summary; regression artifacts
-- **Triggers:** `tools/bench/run_pack.py --suite golden`
-
-### 5) Release Notes Agent
-**Purpose:** Generate `CHANGELOG` candidate from merged PRs and labels.
-- **Inputs:** Git log, PR labels
-- **Outputs:** Markdown section for the upcoming version
-- **Triggers:** `tools/agents/release_notes.py`
-
-## Implementation
-Agents are simple Python CLIs. Optionally they can call an LLM via your provider of choice (e.g., Bedrock, OpenAI) or a **local MCP server** for context retrieval.
-
-````
-
-tools/
-agents/
-mesh\_qa.py
-numerics\_review\.py
-docs\_sync.py
-release\_notes.py
-bench/
-run\_pack.py
-
-````
-
-## CI Wiring (GitHub Actions)
-Example CI job that runs build, tests, mesh QA, and benchmark smoke:
-
-```yaml
-name: CI
-on: [push, pull_request]
-jobs:
-  build-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
-      - name: Install deps
-        run: |
-          sudo apt-get update && sudo apt-get install -y cmake ninja-build
-          python -m pip install -r tools/requirements.txt
-      - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-      - name: Build
-        run: cmake --build build -j
-      - name: Unit tests
-        run: ctest --test-dir build -j || (cat build/Testing/Temporary/LastTest.log; exit 1)
-      - name: Mesh QA (agents)
-        run: python tools/agents/mesh_qa.py --in examples --out artifacts/mesh_qa
-      - name: Benchmark Smoke
-        run: python tools/bench/run_pack.py --suite smoke --out artifacts/bench
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: edgefem-artifacts
-          path: artifacts
-````
-
-### Optional macOS local smoke
-
-On Apple Silicon (M3 Max):
+### Mesh QA (`tools/agents/mesh_qa.py`)
+Parses Gmsh v2 ASCII meshes and reports per-mesh quality metrics as JSON:
+node/element counts, tetrahedron signed volumes (degenerate/inverted
+detection), and edge-length aspect ratios. Mirrors the checks in
+`src/mesh_quality.cpp`.
 
 ```bash
-tools/scripts/setup_macos.sh
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
-ctest --test-dir build -L smoke -j
+python tools/agents/mesh_qa.py --in examples --out artifacts/mesh_qa
 ```
 
-## Optional: MCP Server & RAG KB
+CI runs this over `examples/` on every push/PR and uploads the JSON report.
 
-If you use an MCP server for repository context and retrieval:
+### Simulation scaffolder (`tools/new_simulation.py`)
+Generates a `.geo` geometry file and a `run_simulation.py` driver from a
+template (waveguide, dipole, unit cell) into `simulations/<name>/`.
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "repo-kb": {
-        "command": "python",
-        "args": ["tools/mcp/repo_kb.py"],
-        "env": {"KB_PATH": "./docs"}
-      }
-    }
-  }
-}
-```
+### Pattern plotter (`tools/plot_pattern.py`)
+Polar radiation-pattern plots from CSV pattern exports.
 
-Then agents call MCP tools to fetch docs/snippets for grounded suggestions.
+## CI
 
-## Security & Guardrails
+The real pipeline is `.github/workflows/ci.yml`: build (Ninja, Release,
+`EDGEFEM_PYTHON=ON`), clang-format/clang-tidy via `tools/lint.sh`, `ctest`,
+`pytest python/tests/`, then mesh QA. `wheels.yml` builds wheels on
+Linux/macOS; `docs.yml` deploys MkDocs.
 
-* Agents run with read‑only tokens; write changes as patches in PR comments
-* Large file access and network calls are restricted in CI
-* Logs and artifacts are retained for audit; secrets are masked by Actions
+## Ideas not yet implemented
 
-## Local Usage Examples
+Earlier drafts of this file described a larger agent catalog (numerics PR
+review, docs sync, benchmark triage, release-notes generation) and an MCP
+server for repository retrieval. None of that exists yet. If you add such a
+tool, follow the conventions below rather than reintroducing aspirational
+docs.
 
-```bash
-python tools/agents/mesh_qa.py --in examples/cube_cavity.msh
-python tools/agents/numerics_review.py --diff HEAD~1..HEAD
-python tools/bench/run_pack.py --suite golden --filter patch_2p45GHz
-```
+## Adding a new tool
 
-## Adding a New Agent
-
-1. Create `tools/agents/<name>.py` with `--in`, `--out`,args and JSON output
-2. Add a Make/CI step and README snippet
-3. Provide a sample input and expected output in `tools/agents/samples/`
-
-```
+1. Create `tools/agents/<name>.py` with `--in`/`--out` args and JSON output.
+2. Add a CI step in `.github/workflows/ci.yml` and mention it here.
+3. Include a sample input and expected output in `tools/agents/samples/`.

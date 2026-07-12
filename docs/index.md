@@ -2,16 +2,16 @@
 
 **3D Finite-Element Electromagnetics Simulator for RF and mmWave**
 
-EdgeFEM is an open-source full-wave FEM solver specialized for metasurface, metamaterial, and phased array unit cell modeling (100 kHz - 110 GHz). It computes S-parameters, electromagnetic fields, and radiation patterns using Nédélec (edge) elements with industry-standard accuracy.
+EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and microwave structures: hollow waveguides, probe-fed patch antennas, and periodic unit cells. It computes S-parameters, electromagnetic fields, and radiation patterns using lowest-order Nédélec (edge) tetrahedral elements. Accuracy is validated against analytical benchmarks over roughly 5-26 GHz (see [Validation](validation.md)).
 
 ## Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **S-parameters** | Wave ports with eigenmode-based extraction (99.4% accuracy) |
+| **S-parameters** | Wave ports with 3D-eigenvector-based extraction; lumped ports for antenna feeds |
 | **Radiation Patterns** | 3D far-field via Stratton-Chu integration |
-| **Periodic Structures** | Floquet ports for infinite array/metasurface analysis |
-| **Open Boundaries** | PML and ABC for antenna/scattering problems |
+| **Periodic Structures** | Phase-shifted (Bloch) periodic BCs along one lattice axis, for small unit cells |
+| **Open Boundaries** | First-order ABC and a graded absorbing layer |
 | **Python SDK** | Full scriptable API with NumPy integration |
 | **High-level Design Classes** | `RectWaveguideDesign`, `PatchAntennaDesign`, `UnitCellDesign` |
 | **Standard Exports** | Touchstone (.sNp), VTK, CSV |
@@ -43,8 +43,8 @@ EdgeFEM is designed as a **computation engine** that integrates with your existi
 
 - **Script-first**: All simulations are fully reproducible Python scripts
 - **Standard formats**: Export to Touchstone for RF tools, VTK for ParaView
-- **Researcher-friendly**: No GUI lock-in, runs on laptops to HPC clusters
-- **Accurate**: Validated against analytical solutions and commercial tools
+- **Researcher-friendly**: No GUI lock-in; single-node, script-driven workflow
+- **Accurate**: Validated against analytical solutions (waveguide dispersion, cavity eigenmodes, Fresnel)
 
 ## Architecture
 
@@ -62,7 +62,7 @@ EdgeFEM is designed as a **computation engine** that integrates with your existi
 │  ┌──────────┐ ┌──────────┐ ┌───┴────┐ ┌──────────┐ ┌──────────┐  │
 │  │   Mesh   │ │  Maxwell │ │ Ports  │ │  Solver  │ │  Post-   │  │
 │  │  (Gmsh)  │ │ Assembly │ │(Wave/  │ │(BiCGSTAB)│ │  proc    │  │
-│  │          │ │ (PML/ABC)│ │Floquet)│ │          │ │(NTF,VTK) │  │
+│  │          │ │ (ABC/abs)│ │Lumped) │ │          │ │(NTF,VTK) │  │
 │  └──────────┘ └──────────┘ └────────┘ └──────────┘ └──────────┘  │
 └───────────────────────────────────────────────────────────────────┘
 ```

@@ -193,7 +193,7 @@ print(f"S11 = {S[0,0]:.4f}, S21 = {S[1,0]:.4f}")
 ```
 
 !!! note "Accuracy"
-    This function achieves 99.4% transmission accuracy for matched waveguide sections.
+    Typical matched-waveguide accuracy at ~10 elements/wavelength: |S21| within ~1%, |S11| < 0.15 (see docs/validation.md).
     Always use `port_abc_scale=0.5` for best results.
 
 ---
