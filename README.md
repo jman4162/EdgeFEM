@@ -29,6 +29,19 @@ EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and micro
 
 ### Installation
 
+From PyPI:
+
+```bash
+pip install edgefem
+```
+
+A prebuilt wheel currently exists for macOS arm64 / Python 3.9 only; on
+other platforms and Python versions pip builds from the sdist, which needs
+cmake, Eigen, and a C++20 compiler. Mesh generation requires gmsh (installed
+automatically as a dependency).
+
+From source (for development):
+
 ```bash
 # macOS
 brew install cmake ninja eigen gmsh
@@ -59,28 +72,33 @@ print(f"|S11| = {abs(S[0,0]):.4f}")  # ~0.09 (see validation report)
 print(f"|S21| = {abs(S[1,0]):.4f}")  # ~0.99 (matched transmission)
 ```
 
-### Patch Antenna Example (Analytical Estimates)
+### Patch Antenna Example
 
 ```python
+import numpy as np
 from edgefem.designs import PatchAntennaDesign
 
 # 2.4 GHz WiFi patch on FR-4
-# Note: input_impedance() and radiation_pattern() use analytical
-# approximations (transmission-line / cavity model). For full-wave FEM
-# results use patch.simulate(freq) after generate_mesh().
 patch = PatchAntennaDesign(
     patch_length=29e-3, patch_width=38e-3,
     substrate_height=1.6e-3, substrate_eps_r=4.4
 )
 patch.set_probe_feed(y_offset=-5e-3)
-patch.generate_mesh(density=15)
 
-# Analyze (analytical model — suitable for initial design)
+# Quick analytical estimates (transmission-line / cavity model)
 Z_in = patch.input_impedance(2.4e9)
-pattern = patch.radiation_pattern(2.4e9)
 D = patch.directivity(2.4e9)
 print(f"Directivity: {10*np.log10(D):.1f} dBi")
+
+# Full-wave FEM (lumped port, requires gmsh)
+patch.generate_mesh(density=12)
+s11, _ = patch.simulate(2.4e9)
+print(f"|S11| at 2.4 GHz: {abs(s11):.3f}")
 ```
+
+`input_impedance()` and `radiation_pattern()` always use the analytical
+models (and warn accordingly); `simulate()` is the full-wave path. A full
+sweep example is in `examples/run_patch_fullwave.py`.
 
 ### Unit Cell / Metasurface Example
 
@@ -101,7 +119,8 @@ Zs = cell.surface_impedance(10e9)
 Note: the periodic solve currently applies the Bloch phase along the x lattice
 axis only (y walls are natural boundaries), so results are most reliable at
 normal incidence. The port is the cell's dominant waveguide mode, not a
-Floquet harmonic. See Current Limitations.
+Floquet harmonic. See Current Limitations. A runnable version of this
+workflow is `examples/unit_cell_demo.py`.
 
 ## Documentation
 
@@ -110,6 +129,7 @@ Floquet harmonic. See Current Limitations.
 - **[API Reference](docs/api/)** - Complete function documentation
 - **[Tutorials](tutorials/)** - Jupyter notebook examples
 - **[Validation Report](docs/validation.md)** - Accuracy benchmarks
+- **[Changelog](CHANGELOG.md)** - What changed and when
 
 ### Jupyter Notebook Tutorials
 
@@ -119,6 +139,20 @@ Floquet harmonic. See Current Limitations.
 | [02_patch_antenna.ipynb](tutorials/02_patch_antenna.ipynb) | 2.4 GHz patch design |
 | [03_unit_cell.ipynb](tutorials/03_unit_cell.ipynb) | Metasurface characterization |
 | [04_phased_array.ipynb](tutorials/04_phased_array.ipynb) | Active impedance vs scan |
+
+### Example Scripts
+
+Runnable scripts in [`examples/`](examples/) (all perform real FEM solves
+unless noted):
+
+| Script | Description |
+|--------|-------------|
+| [01_waveguide_sparams.py](examples/01_waveguide_sparams.py) | WR-90 S-parameters at a single frequency |
+| [02_frequency_sweep.py](examples/02_frequency_sweep.py) | Waveguide sweep with Touchstone export |
+| [run_patch_fullwave.py](examples/run_patch_fullwave.py) | Full-wave probe-fed patch S11 sweep |
+| [unit_cell_demo.py](examples/unit_cell_demo.py) | Periodic unit cell reflection (single-axis Bloch BC) |
+| [validation_fresnel.py](examples/validation_fresnel.py) | Analytical Fresnel/Fabry-Pérot reference curves |
+| [03_unit_cell_floquet.py](examples/03_unit_cell_floquet.py) | Floquet phase concepts (prints tables, no solve) |
 
 ## Architecture
 
@@ -154,7 +188,7 @@ Validated against analytical benchmarks (WR-90/WR-42 waveguide dispersion, cavit
 | Phase error vs. -βL | 3-13° | < 15° |
 | Passivity \|S11\|² + \|S21\|² | ≈ 1.0 | ≤ 1.05 |
 
-Numbers are from `tests/benchmark_wr90.cpp`, run in CI. See [Validation Report](docs/validation.md) for full results and limitations.
+Numbers are from `tests/benchmark_wr90.cpp`, run in CI. A measured mesh-convergence study (`scripts/run_convergence_study.py`) shows phase error converging at roughly O(h²) while S-parameter magnitudes plateau at a 1-2% floor set by the lumped port ABC — see the [Validation Report](docs/validation.md) for the full tables and limitations.
 
 ## Ecosystem Integration
 
@@ -266,10 +300,12 @@ For large problems (>1M DOF), adaptive refinement, or reference-plane modal port
 
 ## Roadmap
 
-### v1.0 (Current)
+### v1.0.x (Current)
 - Dispersive materials (Debye, Lorentz, Drude, DrudeLorentz models)
 - pip-installable Python package (`pip install edgefem`)
 - GitHub Actions CI/CD with automated wheel builds
+- Documentation and validation integrity pass, July 2026 — reproducible
+  benchmarks, honest limitations, real mesh QA in CI (see [CHANGELOG](CHANGELOG.md))
 
 ### v1.1 (Planned)
 - True tensor (coordinate-stretched) PML
