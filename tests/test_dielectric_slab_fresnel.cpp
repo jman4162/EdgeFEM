@@ -1,11 +1,15 @@
-// Dielectric Slab Fresnel Coefficient Validation
-// Tests material handling and periodic BC with Floquet ports
+// Dielectric Slab Setup Sanity + Analytical Fresnel Reference
+//
+// NOTE: This test does NOT run an FEM solve. It checks that the slab mesh
+// loads with the expected port surfaces and material regions, and verifies
+// the analytical Fabry-Pérot reference (R+T = 1) used by
+// examples/validation_fresnel.py. An end-to-end FEM-vs-Fresnel comparison
+// requires Floquet ports, which are not implemented.
 //
 // Configuration:
 //   - Dielectric slab (εr = 4.0) in air
 //   - Slab thickness: d = 3mm
 //   - Normal incidence plane wave
-//   - Periodic BC in x and y directions
 //
 // Fresnel coefficients at single interface (normal incidence):
 //   r12 = (n1 - n2)/(n1 + n2) = (1 - 2)/(1 + 2) = -1/3
@@ -116,11 +120,14 @@ int main() {
             << std::setw(12) << "T_ana" << std::setw(12) << "R+T" << std::endl;
   std::cout << std::string(48, '-') << std::endl;
 
+  bool energy_conserved = true;
   for (double freq : test_freqs) {
     auto [R, T] = fresnel_slab_analytical(freq, eps_r, d_slab);
     std::cout << std::setw(12) << freq / 1e9 << std::setw(12)
               << std::setprecision(4) << R << std::setw(12) << T
               << std::setw(12) << R + T << std::endl;
+    if (std::abs(R + T - 1.0) > 1e-9)
+      energy_conserved = false;
   }
 
   std::cout << std::endl;
@@ -157,9 +164,9 @@ int main() {
   bool ports_found =
       port1_surf.mesh.tris.size() > 0 && port2_surf.mesh.tris.size() > 0;
   bool regions_correct = air_tets > 0 && dielectric_tets > 0;
-  bool energy_conserved = true; // Analytical R+T = 1 (checked above)
 
-  std::cout << "=== Validation ===" << std::endl;
+  std::cout << "=== Validation (setup + analytical reference only) ==="
+            << std::endl;
   std::cout << "Mesh loaded: " << (mesh_loaded ? "PASS" : "FAIL") << std::endl;
   std::cout << "Ports extracted: " << (ports_found ? "PASS" : "FAIL")
             << std::endl;

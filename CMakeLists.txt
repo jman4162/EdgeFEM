@@ -14,6 +14,7 @@ find_package(Eigen3 3.4 REQUIRED)
 option(EDGEFEM_BUILD_SCALAR "Build scalar prototype" ON)
 option(EDGEFEM_BUILD_VECTOR "Build vector Maxwell path" ON)
 option(EDGEFEM_PYTHON "Build Python bindings" OFF)
+option(EDGEFEM_BUILD_DEBUG_TOOLS "Build one-off diagnostic executables in tests/" OFF)
 
 # When building via scikit-build-core, SKBUILD is defined
 if(SKBUILD)

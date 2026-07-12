@@ -1,202 +1,155 @@
 # Validation Report
 
-EdgeFEM has been validated against analytical solutions and published benchmarks. This document summarizes the key validation results.
+This report contains only numbers measured from code in this repository, with
+the command that reproduces each table. Platform for the reported runs:
+macOS ARM64, Clang, Release build, BiCGSTAB+ILUT solver.
 
-## S-Parameter Accuracy
+Scope: validation currently covers hollow-waveguide S-parameters, the port
+ABC scaling factor, cavity eigenmodes, and lossy-dielectric attenuation, over
+roughly 5-26 GHz. See "What is NOT validated" below.
 
-### Rectangular Waveguide (Matched)
+## WR-90 Rectangular Waveguide (7-12 GHz)
 
-A matched waveguide section should have:
-- |S11| ≈ 0 (no reflection)
-- |S21| ≈ 1 (full transmission)
-- Phase(S21) = -βL (propagation delay)
+Analytical reference: TE10 with |S11| = 0, |S21| = 1, phase(S21) = -βL
+(Pozar). Mesh: 4,227 tets (~10 elements/wavelength), length 50 mm.
 
-**Test configuration:**
-- WR-90 waveguide: 22.86 mm × 10.16 mm × 50 mm
-- Frequency: 10 GHz (above TE10 cutoff of 6.56 GHz)
-- Mesh: 10 elements per wavelength
+Reproduce: `./build/tests/benchmark_wr90`
 
-**Results:**
+| Freq (GHz) | \|S11\| | \|S21\| | Phase(S21) | Expected | Phase error |
+|-----------|-------|-------|------------|----------|-------------|
+| 7.0 | 0.064 | 0.997 | -150.3° | -147.1° | 3.2° |
+| 8.0 | 0.093 | 0.994 | 80.9° | 84.8° | 3.9° |
+| 9.0 | 0.037 | 0.998 | -15.7° | -10.1° | 5.6° |
+| 10.0 | 0.087 | 0.994 | -100.6° | -93.3° | 7.3° |
+| 11.0 | 0.042 | 0.997 | 179.8° | -170.3° | 10.1°* |
+| 12.0 | 0.143 | 0.987 | 103.8° | 116.6° | 12.8° |
 
-| Metric | Target | Achieved | Status |
-|--------|--------|----------|--------|
-| |S21| | 1.000 | 0.9940 | PASS (99.4%) |
-| |S11| | < 0.01 | 0.0015 | PASS |
-| Phase error | < 5° | 1.2° | PASS |
-| Passivity | |S11|² + |S21|² ≤ 1 | 0.988 | PASS |
-| Reciprocity | S12 = S21 | < 0.1% diff | PASS |
+*Phase wrapping near ±180°.
 
-### Frequency Sweep Validation
+Test pass criteria (deliberately loose for CI stability): |S11| < 0.15,
+|S21| > 0.90, phase error < 15°, passivity ≤ 1.05. Do not quote the
+single best point as the solver's accuracy; the honest summary is
+**|S21| within ~1%, |S11| below ~0.15, and phase error growing to ~13° at
+the band edge** at this mesh density.
 
-Tested across X-band (8-12 GHz):
+A WR-42 benchmark (20-26 GHz) runs the same checks: `./build/tests/test_wr42_waveguide`.
 
-| Frequency | |S21| Analytical | |S21| EdgeFEM | Error |
-|-----------|-----------------|---------------|-------|
-| 8.0 GHz | 1.000 | 0.9918 | 0.8% |
-| 9.0 GHz | 1.000 | 0.9932 | 0.7% |
-| 10.0 GHz | 1.000 | 0.9940 | 0.6% |
-| 11.0 GHz | 1.000 | 0.9945 | 0.5% |
-| 12.0 GHz | 1.000 | 0.9948 | 0.5% |
+## Port ABC Scaling Factor
 
-## Phase Accuracy
+The wave-port boundary uses a first-order ABC with coefficient α·jβ applied
+to port-edge diagonal entries (a lumped approximation of the port surface
+mass matrix). α was chosen by sweep, not derived.
 
-S21 phase compared to analytical β = (2π/c)√(f² - fc²):
+Reproduce: `./build/tests/test_abc_scaling_sweep` (writes `abc_scaling_sweep.csv`)
 
-| Frequency | β·L Analytical | Phase(S21) EdgeFEM | Error |
-|-----------|----------------|---------------------|-------|
-| 8.0 GHz | -84.3° | -83.9° | 0.4° |
-| 10.0 GHz | -136.2° | -135.1° | 1.1° |
-| 12.0 GHz | -178.5° | -176.8° | 1.7° |
+| α | \|S11\| | \|S21\| | Phase err |
+|-----|-------|-------|-----------|
+| 0.40 | 0.297 | 0.953 | 6.8° |
+| 0.45 | 0.188 | 0.980 | 7.1° |
+| 0.50 | 0.087 | 0.994 | 7.3° |
+| 0.55 | 0.012 | 0.998 | 7.3° |
+| 0.60 | 0.092 | 0.994 | 7.3° |
+| 1.00 | 0.533 | 0.844 | 5.7° |
 
-## Mesh Convergence
+Measured optimum on this mesh is α ≈ 0.55; the shipped default is
+`port_abc_scale = 0.5`. The sharp sensitivity of |S11| to α is a property of
+the lumped-ABC port formulation itself — treat |S11| below ~0.05 from this
+port model as formulation-limited, not physical.
 
-S21 accuracy vs. mesh density (10 GHz):
+## Mesh Convergence (WR-90 at 10 GHz)
 
-| Elements/λ | Elements | |S21| | |S21| Error | Runtime |
-|------------|----------|------|------------|---------|
-| 5 | 847 | 0.9821 | 1.8% | 0.3s |
-| 10 | 3,412 | 0.9940 | 0.6% | 1.2s |
-| 15 | 7,893 | 0.9965 | 0.35% | 3.8s |
-| 20 | 14,231 | 0.9978 | 0.22% | 8.1s |
-| 25 | 22,456 | 0.9985 | 0.15% | 15.2s |
+Reproduce: `PYTHONPATH=build/python:python python3 scripts/run_convergence_study.py`
 
-**Recommendation:** 10-15 elements/λ provides good accuracy/speed tradeoff.
+Measured (macOS ARM64, July 2026):
 
-## Port Weight Validation
+| Elements/λ | Tets | \|S21\| | \|S21\| error | \|S11\| | Phase error | Runtime |
+|-----------|------|-------|-------------|-------|-----------|---------|
+| 5 | 452 | 0.9757 | 2.43% | 0.194 | 18.6° | <0.1 s |
+| 8 | 1,323 | 0.9767 | 2.33% | 0.120 | 7.6° | 0.7 s |
+| 10 | 2,462 | 0.9943 | 0.57% | 0.094 | 4.0° | 5.3 s |
+| 14 | 5,740 | 0.9818 | 1.82% | 0.177 | 2.0° | 95 s |
+| 18 | 12,233 | 0.9869 | 1.31% | 0.146 | 0.9° | 1014 s |
 
-The eigenmode-based port formulation was validated by comparing 2D analytical weights with 3D FEM eigenvector projection:
+Two distinct behaviors, and it is important not to conflate them:
 
-| Method | Y/X Edge Ratio | |<w, v>| Correlation |
-|--------|----------------|---------------------|
-| Analytical (old) | 0.95 | 0.03 (3%) |
-| Eigenmode (new) | 12.7 | 0.99 (99%) |
-| Expected (TE10) | 12.7 | - |
+- **Phase error converges cleanly** (18.6° → 0.9°), consistent with the
+  expected ~O(h²) dispersion error of lowest-order edge elements. Fitted
+  order from these points: ≈2.
+- **S-parameter magnitudes do NOT converge with the mesh.** |S21| error and
+  |S11| oscillate in the 1-2% / 0.09-0.19 band regardless of density
+  (fitted |S21|-error order ≈ 0.45, i.e. no meaningful convergence). The
+  magnitude floor is set by the lumped first-order port ABC, not by
+  discretization; refining the mesh does not remove it. This is the port
+  limitation described in the README, and it is why quoting a single
+  best-case |S11| is misleading.
 
-The eigenmode method correctly identifies that Y-directed edges dominate for TE10 mode.
+Runtime grows superlinearly (dominated by the dense port eigenvector and
+direct-solver fallback); ~10 elements/wavelength is the practical
+accuracy/cost point for this formulation.
 
-## ABC Scaling Factor
+## Cavity Eigenmodes
 
-Optimal ABC coefficient determined by parameter sweep:
+Rectangular cavity resonances vs. analytical f_mnp.
 
-| ABC Scale | |S21| | |S11| | Notes |
-|-----------|------|------|-------|
-| 0.25 | 0.9892 | 0.0082 | Under-absorbing |
-| 0.50 | 0.9940 | 0.0015 | **Optimal** |
-| 0.75 | 0.9921 | 0.0045 | Slight over-absorption |
-| 1.00 | 0.9876 | 0.0089 | Over-absorbing |
+Reproduce: `./build/tests/test_cavity_eigenmodes`
 
-**Finding:** Optimal ABC = 0.5×jβ (not 1.0×jβ) due to diagonal mass matrix approximation.
+Pass criterion: at least 6 of the first 8 analytical modes matched within
+10%. This is a loose tolerance; lowest-order edge elements on the coarse
+test mesh dominate the error.
 
-## Passivity Validation
+## Lossy Dielectric Attenuation
 
-All computed S-matrices satisfy passivity constraint:
+Waveguide section filled with lossy dielectric, |S21| compared against the
+analytical attenuation exp(-αL).
 
-$$|S_{11}|^2 + |S_{21}|^2 \leq 1$$
+Reproduce: `PYTHONPATH=build/python:python python3 -m pytest python/tests/test_validation_suite.py -k lossy -v`
 
-Test results across 1000 random frequency points in 6-18 GHz:
-- Maximum violation: 0.007 (0.7%)
-- Mean violation: 0.003 (0.3%)
-- All within acceptable numerical tolerance
+Pass criteria: measured attenuation within 35% of analytical, and lossy
+|S21| strictly below lossless |S21|. Tolerance is wide because the lumped
+port ABC interacts with the complex propagation constant.
 
-## Reciprocity Validation
+## Dielectric Slab / Fresnel (analytical reference only)
 
-Two-port waveguide reciprocity:
+`tests/test_dielectric_slab_fresnel.cpp` checks mesh setup (ports, material
+regions) and verifies the analytical Fabry-Pérot reference satisfies
+R + T = 1. **It does not compare an FEM solve against Fresnel** — that
+requires Floquet ports, which are not implemented.
+`examples/validation_fresnel.py` plots the analytical curves.
 
-| Test | S12 - S21 | Status |
-|------|-----------|--------|
-| Magnitude diff | < 0.001 | PASS |
-| Phase diff | < 0.5° | PASS |
+## What is NOT validated
 
-## Dielectric Slab Fresnel Validation
+- Radiation patterns against an analytical antenna (dipole/aperture); NTF
+  tests are point-source sanity checks only.
+- TEM / coax S-parameters (scalar port eigensolver cannot produce the TEM
+  mode; the coax test is setup-sanity only).
+- Periodic/unit-cell reflection against literature; oblique incidence.
+- Dispersive materials inside an FEM solve (the material models themselves
+  are unit-tested at the constitutive level).
+- Lossy conductors, surface impedance, roughness.
+- Behavior near or below waveguide cutoff.
+- Any frequency outside roughly 5-26 GHz.
 
-A dielectric slab (εr = 4.0, d = 3 mm) illuminated at normal incidence produces Fabry-Pérot oscillations in reflection and transmission. The analytical Fresnel coefficients serve as a rigorous benchmark.
-
-**Run the validation example:**
-
-```bash
-python examples/validation_fresnel.py
-```
-
-This produces a comparison plot (`examples/validation_fresnel.png`) showing |R|² and |T|² vs frequency across 5–15 GHz.
-
-**Spot-check results (analytical):**
-
-| Frequency | |R|² | |T|² | R+T |
-|-----------|------|------|-----|
-| 5.0 GHz | 0.1629 | 0.8371 | 1.000000 |
-| 7.5 GHz | 0.2693 | 0.7307 | 1.000000 |
-| 10.0 GHz | 0.3373 | 0.6627 | 1.000000 |
-| 12.5 GHz | 0.3600 | 0.6400 | 1.000000 |
-| 15.0 GHz | 0.3370 | 0.6630 | 1.000000 |
-
-Energy is conserved (R+T = 1) at all frequencies. The first Fabry-Pérot resonance (|T|² → 1) occurs at ~25 GHz for this slab thickness. The FEM C++ test (`tests/test_dielectric_slab_fresnel.cpp`) validates mesh setup and material regions against these analytical values.
-
-## Known Limitations
-
-### Frequency Restrictions
-
-| Condition | Status | Workaround |
-|-----------|--------|------------|
-| Below cutoff (f < fc) | Error thrown | Use higher frequency |
-| Near cutoff (f ≈ fc) | Reduced accuracy | Use f > 1.1×fc |
-| Multi-mode (f > 2fc) | Single-mode only | Validated for TE10 |
-
-### Mesh Quality
-
-| Issue | Impact | Detection |
-|-------|--------|-----------|
-| Degenerate elements | Non-convergence | `validate_mesh()` |
-| Inverted elements | Wrong solution | `validate_mesh()` |
-| Poor aspect ratio | Slow convergence | Check Jacobian |
-
-## Acceptance Criteria
-
-For production use, EdgeFEM results should meet:
-
-| Metric | Threshold | Typical |
-|--------|-----------|---------|
-| |S21| error | < 1% | 0.5% |
-| Phase error | < 5° | 1-2° |
-| Passivity margin | > -1% | +1% |
-| Mesh convergence | < 2% change | Yes |
-
-## Running Validation Suite
-
-```bash
-# Run all validation tests
-ctest --test-dir build -L validation
-
-# Run specific test
-./build/tests/test_waveguide_validation
-
-# With verbose output
-./build/tests/test_waveguide_validation --verbose
-```
+No comparison against commercial solvers (HFSS/CST) or measurement exists.
 
 ## Test Files
 
-| Test | File | Description |
-|------|------|-------------|
-| Waveguide S-params | `tests/test_waveguide_sparams.cpp` | WR-90 S-parameter accuracy |
-| Mode normalization | `tests/test_mode_normalization.cpp` | TE10 power flow = 1 |
-| Port weights | `tests/test_eigenvector_waveport.cpp` | Eigenmode extraction |
-| Mesh quality | `tests/test_mesh_validation.cpp` | Degenerate element detection |
-| Passivity | `tests/test_sparams_passivity.cpp` | S-matrix constraints |
+| Test | File | What it asserts |
+|------|------|-----------------|
+| WR-90 benchmark | `tests/benchmark_wr90.cpp` | S-params vs analytical, 7-12 GHz |
+| WR-42 benchmark | `tests/test_wr42_waveguide.cpp` | S-params vs analytical, 20-26 GHz |
+| ABC scaling | `tests/test_abc_scaling_sweep.cpp` | Optimal α in [0.4, 0.6] |
+| Cavity modes | `tests/test_cavity_eigenmodes.cpp` | Eigenfrequencies vs f_mnp (10%) |
+| Eigenmode S-params | `tests/test_eigenmode_sparams.cpp` | Transmission via eigenvector ports |
+| Port eigenvector | `tests/test_eigenvector_waveport.cpp` | Diagnostic (no assertions) |
+| Python suite | `python/tests/test_validation_suite.py` | Passivity, lossy attenuation |
 
 ## References
 
 1. Pozar, D.M., *Microwave Engineering*, 4th Ed., Wiley, 2011.
 2. Jin, J.-M., *The Finite Element Method in Electromagnetics*, 3rd Ed., Wiley-IEEE, 2014.
-3. IEEE Std 287-2007, *IEEE Standard for Precision Coaxial Connectors*.
 
 ## Continuous Validation
 
-EdgeFEM includes automated validation in CI/CD:
-
-```yaml
-# .github/workflows/validate.yml
-- name: Run validation suite
-  run: ctest --test-dir build -L validation --output-on-failure
-```
-
-All PRs must pass validation tests before merge.
+CI (`.github/workflows/ci.yml`) builds and runs the full registered CTest
+suite (including the benchmarks above, label `benchmark`) plus
+`pytest python/tests/` on every push and pull request.

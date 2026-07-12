@@ -1,5 +1,10 @@
-// Coaxial Transmission Line S-Parameter Test
-// Validates TEM mode handling on a 50Ω air-filled coaxial line
+// Coaxial Transmission Line Setup Sanity Test
+//
+// NOTE: This is NOT a TEM S-parameter validation. The scalar 2D port
+// eigensolver cannot produce the TEM mode (kc ~ 0 modes are filtered), so
+// this test drives placeholder uniform port weights and only checks that
+// the coax mesh loads, BCs apply, and the solve produces a nonzero field.
+// Computed S-parameters are not compared against the TEM analytic values.
 //
 // Coaxial line specifications:
 //   Inner radius: a = 1 mm

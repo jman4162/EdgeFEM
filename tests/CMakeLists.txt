@@ -68,81 +68,15 @@ target_link_libraries(test_periodic PRIVATE edgefem)
 add_test(NAME test_periodic COMMAND test_periodic)
 set_tests_properties(test_periodic PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
-add_executable(debug_waveguide debug_waveguide.cpp)
-target_link_libraries(debug_waveguide PRIVATE edgefem)
-
 add_executable(benchmark_2d_waveguide benchmark_2d_waveguide.cpp)
 target_link_libraries(benchmark_2d_waveguide PRIVATE edgefem)
 add_test(NAME benchmark_2d_waveguide COMMAND benchmark_2d_waveguide)
 set_tests_properties(benchmark_2d_waveguide PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
-add_executable(debug_fem_core debug_fem_core.cpp)
-target_link_libraries(debug_fem_core PRIVATE edgefem)
-
-add_executable(debug_port_weights debug_port_weights.cpp)
-target_link_libraries(debug_port_weights PRIVATE edgefem)
-
-add_executable(test_frequency_sweep test_frequency_sweep.cpp)
-target_link_libraries(test_frequency_sweep PRIVATE edgefem)
-
-add_executable(test_normalized_ports test_normalized_ports.cpp)
-target_link_libraries(test_normalized_ports PRIVATE edgefem)
-
-add_executable(debug_port_normals debug_port_normals.cpp)
-target_link_libraries(debug_port_normals PRIVATE edgefem)
-
-add_executable(test_flipped_port test_flipped_port.cpp)
-target_link_libraries(test_flipped_port PRIVATE edgefem)
-
-add_executable(debug_matrix_cond debug_matrix_cond.cpp)
-target_link_libraries(debug_matrix_cond PRIVATE edgefem)
-
-add_executable(test_weight_normalization test_weight_normalization.cpp)
-target_link_libraries(test_weight_normalization PRIVATE edgefem)
-
-add_executable(test_waveguide_modes test_waveguide_modes.cpp)
-target_link_libraries(test_waveguide_modes PRIVATE edgefem)
-
-add_executable(debug_port_coupling debug_port_coupling.cpp)
-target_link_libraries(debug_port_coupling PRIVATE edgefem)
-
-add_executable(debug_mode_alignment debug_mode_alignment.cpp)
-target_link_libraries(debug_mode_alignment PRIVATE edgefem)
-
-add_executable(debug_3d_mode_structure debug_3d_mode_structure.cpp)
-target_link_libraries(debug_3d_mode_structure PRIVATE edgefem)
-
-add_executable(debug_solution_structure debug_solution_structure.cpp)
-target_link_libraries(debug_solution_structure PRIVATE edgefem)
-
-add_executable(test_2d_port_eigensolve test_2d_port_eigensolve.cpp)
-target_link_libraries(test_2d_port_eigensolve PRIVATE edgefem)
-
-add_executable(test_waveport_with_abc test_waveport_with_abc.cpp)
-target_link_libraries(test_waveport_with_abc PRIVATE edgefem)
-
-add_executable(debug_3d_vs_2d_pattern debug_3d_vs_2d_pattern.cpp)
-target_link_libraries(debug_3d_vs_2d_pattern PRIVATE edgefem)
-
-add_executable(test_waveguide_with_pml test_waveguide_with_pml.cpp)
-target_link_libraries(test_waveguide_with_pml PRIVATE edgefem)
-
-add_executable(test_3d_eigenvector_excitation test_3d_eigenvector_excitation.cpp)
-target_link_libraries(test_3d_eigenvector_excitation PRIVATE edgefem)
-
-add_executable(test_eigenvector_waveport test_eigenvector_waveport.cpp)
-target_link_libraries(test_eigenvector_waveport PRIVATE edgefem)
-
 add_executable(test_sparam_accuracy test_sparam_accuracy.cpp)
 target_link_libraries(test_sparam_accuracy PRIVATE edgefem)
 add_test(NAME test_sparam_accuracy COMMAND test_sparam_accuracy)
 set_tests_properties(test_sparam_accuracy PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-
-add_executable(test_direct_mode_excitation test_direct_mode_excitation.cpp)
-target_link_libraries(test_direct_mode_excitation PRIVATE edgefem)
-
-add_executable(test_direct_mode_tuning test_direct_mode_tuning.cpp)
-target_link_libraries(test_direct_mode_tuning PRIVATE edgefem)
 
 add_executable(test_eigenmode_sparams test_eigenmode_sparams.cpp)
 target_link_libraries(test_eigenmode_sparams PRIVATE edgefem)
@@ -199,10 +133,67 @@ target_link_libraries(test_dielectric_slab_fresnel PRIVATE edgefem)
 add_test(NAME test_dielectric_slab_fresnel COMMAND test_dielectric_slab_fresnel)
 set_tests_properties(test_dielectric_slab_fresnel PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
-if (VECTOREM_PYTHON)
-  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+# One-off diagnostic executables from port/solver development. They print
+# results but contain no assertions, so they are NOT registered with CTest;
+# built only on demand for manual investigation.
+if (EDGEFEM_BUILD_DEBUG_TOOLS)
+  add_executable(test_frequency_sweep test_frequency_sweep.cpp)
+  target_link_libraries(test_frequency_sweep PRIVATE edgefem)
+  add_executable(test_normalized_ports test_normalized_ports.cpp)
+  target_link_libraries(test_normalized_ports PRIVATE edgefem)
+  add_executable(test_flipped_port test_flipped_port.cpp)
+  target_link_libraries(test_flipped_port PRIVATE edgefem)
+  add_executable(test_weight_normalization test_weight_normalization.cpp)
+  target_link_libraries(test_weight_normalization PRIVATE edgefem)
+  add_executable(test_waveguide_modes test_waveguide_modes.cpp)
+  target_link_libraries(test_waveguide_modes PRIVATE edgefem)
+  add_executable(test_2d_port_eigensolve test_2d_port_eigensolve.cpp)
+  target_link_libraries(test_2d_port_eigensolve PRIVATE edgefem)
+  add_executable(test_waveport_with_abc test_waveport_with_abc.cpp)
+  target_link_libraries(test_waveport_with_abc PRIVATE edgefem)
+  add_executable(test_waveguide_with_pml test_waveguide_with_pml.cpp)
+  target_link_libraries(test_waveguide_with_pml PRIVATE edgefem)
+  add_executable(test_3d_eigenvector_excitation test_3d_eigenvector_excitation.cpp)
+  target_link_libraries(test_3d_eigenvector_excitation PRIVATE edgefem)
+  add_executable(test_eigenvector_waveport test_eigenvector_waveport.cpp)
+  target_link_libraries(test_eigenvector_waveport PRIVATE edgefem)
+  add_executable(test_direct_mode_excitation test_direct_mode_excitation.cpp)
+  target_link_libraries(test_direct_mode_excitation PRIVATE edgefem)
+  add_executable(test_direct_mode_tuning test_direct_mode_tuning.cpp)
+  target_link_libraries(test_direct_mode_tuning PRIVATE edgefem)
+  add_executable(debug_waveguide debug_waveguide.cpp)
+  target_link_libraries(debug_waveguide PRIVATE edgefem)
+  add_executable(debug_fem_core debug_fem_core.cpp)
+  target_link_libraries(debug_fem_core PRIVATE edgefem)
+  add_executable(debug_port_weights debug_port_weights.cpp)
+  target_link_libraries(debug_port_weights PRIVATE edgefem)
+  add_executable(debug_port_normals debug_port_normals.cpp)
+  target_link_libraries(debug_port_normals PRIVATE edgefem)
+  add_executable(debug_matrix_cond debug_matrix_cond.cpp)
+  target_link_libraries(debug_matrix_cond PRIVATE edgefem)
+  add_executable(debug_port_coupling debug_port_coupling.cpp)
+  target_link_libraries(debug_port_coupling PRIVATE edgefem)
+  add_executable(debug_mode_alignment debug_mode_alignment.cpp)
+  target_link_libraries(debug_mode_alignment PRIVATE edgefem)
+  add_executable(debug_3d_mode_structure debug_3d_mode_structure.cpp)
+  target_link_libraries(debug_3d_mode_structure PRIVATE edgefem)
+  add_executable(debug_solution_structure debug_solution_structure.cpp)
+  target_link_libraries(debug_solution_structure PRIVATE edgefem)
+  add_executable(debug_3d_vs_2d_pattern debug_3d_vs_2d_pattern.cpp)
+  target_link_libraries(debug_3d_vs_2d_pattern PRIVATE edgefem)
+endif()
+
+if (EDGEFEM_PYTHON)
+  # Use the interpreter the bindings were built against (set by pybind11);
+  # find_package(Python3) can pick a different, ABI-incompatible install.
+  if (DEFINED PYTHON_EXECUTABLE)
+    set(EDGEFEM_TEST_PYTHON "${PYTHON_EXECUTABLE}")
+  else()
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(EDGEFEM_TEST_PYTHON "${Python3_EXECUTABLE}")
+  endif()
   add_test(NAME python_smoke
-           COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/python_smoke.py)
+           COMMAND ${EDGEFEM_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_smoke.py)
   set_tests_properties(python_smoke PROPERTIES
                        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
                        ENVIRONMENT "PYTHONPATH=${PROJECT_BINARY_DIR}/python:${PROJECT_SOURCE_DIR}/python"
