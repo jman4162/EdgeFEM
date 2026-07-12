@@ -33,3 +33,14 @@ mesh_convergence.csv
 # Papers (keep private until review)
 /papers/ieee_tap/
 /papers/theory/
+
+# Generated simulation outputs
+*.s2p
+*.s3p
+*.s4p
+/simulations/
+/waveguide.msh
+waveguide_sparams.png
+examples/*.csv
+.pytest_cache/
+dist/
