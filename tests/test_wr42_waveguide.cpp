@@ -60,14 +60,6 @@ int main() {
   std::cout << "  Cutoff frequency: " << fc / 1e9 << " GHz" << std::endl;
   std::cout << "  Operating band: 18-26.5 GHz" << std::endl << std::endl;
 
-  // Extract port surfaces
-  PortSurfaceMesh port1_surf = extract_surface_mesh(mesh, 2);
-  PortSurfaceMesh port2_surf = extract_surface_mesh(mesh, 3);
-
-  // Compute eigenvector for TE10 mode
-  Eigen::VectorXd v_te10 =
-      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
-
   // Test frequencies
   std::vector<double> test_freqs = {20e9, 22e9, 24e9, 26e9};
   std::vector<FrequencyResult> results;
@@ -89,16 +81,15 @@ int main() {
     PortMode mode1 = solve_te10_mode(dims, freq);
     PortMode mode2 = solve_te10_mode(dims, freq);
 
-    // Build ports using eigenvector-based weights
-    WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
-                                                    mode1, bc.dirichlet_edges);
-    WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
-                                                    mode2, bc.dirichlet_edges);
+    // Build ports from the 2D discrete port-face eigenmodes
+    WavePort wp1 =
+        build_wave_port_2d(mesh, 2, mode1, bc.dirichlet_edges, kc_sq);
+    WavePort wp2 =
+        build_wave_port_2d(mesh, 3, mode2, bc.dirichlet_edges, kc_sq);
 
     // Set up Maxwell parameters with optimal ABC scale
     MaxwellParams p;
     p.omega = omega;
-    p.port_abc_scale = 0.5;
 
     std::vector<WavePort> ports{wp1, wp2};
 

@@ -56,24 +56,17 @@ BenchmarkResult run_benchmark(const Mesh &mesh, const BC &bc,
 
   double beta = std::sqrt(beta_sq);
 
-  // Compute eigenvector
-  Eigen::VectorXd v_te10 =
-      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
-
   // Create mode parameters
   PortMode mode1 = solve_te10_mode(dims, freq);
   PortMode mode2 = solve_te10_mode(dims, freq);
 
-  // Build ports
-  WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
-                                                  mode1, bc.dirichlet_edges);
-  WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
-                                                  mode2, bc.dirichlet_edges);
+  // Build ports from the 2D discrete port-face eigenmodes
+  WavePort wp1 = build_wave_port_2d(mesh, 2, mode1, bc.dirichlet_edges, kc_sq);
+  WavePort wp2 = build_wave_port_2d(mesh, 3, mode2, bc.dirichlet_edges, kc_sq);
 
   // Calculate S-parameters
   MaxwellParams p;
   p.omega = omega;
-  p.port_abc_scale = 0.5;
 
   std::vector<WavePort> ports{wp1, wp2};
   auto S = calculate_sparams_eigenmode(mesh, p, bc, ports);

@@ -733,7 +733,6 @@ class UnitCellDesign:
         params.eps_r_regions = eps_regions
 
         params.use_port_abc = True
-        params.port_abc_scale = 0.5
 
         # Build Floquet ports
         # For a periodic unit cell, we create wave ports on the top (and bottom for FSS)

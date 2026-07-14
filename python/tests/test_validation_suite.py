@@ -15,17 +15,16 @@ import numpy as np
 
 try:
     import pyedgefem as em
-    HAS_EDGEFEM = True
-except ImportError:
-    HAS_EDGEFEM = False
+    HAS_EDGEFEM
+  = True except ImportError
+      : HAS_EDGEFEM = False
 
-pytestmark = pytest.mark.skipif(not HAS_EDGEFEM, reason="pyedgefem not built")
+            pytestmark = pytest.mark.skipif(not HAS_EDGEFEM,
+                                            reason = "pyedgefem not built")
 
-
-def _check_gmsh():
-    import subprocess
-    try:
-        subprocess.run(["gmsh", "--version"], capture_output=True, check=True)
+                             def
+                             _check_gmsh()
+      : import subprocess try : subprocess.run(["gmsh", "--version"], capture_output=True, check=True)
         return True
     except (FileNotFoundError, subprocess.CalledProcessError):
         return False
@@ -34,8 +33,7 @@ def _check_gmsh():
 HAS_GMSH = _check_gmsh() if HAS_EDGEFEM else False
 gmsh_required = pytest.mark.skipif(not HAS_GMSH, reason="Gmsh not available")
 
-
-# ---------- Unit Cell Passivity and Reciprocity ----------
+#-- -- -- -- -- Unit Cell Passivity and Reciprocity -- -- -- -- --
 
 @gmsh_required
 class TestUnitCellPassivity:
@@ -64,8 +62,7 @@ class TestUnitCellPassivity:
         R, T = cell.reflection_transmission(10e9)
         assert abs(R) > 0.90, f"|R| = {abs(R):.4f} should be near 1.0 for bare ground"
 
-
-# ---------- Stacked Patch Validation ----------
+#-- -- -- -- -- Stacked Patch Validation -- -- -- -- --
 
 @gmsh_required
 class TestStackedPatchValidation:
@@ -88,7 +85,7 @@ class TestStackedPatchValidation:
             2.0e9, 3.0e9, n_points=5
         )
         for i, (f, s11) in enumerate(zip(freqs, S11_list)):
-            # Allow coarse-mesh tolerance of 5%
+#Allow coarse - mesh tolerance of 5 %
             assert abs(s11) <= 1.10, (
                 f"|S11| = {abs(s11):.4f} at {f/1e9:.3f} GHz "
                 f"exceeds coarse-mesh passivity bound"
@@ -111,13 +108,12 @@ class TestStackedPatchValidation:
         freqs, _, S11_sweep = self.design.frequency_sweep(
             freq, freq, n_points=1
         )
-        # Allow some tolerance since sweep uses mid-frequency normalization
+#Allow some tolerance since sweep uses mid - frequency normalization
         assert abs(abs(S11_single) - abs(S11_sweep[0])) < 0.15, (
             f"|S11| single={abs(S11_single):.4f} vs sweep={abs(S11_sweep[0]):.4f}"
         )
 
-
-# ---------- Analytical Patch Antenna Validation ----------
+#-- -- -- -- -- Analytical Patch Antenna Validation -- -- -- -- --
 
 class TestPatchAntennaAnalytical:
     """Validate analytical patch antenna model against known formulas."""
@@ -130,7 +126,7 @@ class TestPatchAntennaAnalytical:
             substrate_height=1.6e-3, substrate_eps_r=4.4,
         )
         fr = patch.estimated_resonant_frequency
-        # For L=29mm, eps_r=4.4: fr ≈ c/(2L√εeff) ≈ 2.4 GHz (rough)
+#For L = 29mm, eps_r = 4.4 : fr ≈ c / (2L√εeff) ≈ 2.4 GHz(rough)
         assert 1.5e9 < fr < 3.5e9, f"fr = {fr/1e9:.3f} GHz out of expected range"
 
     def test_directivity_range(self):
@@ -142,7 +138,7 @@ class TestPatchAntennaAnalytical:
         )
         D = patch.directivity(2.4e9)
         D_dBi = 10 * np.log10(D) if D > 0 else -np.inf
-        # Analytical model gives lower directivity than full-wave (simplified aperture)
+#Analytical model gives lower directivity than full - wave(simplified aperture)
         assert 1.0 <= D_dBi <= 10.0, f"Directivity = {D_dBi:.1f} dBi out of range"
 
     def test_impedance_positive_resistance(self):
@@ -155,8 +151,7 @@ class TestPatchAntennaAnalytical:
         Z = patch.input_impedance(2.4e9)
         assert Z.real > 0, f"Re(Z) = {Z.real:.2f} should be positive"
 
-
-# ---------- Solver Robustness ----------
+#-- -- -- -- -- Solver Robustness -- -- -- -- --
 
 @gmsh_required
 class TestSolverRobustness:
@@ -181,8 +176,7 @@ class TestSolverRobustness:
         R, T = cell.reflection_transmission(10e9)
         assert np.isfinite(abs(R)), "Reflection coefficient should be finite"
 
-
-# ---------- Lumped Port Weight Modes ----------
+#-- -- -- -- -- Lumped Port Weight Modes -- -- -- -- --
 
 @gmsh_required
 class TestLumpedPortWeightModes:
@@ -199,8 +193,7 @@ class TestLumpedPortWeightModes:
         config.weight_mode = em.LumpedPortWeightMode.Projection
         assert config.weight_mode == em.LumpedPortWeightMode.Projection
 
-
-# ---------- Frequency Sweep API ----------
+#-- -- -- -- -- Frequency Sweep API -- -- -- -- --
 
 @gmsh_required
 class TestFrequencySweepAPI:
@@ -211,8 +204,7 @@ class TestFrequencySweepAPI:
         assert hasattr(em, 'frequency_sweep')
         assert hasattr(em, 'SweepResult')
 
-
-# ---------- Lossy Material Validation ----------
+#-- -- -- -- -- Lossy Material Validation -- -- -- -- --
 
 @gmsh_required
 class TestLossyMaterial:
@@ -227,31 +219,30 @@ class TestLossyMaterial:
         """
         from edgefem.designs import RectWaveguideDesign
 
-        # WR-90 geometry
+#WR - 90 geometry
         a, b, L = 22.86e-3, 10.16e-3, 50e-3
         freq = 10e9
         eps_r = 2.2
         tan_d = 0.05  # Moderate loss for clear signal
 
-        # Analytical attenuation
+#Analytical attenuation
         c0 = 299792458.0
         omega = 2 * np.pi * freq
         k0 = omega / c0
-        # Propagation constant in dielectric-filled guide
+#Propagation constant in dielectric - filled guide
         kc = np.pi / a  # TE10 cutoff
         beta = np.sqrt(eps_r * k0**2 - kc**2)
         alpha_d = k0**2 * eps_r * tan_d / (2 * beta)
         S21_analytical = np.exp(-alpha_d * L)
 
-        # FEM solve using low-level API with lossy dielectric
+#FEM solve using low - level API with lossy dielectric
         wg = RectWaveguideDesign(a=a, b=b, length=L)
         wg.generate_mesh(density=10)
         wg._setup_ports(freq)
 
         params = em.MaxwellParams()
         params.omega = omega
-        params.port_abc_scale = 0.5
-        # Set complex permittivity: eps_r(1 - j*tan_d)
+#Set complex permittivity : eps_r(1 - j * tan_d)
         params.eps_r = complex(eps_r, -eps_r * tan_d)
 
         S = em.calculate_sparams_eigenmode(
@@ -259,8 +250,8 @@ class TestLossyMaterial:
         )
         S21_fem = abs(S[1, 0])
 
-        # FEM should show attenuation in the right ballpark
-        # Allow 30% tolerance for coarse mesh + first-order elements
+#FEM should show attenuation in the right ballpark
+#Allow 30 % tolerance for coarse mesh + first - order elements
         assert S21_fem < 1.0, f"|S21| = {S21_fem:.4f} should show loss"
         assert S21_fem > 0.1, f"|S21| = {S21_fem:.4f} too low (solver issue?)"
         rel_error = abs(S21_fem - S21_analytical) / S21_analytical
@@ -279,15 +270,14 @@ class TestLossyMaterial:
         wg = RectWaveguideDesign(a=a, b=b, length=L)
         wg.generate_mesh(density=10)
 
-        # Lossless
+#Lossless
         S_lossless = wg.sparams_at_freq(freq)
         S21_lossless = abs(S_lossless[1, 0])
 
-        # Lossy (reuse same mesh)
+#Lossy(reuse same mesh)
         wg._setup_ports(freq)
         params = em.MaxwellParams()
         params.omega = 2 * np.pi * freq
-        params.port_abc_scale = 0.5
         params.eps_r = complex(2.2, -2.2 * 0.05)
 
         S_lossy = em.calculate_sparams_eigenmode(
@@ -300,8 +290,7 @@ class TestLossyMaterial:
             f"lossless |S21|={S21_lossless:.4f}"
         )
 
-
-# ---------- Mesh Convergence Diagnostics ----------
+#-- -- -- -- -- Mesh Convergence Diagnostics -- -- -- -- --
 
 @gmsh_required
 class TestMeshConvergence:

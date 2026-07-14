@@ -597,6 +597,29 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("surface"), py::arg("eigenvector"), py::arg("mode"),
         py::arg("pec_edges"));
 
+  m.def("build_wave_port_2d", &build_wave_port_2d,
+        "Build wave port from the 2D discrete port-face eigenmode.\n"
+        "Weights are the discrete port mode and mode.kc is replaced by the\n"
+        "discrete cutoff, so calculate_sparams_eigenmode uses a consistent\n"
+        "beta. Preferred over compute_te_eigenvector +\n"
+        "build_wave_port_from_eigenvector (more accurate, much faster).",
+        py::arg("mesh"), py::arg("surface_tag"), py::arg("mode"),
+        py::arg("pec_edges"), py::arg("target_kc_sq"));
+
+  m.def(
+      "solve_port_mode_2d",
+      [](const Mesh &mesh, int surface_tag,
+         const std::unordered_set<int> &pec_edges, double target_kc_sq) {
+        double kc_sq_out = 0.0;
+        Eigen::VectorXd v = solve_port_mode_2d(mesh, surface_tag, pec_edges,
+                                               target_kc_sq, kc_sq_out);
+        return py::make_tuple(v, kc_sq_out);
+      },
+      "Solve the 2D discrete TE port mode on the port face.\n"
+      "Returns (eigenvector in global edge indexing, discrete kc_sq).",
+      py::arg("mesh"), py::arg("surface_tag"), py::arg("pec_edges"),
+      py::arg("target_kc_sq"));
+
   py::class_<SParams2>(m, "SParams2", "2-port S-parameter data.")
       .def(py::init<>())
       .def_readwrite("s11", &SParams2::s11)

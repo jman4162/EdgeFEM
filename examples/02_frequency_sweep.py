@@ -108,7 +108,6 @@ def main():
         # Set up parameters
         params = em.MaxwellParams()
         params.omega = 2 * np.pi * freq
-        params.port_abc_scale = 0.5
 
         # Calculate S-parameters
         S = em.calculate_sparams_eigenmode(mesh, params, bc, [wp1, wp2])

@@ -130,7 +130,6 @@ def main():
     # Set up Maxwell parameters with optimal ABC scaling
     params = em.MaxwellParams()
     params.omega = 2 * np.pi * freq
-    params.port_abc_scale = 0.5  # Optimal value for accurate S-parameters
 
     # Calculate using eigenmode method
     S = em.calculate_sparams_eigenmode(mesh, params, bc, [wp1, wp2])
