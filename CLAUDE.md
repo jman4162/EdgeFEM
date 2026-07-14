@@ -167,7 +167,37 @@ Python CLIs under `tools/` (see AGENTS.md):
 
 ## Known Issues & Critical Fixes
 
-### Wave Port Formulation: 2D vs 3D Mode Coupling (Fixed Feb 2026)
+### Wave Port: Assembled Surface Mass Matrix + 2D Discrete Port Mode (July 2026)
+
+**Supersedes the 0.5 ABC scale factor.** `calculate_sparams_eigenmode()` now:
+1. Applies the assembled port surface mass matrix: `A += jβ·M_s` per port
+   (`assemble_port_surface_mass()` in `src/ports/wave_port.cpp`), replacing
+   the diagonal-lumped ABC that required the empirical `port_abc_scale = 0.5`.
+2. Uses the 2D discrete port-face eigenmode as port weights
+   (`build_wave_port_2d()` / `solve_port_mode_2d()`): a dense generalized
+   EVP (K_s, M_s) on the port edges. `mode.kc` is replaced by the discrete
+   cutoff so β is consistent with the profile.
+3. Normalizes and extracts in the M_s inner product (`e^H M_s e = 1`,
+   `V_j = e_j^H M_s x`).
+
+Measured on WR-90 (7-12 GHz): |S11| 0.003-0.053 (was 0.04-0.14),
+|S21| ≥ 0.997, ABC-scale sweep optimum exactly 1.0. `port_abc_scale` now
+defaults to 1.0 and is a diagnostic knob only — do not tune it.
+
+**Guidelines**: build ports with `build_wave_port_2d(mesh, tag, mode,
+pec_edges, kc_sq_target)`. The older `compute_te_eigenvector` +
+`build_wave_port_from_eigenvector` path (3D cavity eigensolve) is slower
+and its profile carries ~10% non-modal contamination; avoid for new code.
+
+**Critical convention**: the mesh loader (`build_edges()` in
+`src/mesh_gmsh.cpp`) fills Tri3 `Element::edges` in local order
+**(0,1), (1,2), (2,0)**. Any surface assembly must use that table. A
+mismatched table `{{0,1},{0,2},{1,2}}` in `lumped_port.cpp` silently
+scattered surface integrals to wrong edges until July 2026 — validate new
+surface code with the constant-field zero-curl test in
+`tests/test_triangle_mass_matrix.cpp`.
+
+### Wave Port Formulation: 2D vs 3D Mode Coupling (Fixed Feb 2026, superseded July 2026)
 
 **Problem**: S-parameter calculations produced non-physical results (|S11| > 1, |S21| ≈ 0) for simple waveguide structures that should have |S11| ≈ 0, |S21| ≈ 1.
 
