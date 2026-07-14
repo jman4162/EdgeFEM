@@ -6,6 +6,7 @@
 #include <complex>
 #include <limits>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -404,6 +405,183 @@ Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
   }
 
   return v_full;
+}
+
+Eigen::VectorXd solve_port_mode_2d(const Mesh &mesh, int surface_tag,
+                                   const std::unordered_set<int> &pec_edges,
+                                   double target_kc_sq, double &kc_sq_out) {
+  const int m = static_cast<int>(mesh.edges.size());
+  kc_sq_out = 0.0;
+
+  // Collect free port edges and a local index map
+  std::vector<int> port_edges;
+  std::unordered_map<int, int> local_idx;
+  for (const auto &tri : mesh.tris) {
+    if (tri.phys != surface_tag)
+      continue;
+    for (int le = 0; le < 3; ++le) {
+      int ge = tri.edges[le];
+      if (pec_edges.count(ge) || local_idx.count(ge))
+        continue;
+      local_idx[ge] = static_cast<int>(port_edges.size());
+      port_edges.push_back(ge);
+    }
+  }
+  const int n = static_cast<int>(port_edges.size());
+  if (n == 0)
+    return Eigen::VectorXd::Zero(m);
+
+  // Assemble surface curl-curl K_s and mass M_s on the free port edges.
+  // For 2D Whitney N_e = λ_a∇λ_b − λ_b∇λ_a on a flat triangle the surface
+  // curl is constant: (∇_s×N_e)·n̂ = 2 (∇λ_a×∇λ_b)·n̂.
+  Eigen::MatrixXd K = Eigen::MatrixXd::Zero(n, n);
+  Eigen::MatrixXd M = Eigen::MatrixXd::Zero(n, n);
+  // Local edge ordering as filled by build_edges() for Tri3
+  static const int tri_edge_nodes[3][2] = {{0, 1}, {1, 2}, {2, 0}};
+
+  for (const auto &tri : mesh.tris) {
+    if (tri.phys != surface_tag)
+      continue;
+
+    std::array<Eigen::Vector3d, 3> v;
+    for (int k = 0; k < 3; ++k) {
+      int idx = mesh.nodeIndex.at(tri.conn[k]);
+      v[k] = mesh.nodes[idx].xyz;
+    }
+    Eigen::Vector3d normal = (v[1] - v[0]).cross(v[2] - v[0]);
+    double area2 = normal.norm();
+    if (area2 < 1e-30)
+      continue;
+    Eigen::Vector3d n_hat = normal / area2;
+    double area = area2 / 2.0;
+
+    std::array<Eigen::Vector3d, 3> g;
+    g[0] = n_hat.cross(v[2] - v[1]) / area2;
+    g[1] = n_hat.cross(v[0] - v[2]) / area2;
+    g[2] = n_hat.cross(v[1] - v[0]) / area2;
+
+    Eigen::Matrix3d M_local = triangle_whitney_mass_matrix(v);
+
+    double curls[3];
+    for (int le = 0; le < 3; ++le) {
+      int a = tri_edge_nodes[le][0];
+      int b = tri_edge_nodes[le][1];
+      curls[le] = 2.0 * g[a].cross(g[b]).dot(n_hat);
+    }
+
+    for (int i = 0; i < 3; ++i) {
+      auto it_i = local_idx.find(tri.edges[i]);
+      if (it_i == local_idx.end())
+        continue;
+      for (int j = 0; j < 3; ++j) {
+        auto it_j = local_idx.find(tri.edges[j]);
+        if (it_j == local_idx.end())
+          continue;
+        double sign = tri.edge_orient[i] * tri.edge_orient[j];
+        K(it_i->second, it_j->second) += sign * curls[i] * curls[j] * area;
+        M(it_i->second, it_j->second) += sign * M_local(i, j);
+      }
+    }
+  }
+
+  Eigen::GeneralizedSelfAdjointEigenSolver<Eigen::MatrixXd> ges(K, M);
+  if (ges.info() != Eigen::Success)
+    return Eigen::VectorXd::Zero(m);
+
+  // Pick the eigenvalue closest to target, skipping the gradient nullspace
+  // (kc² ≈ 0). The nullspace threshold is relative to the target.
+  const double kc_min = 1e-6 * std::max(target_kc_sq, 1.0);
+  int best = -1;
+  double best_dist = std::numeric_limits<double>::max();
+  for (int i = 0; i < n; ++i) {
+    double ev = ges.eigenvalues()(i);
+    if (ev < kc_min)
+      continue;
+    double dist = std::abs(ev - target_kc_sq);
+    if (dist < best_dist) {
+      best_dist = dist;
+      best = i;
+    }
+  }
+  if (best < 0)
+    return Eigen::VectorXd::Zero(m);
+
+  kc_sq_out = ges.eigenvalues()(best);
+  Eigen::VectorXd v_full = Eigen::VectorXd::Zero(m);
+  for (int i = 0; i < n; ++i)
+    v_full(port_edges[i]) = ges.eigenvectors()(i, best);
+  return v_full;
+}
+
+WavePort build_wave_port_2d(const Mesh &mesh, int surface_tag,
+                            const PortMode &mode,
+                            const std::unordered_set<int> &pec_edges,
+                            double target_kc_sq) {
+  WavePort port;
+  port.surface_tag = surface_tag;
+  port.mode = mode;
+
+  double kc_sq_h = 0.0;
+  Eigen::VectorXd v =
+      solve_port_mode_2d(mesh, surface_tag, pec_edges, target_kc_sq, kc_sq_h);
+  if (kc_sq_h > 0.0) {
+    port.mode.kc = std::sqrt(kc_sq_h); // discrete cutoff for consistent β
+  }
+
+  // Collect port edges (including PEC edges for bookkeeping parity with
+  // build_wave_port_from_eigenvector; their weights are zero).
+  std::set<int> edge_set;
+  for (const auto &tri : mesh.tris) {
+    if (tri.phys != surface_tag)
+      continue;
+    for (int le = 0; le < 3; ++le)
+      edge_set.insert(tri.edges[le]);
+  }
+  port.edges.assign(edge_set.begin(), edge_set.end());
+  port.weights = Eigen::VectorXcd::Zero(port.edges.size());
+  for (size_t k = 0; k < port.edges.size(); ++k)
+    port.weights(k) = v(port.edges[k]);
+
+  return port;
+}
+
+Eigen::SparseMatrix<double>
+assemble_port_surface_mass(const Mesh &mesh, int surface_tag,
+                           const std::unordered_set<int> &dirichlet_edges) {
+  const int m = static_cast<int>(mesh.edges.size());
+  std::vector<Eigen::Triplet<double>> triplets;
+
+  for (const auto &tri : mesh.tris) {
+    if (tri.phys != surface_tag)
+      continue;
+
+    std::array<Eigen::Vector3d, 3> v;
+    for (int k = 0; k < 3; ++k) {
+      int idx = mesh.nodeIndex.at(tri.conn[k]);
+      v[k] = mesh.nodes[idx].xyz;
+    }
+
+    // Local 3x3 block; local edge ordering (0,1),(0,2),(1,2) matches
+    // Element::edges for Tri3.
+    Eigen::Matrix3d M_local = triangle_whitney_mass_matrix(v);
+
+    for (int i = 0; i < 3; ++i) {
+      int gi = tri.edges[i];
+      if (dirichlet_edges.count(gi))
+        continue;
+      for (int j = 0; j < 3; ++j) {
+        int gj = tri.edges[j];
+        if (dirichlet_edges.count(gj))
+          continue;
+        double val = tri.edge_orient[i] * tri.edge_orient[j] * M_local(i, j);
+        triplets.emplace_back(gi, gj, val);
+      }
+    }
+  }
+
+  Eigen::SparseMatrix<double> M_s(m, m);
+  M_s.setFromTriplets(triplets.begin(), triplets.end());
+  return M_s;
 }
 
 } // namespace edgefem

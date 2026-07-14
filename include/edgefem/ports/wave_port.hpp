@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <Eigen/Core>
+#include <Eigen/SparseCore>
 
 #include "edgefem/mesh.hpp"
 #include "edgefem/ports/port_eigensolve.hpp"
@@ -59,5 +60,44 @@ WavePort build_wave_port_from_eigenvector(
 Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
                                        const std::unordered_set<int> &pec_edges,
                                        double target_kc_sq);
+
+/// Solve the 2D discrete TE port mode directly on the port face, in the
+/// same tangential edge basis the 3D system uses there.
+/// Solves the generalized eigenproblem K_s e = kc² M_s e restricted to the
+/// port's free (non-PEC) edges, where K_s is the surface curl-curl matrix
+/// and M_s the surface mass matrix, and returns the eigenvector whose kc²
+/// is closest to target_kc_sq (gradient-nullspace modes kc²≈0 are skipped).
+/// The discrete kc² is written to kc_sq_out — use it (not the analytical
+/// value) to compute β for the port ABC so profile and impedance are
+/// mutually consistent.
+/// Dense solve; intended for port cross-sections (≲ a few thousand edges).
+/// @return Eigenvector in GLOBAL edge indexing (zero off the port)
+Eigen::VectorXd solve_port_mode_2d(const Mesh &mesh, int surface_tag,
+                                   const std::unordered_set<int> &pec_edges,
+                                   double target_kc_sq, double &kc_sq_out);
+
+/// Build a wave port from the 2D discrete port-face eigenmode (see
+/// solve_port_mode_2d). Replaces the 3D-cavity-eigenvector approach: the
+/// weights are the discrete port mode itself, and mode.kc is set to the
+/// DISCRETE cutoff wavenumber so calculate_sparams_eigenmode uses a
+/// consistent β. Much cheaper than compute_te_eigenvector (2D dense solve
+/// on port edges instead of a 3D dense eigensolve).
+WavePort build_wave_port_2d(const Mesh &mesh, int surface_tag,
+                            const PortMode &mode,
+                            const std::unordered_set<int> &pec_edges,
+                            double target_kc_sq);
+
+/// Assemble the port surface mass matrix
+///   M_s[i][j] = ∫_S (n̂×N_i)·(n̂×N_j) dS = ∫_S N_i·N_j dS
+/// over the triangles of the port surface, in GLOBAL edge indexing
+/// (size num_edges × num_edges, nonzeros only on port edges). Rows/columns
+/// of Dirichlet (PEC) edges are omitted. This is the operator required by
+/// the first-order modal ABC  n̂×(∇×E) + jβ E_t = 2jβ E_inc,t  in weak form.
+/// @param mesh The full 3D mesh
+/// @param surface_tag Physical tag of the port surface
+/// @param dirichlet_edges PEC edge indices to exclude
+Eigen::SparseMatrix<double>
+assemble_port_surface_mass(const Mesh &mesh, int surface_tag,
+                           const std::unordered_set<int> &dirichlet_edges);
 
 } // namespace edgefem
