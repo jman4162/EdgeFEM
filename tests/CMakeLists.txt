@@ -3,6 +3,11 @@ target_link_libraries(test_edge_indexing PRIVATE edgefem)
 add_test(NAME test_edge_indexing COMMAND test_edge_indexing)
 set_tests_properties(test_edge_indexing PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
+add_executable(test_triangle_mass_matrix test_triangle_mass_matrix.cpp)
+target_link_libraries(test_triangle_mass_matrix PRIVATE edgefem)
+add_test(NAME test_triangle_mass_matrix COMMAND test_triangle_mass_matrix)
+set_tests_properties(test_triangle_mass_matrix PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+
 add_executable(test_maxwell test_maxwell.cpp)
 target_link_libraries(test_maxwell PRIVATE edgefem)
 add_test(NAME test_maxwell COMMAND test_maxwell)
