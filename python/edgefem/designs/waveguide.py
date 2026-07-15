@@ -255,8 +255,10 @@ Mesh.Algorithm3D = 1;  // Delaunay
     def _setup_ports(self, freq: float) -> None:
         """Set up wave ports for the given frequency.
 
-        Uses the 3D FEM eigenvector approach for proper weight normalization,
-        matching the proven path in test_eigenmode_sparams.cpp.
+        Uses the 2D discrete port-face eigenmode (build_wave_port_2d),
+        matching the path in test_eigenmode_sparams.cpp. The discrete
+        cutoff replaces the analytical one so the port ABC uses a
+        consistent beta.
         """
         if self._mesh is None:
             raise RuntimeError("Mesh not generated. Call generate_mesh() first.")
@@ -270,23 +272,15 @@ Mesh.Algorithm3D = 1;  // Delaunay
         port_dim.b = self.b
         mode = em.solve_te10_mode(port_dim, freq)
 
-        # Compute TE10 cutoff wavenumber squared: kc² = (π/a)²
+        # Target TE10 cutoff wavenumber squared: kc² = (π/a)²
         kc_sq = (np.pi / self.a) ** 2
-
-        # Compute 3D FEM eigenvector for TE10 mode
         pec_edges = set(self._bc.dirichlet_edges)
-        v_te10 = em.compute_te_eigenvector(self._mesh, pec_edges, kc_sq)
 
-        # Extract port surfaces
-        surface1 = em.extract_surface_mesh(self._mesh, self._port1_tag)
-        surface2 = em.extract_surface_mesh(self._mesh, self._port2_tag)
-
-        # Build ports using eigenvector-based weights (||w||² = sqrt(Z0))
-        port1 = em.build_wave_port_from_eigenvector(
-            self._mesh, surface1, v_te10, mode, pec_edges
+        port1 = em.build_wave_port_2d(
+            self._mesh, self._port1_tag, mode, pec_edges, kc_sq
         )
-        port2 = em.build_wave_port_from_eigenvector(
-            self._mesh, surface2, v_te10, mode, pec_edges
+        port2 = em.build_wave_port_2d(
+            self._mesh, self._port2_tag, mode, pec_edges, kc_sq
         )
 
         self._ports = [port1, port2]
@@ -296,7 +290,7 @@ Mesh.Algorithm3D = 1;  // Delaunay
         freq: float,
         *,
         use_eigenmode: bool = True,
-        port_abc_scale: float = 0.5,
+        port_abc_scale: float = 1.0,
     ) -> np.ndarray:
         """
         Compute S-parameters at a single frequency.
@@ -304,7 +298,7 @@ Mesh.Algorithm3D = 1;  // Delaunay
         Args:
             freq: Frequency in Hz
             use_eigenmode: Use eigenmode-based S-parameter extraction (default: True)
-            port_abc_scale: ABC scaling factor (default: 0.5, optimal for accuracy)
+            port_abc_scale: ABC operator scaling (default: 1.0, correct for the assembled surface mass matrix)
 
         Returns:
             2x2 complex S-parameter matrix as numpy array
@@ -404,7 +398,7 @@ Mesh.Algorithm3D = 1;  // Delaunay
         n_points: int = 11,
         *,
         use_eigenmode: bool = True,
-        port_abc_scale: float = 0.5,
+        port_abc_scale: float = 1.0,
         verbose: bool = False,
     ) -> Tuple[np.ndarray, List[np.ndarray]]:
         """
@@ -415,7 +409,7 @@ Mesh.Algorithm3D = 1;  // Delaunay
             f_stop: Stop frequency in Hz
             n_points: Number of frequency points (default: 11)
             use_eigenmode: Use eigenmode-based extraction (default: True)
-            port_abc_scale: ABC scaling factor (default: 0.5)
+            port_abc_scale: ABC operator scaling (default: 1.0)
             verbose: Print progress (default: False)
 
         Returns:
@@ -500,7 +494,6 @@ Mesh.Algorithm3D = 1;  // Delaunay
         # Set up parameters
         params = em.MaxwellParams()
         params.omega = 2 * np.pi * freq
-        params.port_abc_scale = 0.5
 
         # Assemble and solve
         assembly = em.assemble_maxwell(

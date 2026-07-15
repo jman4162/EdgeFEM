@@ -7,6 +7,7 @@
 #include <complex>
 #include <iostream>
 #include <limits>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -644,47 +645,87 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
     return S;
   }
 
-  // Compute propagation constant from first port's mode parameters
+  // Per-port propagation constants: β = sqrt(ε_r μ_r k0² − kc²) with the
+  // material of the volume region adjacent to the port face (complex for
+  // lossy media; principal sqrt gives Re>0, Im<0, i.e. a decaying
+  // outgoing wave under the e^{+jωt} convention).
   const double k0 = p.omega / c0;
-  const double kc = ports[0].mode.kc;
-  const double beta_sq = k0 * k0 - kc * kc;
-
-  if (beta_sq <= 0) {
-    // Mode is evanescent at this frequency
-    const double freq_hz = p.omega / (2.0 * M_PI);
-    const double fc_hz = kc * c0 / (2.0 * M_PI);
-    std::cerr << "WARNING: Frequency " << freq_hz / 1e9
-              << " GHz is below cutoff " << fc_hz / 1e9
-              << " GHz for the port mode — mode is evanescent, "
-                 "S-parameters may be meaningless."
-              << std::endl;
-    return S;
+  std::vector<std::complex<double>> betas(num_ports);
+  for (int i = 0; i < num_ports; ++i) {
+    const double kc = ports[i].mode.kc;
+    std::complex<double> eps_mu(1.0, 0.0);
+    {
+      // Find a tet with a face on the port surface to read its material.
+      std::set<std::array<std::int64_t, 3>> port_faces;
+      for (const auto &tri : mesh.tris) {
+        if (tri.phys != ports[i].surface_tag)
+          continue;
+        std::array<std::int64_t, 3> f{tri.conn[0], tri.conn[1], tri.conn[2]};
+        std::sort(f.begin(), f.end());
+        port_faces.insert(f);
+      }
+      static const int tet_faces[4][3] = {
+          {0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}};
+      bool found = false;
+      for (const auto &tet : mesh.tets) {
+        for (const auto &tf : tet_faces) {
+          std::array<std::int64_t, 3> f{tet.conn[tf[0]], tet.conn[tf[1]],
+                                        tet.conn[tf[2]]};
+          std::sort(f.begin(), f.end());
+          if (port_faces.count(f)) {
+            eps_mu =
+                p.get_eps_r(tet.phys, p.omega) * p.get_mu_r(tet.phys, p.omega);
+            found = true;
+            break;
+          }
+        }
+        if (found)
+          break;
+      }
+    }
+    const std::complex<double> beta_sq = eps_mu * k0 * k0 - kc * kc;
+    if (std::real(beta_sq) <= 0) {
+      // Mode is evanescent at this frequency
+      const double freq_hz = p.omega / (2.0 * M_PI);
+      const double fc_hz =
+          kc * c0 / (2.0 * M_PI * std::sqrt(std::abs(std::real(eps_mu))));
+      std::cerr << "WARNING: Frequency " << freq_hz / 1e9
+                << " GHz is below cutoff " << fc_hz / 1e9 << " GHz for port "
+                << i
+                << " — mode is evanescent, S-parameters may be meaningless."
+                << std::endl;
+      return S;
+    }
+    betas[i] = std::sqrt(beta_sq);
   }
-  const double beta = std::sqrt(beta_sq);
 
-  // Create normalized port eigenvectors from port weights
+  // Assembled port surface mass matrices M_s (global edge indexing).
+  // The first-order modal ABC  n̂×(∇×E) + jβ E_t = 2jβ E_inc,t  contributes
+  // jβ·M_s to the system matrix and 2jβ·M_s·e_inc to the RHS.
+  std::vector<SpMatC> port_mass(num_ports);
+  for (int i = 0; i < num_ports; ++i) {
+    port_mass[i] = assemble_port_surface_mass(mesh, ports[i].surface_tag,
+                                              bc.dirichlet_edges)
+                       .cast<std::complex<double>>();
+  }
+
+  // Port eigenvectors normalized in the M_s inner product: e^H M_s e = 1,
+  // so a unit-amplitude incident mode gives V_inc = 1 in the extraction.
   std::vector<Eigen::VectorXcd> port_vecs(num_ports);
-
   for (int i = 0; i < num_ports; ++i) {
     port_vecs[i] = Eigen::VectorXcd::Zero(m);
-
-    // Copy weights to full-size vector
     for (size_t k = 0; k < ports[i].edges.size(); ++k) {
       int e = ports[i].edges[k];
       if (!bc.dirichlet_edges.count(e)) {
         port_vecs[i](e) = ports[i].weights(k);
       }
     }
-
-    // Normalize
-    double norm = port_vecs[i].norm();
-    if (norm > 1e-15) {
-      port_vecs[i] /= norm;
+    const double norm_sq =
+        std::real(port_vecs[i].dot(port_mass[i] * port_vecs[i]));
+    if (norm_sq > 1e-30) {
+      port_vecs[i] /= std::sqrt(norm_sq);
     }
   }
-
-  // ABC coefficient with optimal scale factor (0.5 gives best results)
-  const std::complex<double> abc_coeff(0.0, beta * p.port_abc_scale);
 
   // Solve for each active port
   for (int active_port = 0; active_port < num_ports; ++active_port) {
@@ -692,17 +733,23 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
     std::vector<WavePort> no_ports;
     auto asmbl = assemble_maxwell(mesh, p, bc, no_ports, -1);
 
-    // Add ABC on all port edges
+    // Add jβ·M_s on every port surface. port_abc_scale is 1.0 for the
+    // assembled operator (kept as a diagnostic knob).
     for (int i = 0; i < num_ports; ++i) {
-      for (int e : ports[i].edges) {
-        if (!bc.dirichlet_edges.count(e)) {
-          asmbl.A.coeffRef(e, e) += abc_coeff;
+      const std::complex<double> coeff =
+          std::complex<double>(0.0, p.port_abc_scale) * betas[i];
+      for (int col = 0; col < port_mass[i].outerSize(); ++col) {
+        for (SpMatC::InnerIterator it(port_mass[i], col); it; ++it) {
+          asmbl.A.coeffRef(it.row(), it.col()) += coeff * it.value();
         }
       }
     }
 
-    // Excitation: RHS = 2*abc_coeff * v_active
-    asmbl.b = 2.0 * abc_coeff * port_vecs[active_port];
+    // Excitation: RHS = 2jβ·M_s·e_inc
+    const std::complex<double> abc_active =
+        std::complex<double>(0.0, p.port_abc_scale) * betas[active_port];
+    asmbl.b =
+        2.0 * abc_active * (port_mass[active_port] * port_vecs[active_port]);
 
     // Solve
     auto res = solve_linear(asmbl.A, asmbl.b, {});
@@ -718,12 +765,13 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
       continue;
     }
 
-    // Extract S-parameters from overlap integrals
-    std::complex<double> V_inc(
-        1.0, 0.0); // Unit incident amplitude (normalized eigenvector)
+    // Extract modal amplitudes via M_s-weighted overlaps: with the
+    // e^H M_s e = 1 normalization, Vj = e_j^H M_s x is the amplitude of
+    // mode j in the solution and V_inc = 1 by construction.
+    std::complex<double> V_inc(1.0, 0.0);
 
     for (int j = 0; j < num_ports; ++j) {
-      std::complex<double> Vj = port_vecs[j].dot(res.x);
+      std::complex<double> Vj = port_vecs[j].dot(port_mass[j] * res.x);
 
       if (j == active_port) {
         // Reflection: S_ii = (V_i - V_inc) / V_inc

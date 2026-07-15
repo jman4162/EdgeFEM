@@ -39,26 +39,15 @@ int main() {
   std::cout << "TE10 Z0 = " << Z0_te10 << " ohms" << std::endl;
   std::cout << std::endl;
 
-  // Extract port surfaces
-  PortSurfaceMesh port1_surf = extract_surface_mesh(mesh, 2);
-  PortSurfaceMesh port2_surf = extract_surface_mesh(mesh, 3);
-
-  // Compute 3D FEM eigenvector for TE10 mode
-  std::cout << "Computing 3D FEM eigenvector for TE10 mode..." << std::endl;
-  Eigen::VectorXd v_te10 =
-      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
-  std::cout << "Eigenvector norm: " << v_te10.norm() << std::endl;
-
-  // Create analytical mode parameters
+  // Create analytical mode parameters (kc is replaced by the discrete
+  // port-face value inside build_wave_port_2d)
   PortMode mode1 = solve_te10_mode(dims, freq);
   PortMode mode2 = solve_te10_mode(dims, freq);
 
-  // Build ports using eigenvector-based weights
-  std::cout << "Building ports with eigenvector-based weights..." << std::endl;
-  WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
-                                                  mode1, bc.dirichlet_edges);
-  WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
-                                                  mode2, bc.dirichlet_edges);
+  // Build ports from the 2D discrete port-face eigenmode
+  std::cout << "Building ports from 2D discrete port modes..." << std::endl;
+  WavePort wp1 = build_wave_port_2d(mesh, 2, mode1, bc.dirichlet_edges, kc_sq);
+  WavePort wp2 = build_wave_port_2d(mesh, 3, mode2, bc.dirichlet_edges, kc_sq);
 
   std::cout << "Port 1: " << wp1.edges.size() << " edges" << std::endl;
   std::cout << "Port 2: " << wp2.edges.size() << " edges" << std::endl;
@@ -66,7 +55,6 @@ int main() {
   // Set up Maxwell parameters with optimal ABC scale
   MaxwellParams p;
   p.omega = omega;
-  p.port_abc_scale = 0.5; // Optimal value from tuning
 
   std::vector<WavePort> ports{wp1, wp2};
 

@@ -83,9 +83,11 @@ struct MaxwellParams {
   // Port weight scaling factor (1.0 = use automatic normalization)
   // Set to custom value if manual tuning is needed
   double port_weight_scale = 1.0;
-  // ABC coefficient scaling factor for port boundaries
-  // Optimal value is ~0.5 due to diagonal approximation of surface mass matrix
-  double port_abc_scale = 0.5;
+  // Scaling of the port ABC operator jβ·M_s in calculate_sparams_eigenmode.
+  // The correct value for the assembled surface mass matrix is 1.0; the
+  // knob remains only as a diagnostic. (Before the assembled operator, a
+  // diagonal-lumped approximation required an empirical 0.5 here.)
+  double port_abc_scale = 1.0;
   // Use direct eigenmode excitation (more accurate, but slower)
   // When enabled, ports are excited using 3D FEM eigenvector instead of
   // analytical mode weights. Requires calling compute_te_eigenvector() first.
@@ -197,16 +199,18 @@ Eigen::MatrixXcd calculate_sparams_periodic(const Mesh &mesh,
                                             const std::vector<WavePort> &ports);
 
 /// Calculate S-parameters using direct eigenmode excitation.
-/// This method uses 3D FEM eigenvectors instead of analytical port weights,
-/// providing better accuracy (~5% error) than the standard port formulation.
+/// Uses 3D FEM eigenvectors as port weights, and a first-order modal ABC
+/// with the ASSEMBLED port surface mass matrix: A += jβ·M_s per port,
+/// RHS = 2jβ·M_s·e_inc, with e^H M_s e = 1 normalization and M_s-weighted
+/// modal extraction. Still a single-mode first-order ABC: higher-order and
+/// evanescent content at the port is not absorbed.
 ///
 /// The ports must have been built with build_wave_port_from_eigenvector()
 /// to contain the eigenvector-based weights and mode parameters (beta, kc,
 /// etc).
 ///
 /// @param mesh Volume mesh
-/// @param p Maxwell parameters (omega required, port_abc_scale recommended =
-/// 0.5)
+/// @param p Maxwell parameters (omega required; leave port_abc_scale = 1.0)
 /// @param bc PEC boundary conditions
 /// @param ports Wave ports with eigenvector-based weights
 /// @return N×N S-parameter matrix

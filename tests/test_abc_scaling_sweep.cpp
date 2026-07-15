@@ -1,8 +1,9 @@
 // ABC Scaling Factor Parametric Sweep
-// Validates theoretical derivation that optimal coefficient is 0.5×jβ
-//
-// This test sweeps port_abc_scale from 0.1 to 2.0 and measures S-parameter
-// accuracy to empirically verify the optimal value of 0.5.
+// With the assembled port surface mass matrix and the 2D discrete port
+// mode, the port ABC operator is jβ·M_s and the correct scale is exactly
+// 1.0 — no empirical constant. This sweep verifies that the |S21|-error
+// optimum lies at alpha ≈ 1.0 and that accuracy there is high, guarding
+// against regressions toward tuned-scale behavior.
 
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
@@ -31,7 +32,7 @@ struct SweepResult {
 int main(int argc, char *argv[]) {
   std::cout << std::setprecision(6);
   std::cout << "=== ABC Scaling Factor Parametric Sweep ===" << std::endl;
-  std::cout << "Purpose: Validate theoretical optimal value of alpha = 0.5"
+  std::cout << "Purpose: verify the assembled-operator optimum is alpha = 1.0"
             << std::endl
             << std::endl;
 
@@ -72,23 +73,13 @@ int main(int argc, char *argv[]) {
             << std::endl
             << std::endl;
 
-  // Extract port surfaces
-  PortSurfaceMesh port1_surf = extract_surface_mesh(mesh, 2);
-  PortSurfaceMesh port2_surf = extract_surface_mesh(mesh, 3);
-
-  // Compute 3D FEM eigenvector for TE10 mode
-  Eigen::VectorXd v_te10 =
-      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
-
   // Create analytical mode parameters
   PortMode mode1 = solve_te10_mode(dims, freq);
   PortMode mode2 = solve_te10_mode(dims, freq);
 
-  // Build ports using eigenvector-based weights
-  WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
-                                                  mode1, bc.dirichlet_edges);
-  WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
-                                                  mode2, bc.dirichlet_edges);
+  // Build ports from the 2D discrete port-face eigenmodes
+  WavePort wp1 = build_wave_port_2d(mesh, 2, mode1, bc.dirichlet_edges, kc_sq);
+  WavePort wp2 = build_wave_port_2d(mesh, 3, mode2, bc.dirichlet_edges, kc_sq);
 
   std::vector<WavePort> ports{wp1, wp2};
 
@@ -167,27 +158,31 @@ int main(int argc, char *argv[]) {
   csv.close();
   std::cout << "Results exported to: " << csv_path << std::endl;
 
-  // Verification: optimal should be near 0.5
-  bool optimal_near_half = (best_alpha >= 0.4 && best_alpha <= 0.6);
+  // Verification: optimal must be at the theoretical value 1.0
+  bool optimal_near_one = (best_alpha >= 0.9 && best_alpha <= 1.1);
   std::cout << std::endl;
   std::cout << "=== Verification ===" << std::endl;
-  std::cout << "Theoretical prediction: alpha_opt = 0.5" << std::endl;
+  std::cout << "Theoretical prediction: alpha_opt = 1.0 (assembled M_s)"
+            << std::endl;
   std::cout << "Measured optimal: alpha = " << best_alpha << std::endl;
-  std::cout << "Optimal in range [0.4, 0.6]: "
-            << (optimal_near_half ? "PASS" : "FAIL") << std::endl;
+  std::cout << "Optimal in range [0.9, 1.1]: "
+            << (optimal_near_one ? "PASS" : "FAIL") << std::endl;
 
-  // Additional check: alpha=0.5 should give |S21| > 0.95
-  double s21_at_half = 0.0;
+  // At alpha = 1.0 the matched line must be accurate: |S21| > 0.98 and
+  // |S11| < 0.05 (the old tuned-diagonal path gave |S11| ~ 0.09 here).
+  double s21_at_one = 0.0, s11_at_one = 1.0;
   for (const auto &r : results) {
-    if (std::abs(r.alpha - 0.5) < 0.01) {
-      s21_at_half = r.s21_mag;
+    if (std::abs(r.alpha - 1.0) < 0.01) {
+      s21_at_one = r.s21_mag;
+      s11_at_one = r.s11_mag;
       break;
     }
   }
-  bool good_transmission = s21_at_half > 0.95;
-  std::cout << "|S21| at alpha=0.5: " << s21_at_half
-            << (good_transmission ? " (PASS: > 0.95)" : " (FAIL: < 0.95)")
+  bool good_transmission = s21_at_one > 0.98 && s11_at_one < 0.05;
+  std::cout << "|S21| at alpha=1.0: " << s21_at_one << ", |S11|: " << s11_at_one
+            << (good_transmission ? " (PASS)"
+                                  : " (FAIL: need |S21|>0.98, |S11|<0.05)")
             << std::endl;
 
-  return (optimal_near_half && good_transmission) ? 0 : 1;
+  return (optimal_near_one && good_transmission) ? 0 : 1;
 }

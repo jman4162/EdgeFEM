@@ -250,7 +250,6 @@ class TestLossyMaterial:
 
         params = em.MaxwellParams()
         params.omega = omega
-        params.port_abc_scale = 0.5
         # Set complex permittivity: eps_r(1 - j*tan_d)
         params.eps_r = complex(eps_r, -eps_r * tan_d)
 
@@ -287,7 +286,6 @@ class TestLossyMaterial:
         wg._setup_ports(freq)
         params = em.MaxwellParams()
         params.omega = 2 * np.pi * freq
-        params.port_abc_scale = 0.5
         params.eps_r = complex(2.2, -2.2 * 0.05)
 
         S_lossy = em.calculate_sparams_eigenmode(

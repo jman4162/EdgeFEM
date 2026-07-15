@@ -12,80 +12,79 @@ roughly 5-26 GHz. See "What is NOT validated" below.
 
 Analytical reference: TE10 with |S11| = 0, |S21| = 1, phase(S21) = -βL
 (Pozar). Mesh: 4,227 tets (~10 elements/wavelength), length 50 mm.
+Port formulation: assembled surface-mass-matrix ABC with 2D discrete port
+modes (July 2026); see "Port Formulation" below.
 
 Reproduce: `./build/tests/benchmark_wr90`
 
 | Freq (GHz) | \|S11\| | \|S21\| | Phase(S21) | Expected | Phase error |
 |-----------|-------|-------|------------|----------|-------------|
-| 7.0 | 0.064 | 0.997 | -150.3° | -147.1° | 3.2° |
-| 8.0 | 0.093 | 0.994 | 80.9° | 84.8° | 3.9° |
-| 9.0 | 0.037 | 0.998 | -15.7° | -10.1° | 5.6° |
-| 10.0 | 0.087 | 0.994 | -100.6° | -93.3° | 7.3° |
-| 11.0 | 0.042 | 0.997 | 179.8° | -170.3° | 10.1°* |
-| 12.0 | 0.143 | 0.987 | 103.8° | 116.6° | 12.8° |
+| 7.0 | 0.019 | 0.9996 | -150.6° | -147.1° | 3.4° |
+| 8.0 | 0.003 | 0.9997 | 80.8° | 84.8° | 4.0° |
+| 9.0 | 0.010 | 0.9994 | -15.6° | -10.1° | 5.4° |
+| 10.0 | 0.013 | 0.9992 | -100.7° | -93.3° | 7.4° |
+| 11.0 | 0.041 | 0.9982 | 179.9° | -170.3° | 9.8°* |
+| 12.0 | 0.053 | 0.9973 | 103.9° | 116.6° | 12.7° |
 
 *Phase wrapping near ±180°.
 
 Test pass criteria (deliberately loose for CI stability): |S11| < 0.15,
-|S21| > 0.90, phase error < 15°, passivity ≤ 1.05. Do not quote the
-single best point as the solver's accuracy; the honest summary is
-**|S21| within ~1%, |S11| below ~0.15, and phase error growing to ~13° at
-the band edge** at this mesh density.
+|S21| > 0.90, phase error < 15°, passivity ≤ 1.05. Honest summary at this
+mesh density: **|S21| within 0.3%, |S11| below 0.06, phase error growing
+to ~13° at the band edge** (phase error is discretization dispersion and
+shrinks ~O(h²) with refinement — see Mesh Convergence).
 
 A WR-42 benchmark (20-26 GHz) runs the same checks: `./build/tests/test_wr42_waveguide`.
 
-## Port ABC Scaling Factor
+## Port Formulation and the ABC Scale Factor
 
-The wave-port boundary uses a first-order ABC with coefficient α·jβ applied
-to port-edge diagonal entries (a lumped approximation of the port surface
-mass matrix). α was chosen by sweep, not derived.
+The wave-port boundary is a first-order modal ABC assembled as
+`A += jβ·M_s`, where M_s is the port surface mass matrix
+∫(n̂×N_i)·(n̂×N_j)dS, with the port mode taken from a 2D generalized
+eigensolve (K_s, M_s) on the port face and β computed from the discrete
+cutoff. The theoretical scale of the operator is exactly 1.0, and the
+sweep confirms it — the former empirical `port_abc_scale = 0.5` belonged
+to a diagonal-lumped approximation and is gone.
 
 Reproduce: `./build/tests/test_abc_scaling_sweep` (writes `abc_scaling_sweep.csv`)
 
-| α | \|S11\| | \|S21\| | Phase err |
-|-----|-------|-------|-----------|
-| 0.40 | 0.297 | 0.953 | 6.8° |
-| 0.45 | 0.188 | 0.980 | 7.1° |
-| 0.50 | 0.087 | 0.994 | 7.3° |
-| 0.55 | 0.012 | 0.998 | 7.3° |
-| 0.60 | 0.092 | 0.994 | 7.3° |
-| 1.00 | 0.533 | 0.844 | 5.7° |
+| α | \|S11\| | \|S21\| |
+|-----|-------|-------|
+| 0.80 | 0.207 | 0.978 |
+| 0.90 | 0.094 | 0.995 |
+| **1.00** | **0.013** | **0.999** |
+| 1.20 | 0.187 | 0.982 |
+| 1.50 | 0.387 | 0.922 |
 
-Measured optimum on this mesh is α ≈ 0.55; the shipped default is
-`port_abc_scale = 0.5`. The sharp sensitivity of |S11| to α is a property of
-the lumped-ABC port formulation itself — treat |S11| below ~0.05 from this
-port model as formulation-limited, not physical.
+Measured optimum: α = 1.00 (test asserts α_opt ∈ [0.9, 1.1] and
+|S11| < 0.05 at α = 1.0). Remaining limitations: single-mode first-order
+ABC (higher-order/evanescent content at the port is absorbed with the
+dominant-mode impedance, not mode-matched), TE modes of hollow guides only.
 
 ## Mesh Convergence (WR-90 at 10 GHz)
 
 Reproduce: `PYTHONPATH=build/python:python python3 scripts/run_convergence_study.py`
 
-Measured (macOS ARM64, July 2026):
+Measured (macOS ARM64, July 2026, assembled-M_s ports):
 
 | Elements/λ | Tets | \|S21\| | \|S21\| error | \|S11\| | Phase error | Runtime |
 |-----------|------|-------|-------------|-------|-----------|---------|
-| 5 | 452 | 0.9757 | 2.43% | 0.194 | 18.6° | <0.1 s |
-| 8 | 1,323 | 0.9767 | 2.33% | 0.120 | 7.6° | 0.7 s |
-| 10 | 2,462 | 0.9943 | 0.57% | 0.094 | 4.0° | 5.3 s |
-| 14 | 5,740 | 0.9818 | 1.82% | 0.177 | 2.0° | 95 s |
-| 18 | 12,233 | 0.9869 | 1.31% | 0.146 | 0.9° | 1014 s |
+| 5 | 452 | 0.9868 | 1.32% | 0.150 | 19.1° | <0.1 s |
+| 8 | 1,323 | 0.9978 | 0.22% | 0.037 | 8.3° | <0.1 s |
+| 10 | 2,462 | 0.9995 | 0.05% | 0.007 | 4.1° | 0.1 s |
+| 14 | 5,740 | 0.9996 | 0.04% | 0.006 | 2.2° | 0.6 s |
+| 18 | 12,233 | 0.9999 | 0.01% | 0.0005 | 0.9° | 11.6 s |
 
-Two distinct behaviors, and it is important not to conflate them:
+All quantities now converge monotonically with refinement: phase error at
+the expected ~O(h²) dispersion rate (19.1° → 0.9°), |S11| from 0.15 to
+5×10⁻⁴, and |S21| error from 1.3% to 0.01% (fitted order ≈ 3.5 over this
+range). Before the assembled-M_s port formulation, S-parameter magnitudes
+plateaued at a 1-2% floor set by the diagonal-lumped ABC regardless of
+mesh density; that plateau is eliminated.
 
-- **Phase error converges cleanly** (18.6° → 0.9°), consistent with the
-  expected ~O(h²) dispersion error of lowest-order edge elements. Fitted
-  order from these points: ≈2.
-- **S-parameter magnitudes do NOT converge with the mesh.** |S21| error and
-  |S11| oscillate in the 1-2% / 0.09-0.19 band regardless of density
-  (fitted |S21|-error order ≈ 0.45, i.e. no meaningful convergence). The
-  magnitude floor is set by the lumped first-order port ABC, not by
-  discretization; refining the mesh does not remove it. This is the port
-  limitation described in the README, and it is why quoting a single
-  best-case |S11| is misleading.
-
-Runtime grows superlinearly (dominated by the dense port eigenvector and
-direct-solver fallback); ~10 elements/wavelength is the practical
-accuracy/cost point for this formulation.
+Runtime is dominated by the sparse solve (the former dense 3D port
+eigenvector computation — 1014 s at 12k tets — is replaced by a 2D dense
+eigensolve on the port face, <0.1 s).
 
 ## Cavity Eigenmodes
 
@@ -137,10 +136,10 @@ No comparison against commercial solvers (HFSS/CST) or measurement exists.
 |------|------|-----------------|
 | WR-90 benchmark | `tests/benchmark_wr90.cpp` | S-params vs analytical, 7-12 GHz |
 | WR-42 benchmark | `tests/test_wr42_waveguide.cpp` | S-params vs analytical, 20-26 GHz |
-| ABC scaling | `tests/test_abc_scaling_sweep.cpp` | Optimal α in [0.4, 0.6] |
+| ABC scaling | `tests/test_abc_scaling_sweep.cpp` | Optimal α in [0.9, 1.1]; |S11| < 0.05 at α=1 |
 | Cavity modes | `tests/test_cavity_eigenmodes.cpp` | Eigenfrequencies vs f_mnp (10%) |
 | Eigenmode S-params | `tests/test_eigenmode_sparams.cpp` | Transmission via eigenvector ports |
-| Port eigenvector | `tests/test_eigenvector_waveport.cpp` | Diagnostic (no assertions) |
+| Triangle edge mass | `tests/test_triangle_mass_matrix.cpp` | Closed form vs quadrature (1e-12) |
 | Python suite | `python/tests/test_validation_suite.py` | Passivity, lossy attenuation |
 
 ## References

@@ -15,7 +15,7 @@ EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and micro
 
 | Feature | Description |
 |---------|-------------|
-| **S-parameters** | Wave ports with 3D-eigenvector-based extraction; lumped ports for antenna feeds |
+| **S-parameters** | Wave ports with 2D discrete port modes and assembled surface-mass ABC; lumped ports for antenna feeds |
 | **Radiation Patterns** | 3D far-field via Stratton-Chu integration over a Huygens surface |
 | **Periodic Structures** | Phase-shifted (Bloch) periodic BCs along one lattice axis, for small unit cells |
 | **Open Boundaries** | First-order ABC and a graded absorbing layer (see Limitations) |
@@ -68,7 +68,7 @@ wg.generate_mesh(density=10)
 
 # Compute S-parameters at 10 GHz
 S = wg.sparams_at_freq(10e9)
-print(f"|S11| = {abs(S[0,0]):.4f}")  # ~0.09 (see validation report)
+print(f"|S11| = {abs(S[0,0]):.4f}")  # ~0.01 (see validation report)
 print(f"|S21| = {abs(S[1,0]):.4f}")  # ~0.99 (matched transmission)
 ```
 
@@ -183,12 +183,12 @@ Validated against analytical benchmarks (WR-90/WR-42 waveguide dispersion, cavit
 
 | Metric | Typical (WR-90, 7-12 GHz) | Test pass criterion |
 |--------|---------------------------|---------------------|
-| \|S21\| | 0.987-0.998 | > 0.90 |
-| \|S11\| | 0.04-0.14 | < 0.15 |
+| \|S21\| | 0.997-0.9997 | > 0.90 |
+| \|S11\| | 0.003-0.053 | < 0.15 |
 | Phase error vs. -βL | 3-13° | < 15° |
 | Passivity \|S11\|² + \|S21\|² | ≈ 1.0 | ≤ 1.05 |
 
-Numbers are from `tests/benchmark_wr90.cpp`, run in CI. A measured mesh-convergence study (`scripts/run_convergence_study.py`) shows phase error converging at roughly O(h²) while S-parameter magnitudes plateau at a 1-2% floor set by the lumped port ABC — see the [Validation Report](docs/validation.md) for the full tables and limitations.
+Numbers are from `tests/benchmark_wr90.cpp`, run in CI. A measured mesh-convergence study (`scripts/run_convergence_study.py`) shows all quantities converging with refinement — phase error at ~O(h²), and |S11| down to 5×10⁻⁴ at 18 elements/wavelength — see the [Validation Report](docs/validation.md) for the full tables and limitations.
 
 ## Ecosystem Integration
 
@@ -283,7 +283,7 @@ EdgeFEM v1.0 targets small-to-medium waveguide, patch antenna, and unit cell pro
 | Feature | Status | Notes |
 |---------|--------|-------|
 | True tensor (coordinate-stretched) PML | Planned v1.1 | Current absorber applies a scalar average of the stretch tensor: a graded lossy layer, not reflectionless at oblique incidence |
-| Wave port formulation | First-order ABC with modal injection | Diagonal (lumped) surface operator with tuned 0.5 scale factor; ~5% S-parameter error typical; accuracy degrades near cutoff |
+| Wave port formulation | First-order single-mode ABC | Assembled surface-mass operator with 2D discrete port modes (no tuned constants); mesh-convergent S-parameters; higher-order port modes not mode-matched; accuracy degrades near cutoff |
 | Floquet ports / harmonic expansion | Planned | Periodic BC applies a Bloch phase along one lattice axis only; the constraint elimination is dense, limiting problem size |
 | Inhomogeneous / TEM ports (coax, microstrip) | Not supported | 2D port eigensolver is scalar (hollow homogeneous guides only) |
 | Higher-order elements (Tet10) | Planned v1.1 | Lowest-order Whitney elements; use finer mesh |
@@ -306,10 +306,12 @@ For large problems (>1M DOF), adaptive refinement, or reference-plane modal port
 - GitHub Actions CI/CD with automated wheel builds
 - Documentation and validation integrity pass, July 2026 — reproducible
   benchmarks, honest limitations, real mesh QA in CI (see [CHANGELOG](CHANGELOG.md))
+- Assembled port surface-mass ABC with 2D discrete port modes, July 2026 —
+  removes the tuned 0.5 scale factor; S-parameters now mesh-convergent
+  (WR-90 |S11| 0.003-0.053 across band)
 
 ### v1.1 (Planned)
 - True tensor (coordinate-stretched) PML
-- Port surface mass matrix (replaces the tuned ABC scale factor)
 - Sparse periodic constraint elimination; dual-axis periodicity
 - Higher-order waveguide modes (TE20, TE01, TM modes)
 - Higher-order Nédélec elements (Tet10)

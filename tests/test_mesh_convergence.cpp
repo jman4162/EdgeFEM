@@ -83,30 +83,19 @@ int main(int argc, char *argv[]) {
   double h_est = L / 10.0; // Rough estimate
   double lambda_over_h = lambda / h_est;
 
-  // Extract port surfaces
-  PortSurfaceMesh port1_surf = extract_surface_mesh(mesh, 2);
-  PortSurfaceMesh port2_surf = extract_surface_mesh(mesh, 3);
-
-  // Compute eigenvector
-  Eigen::VectorXd v_te10 =
-      compute_te_eigenvector(mesh, bc.dirichlet_edges, kc_sq);
-
   // Create modes
   PortMode mode1 = solve_te10_mode(dims, freq);
   PortMode mode2 = solve_te10_mode(dims, freq);
 
-  // Build ports
-  WavePort wp1 = build_wave_port_from_eigenvector(mesh, port1_surf, v_te10,
-                                                  mode1, bc.dirichlet_edges);
-  WavePort wp2 = build_wave_port_from_eigenvector(mesh, port2_surf, v_te10,
-                                                  mode2, bc.dirichlet_edges);
+  // Build ports from the 2D discrete port-face eigenmodes
+  WavePort wp1 = build_wave_port_2d(mesh, 2, mode1, bc.dirichlet_edges, kc_sq);
+  WavePort wp2 = build_wave_port_2d(mesh, 3, mode2, bc.dirichlet_edges, kc_sq);
 
   std::vector<WavePort> ports{wp1, wp2};
 
   // Run simulation
   MaxwellParams p;
   p.omega = omega;
-  p.port_abc_scale = 0.5;
 
   auto S = calculate_sparams_eigenmode(mesh, p, bc, ports);
 

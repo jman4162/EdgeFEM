@@ -14,6 +14,16 @@ whitney_curl_curl_matrix(const std::array<Eigen::Vector3d, 4> &v);
 Eigen::Matrix<double, 6, 6>
 whitney_mass_matrix(const std::array<Eigen::Vector3d, 4> &v);
 
+/// Edge-element mass matrix on a (possibly 3D-embedded) flat triangle:
+///   M[e][f] = ∫ N_e · N_f dS
+/// with Whitney basis N_e = λ_a ∇λ_b − λ_b ∇λ_a and local edge ordering
+/// (0,1), (1,2), (2,0) — matching how build_edges() fills Element::edges
+/// for Tri3. For tangential edge elements on a port plane this equals
+/// ∫ (n̂×N_e)·(n̂×N_f) dS.
+/// Closed form via ∫ λ_i λ_j dS = A/6 (i=j), A/12 (i≠j).
+Eigen::Matrix3d
+triangle_whitney_mass_matrix(const std::array<Eigen::Vector3d, 3> &v);
+
 /// Compute barycentric coordinates of a point within a tetrahedron.
 /// @param v The four vertices of the tetrahedron
 /// @param p The point to compute coordinates for

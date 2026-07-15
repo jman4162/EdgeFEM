@@ -85,6 +85,50 @@ whitney_mass_matrix(const std::array<Eigen::Vector3d, 4> &v) {
   return M;
 }
 
+Eigen::Matrix3d
+triangle_whitney_mass_matrix(const std::array<Eigen::Vector3d, 3> &v) {
+  // Local edge ordering matches build_edges() in mesh_gmsh.cpp for Tri3:
+  // (0,1), (1,2), (2,0)
+  static const std::array<std::array<int, 2>, 3> tri_edge_pairs = {
+      std::array<int, 2>{0, 1}, std::array<int, 2>{1, 2},
+      std::array<int, 2>{2, 0}};
+
+  Eigen::Vector3d normal = (v[1] - v[0]).cross(v[2] - v[0]);
+  double area2 = normal.norm(); // 2 * area
+  Eigen::Matrix3d M = Eigen::Matrix3d::Zero();
+  if (area2 < 1e-30)
+    return M;
+  Eigen::Vector3d n_hat = normal / area2;
+  double area = area2 / 2.0;
+
+  // In-plane barycentric gradients (same construction as the lumped-port
+  // surface integrals).
+  std::array<Eigen::Vector3d, 3> g;
+  g[0] = n_hat.cross(v[2] - v[1]) / area2;
+  g[1] = n_hat.cross(v[0] - v[2]) / area2;
+  g[2] = n_hat.cross(v[1] - v[0]) / area2;
+
+  auto lam_int = [area](int i, int j) {
+    return (i == j) ? area / 6.0 : area / 12.0;
+  };
+
+  for (int i = 0; i < 3; ++i) {
+    int a = tri_edge_pairs[i][0];
+    int b = tri_edge_pairs[i][1];
+    for (int j = 0; j < 3; ++j) {
+      int c = tri_edge_pairs[j][0];
+      int d = tri_edge_pairs[j][1];
+      double term = 0.0;
+      term += g[b].dot(g[d]) * lam_int(a, c);
+      term -= g[b].dot(g[c]) * lam_int(a, d);
+      term -= g[a].dot(g[d]) * lam_int(b, c);
+      term += g[a].dot(g[c]) * lam_int(b, d);
+      M(i, j) = term;
+    }
+  }
+  return M;
+}
+
 Eigen::Vector4d compute_barycentric(const std::array<Eigen::Vector3d, 4> &v,
                                     const Eigen::Vector3d &p) {
   // Build matrix T = [v0-v3, v1-v3, v2-v3]

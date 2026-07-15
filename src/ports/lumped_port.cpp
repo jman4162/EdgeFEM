@@ -61,9 +61,9 @@ static Eigen::VectorXcd compute_surface_integral_weights(
     grad_lam[1] = n_hat.cross(edge_01) / area2;
     grad_lam[2] = n_hat.cross(edge_12) / area2;
 
-    // Local edge table for Tri3: (n0_local, n1_local) for edges 0,1,2
-    // Edge 0: (0,1), Edge 1: (0,2), Edge 2: (1,2)
-    static const int tri_edge_nodes[3][2] = {{0, 1}, {0, 2}, {1, 2}};
+    // Local edge table for Tri3, matching build_edges() in mesh_gmsh.cpp:
+    // Edge 0: (0,1), Edge 1: (1,2), Edge 2: (2,0)
+    static const int tri_edge_nodes[3][2] = {{0, 1}, {1, 2}, {2, 0}};
 
     for (int le = 0; le < 3; ++le) {
       int ge = tri.edges[le];

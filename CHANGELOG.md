@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased (2026-07-14) — assembled port operator, mesh-convergent S-parameters
+
+Wave-port formulation rework in `calculate_sparams_eigenmode`; no API
+breaks (one new builder, one changed default).
+
+### Changed
+
+- Port ABC is now the assembled surface mass matrix: `A += jβ·M_s` with
+  M_s = ∫(n̂×N_i)·(n̂×N_j)dS over the port triangles, replacing the
+  diagonal-lumped operator. Excitation, normalization, and modal
+  extraction all use the M_s inner product.
+- Port modes come from a 2D generalized eigensolve (K_s, M_s) on the port
+  face (`build_wave_port_2d` / `solve_port_mode_2d`), replacing the 3D
+  cavity eigensolve. The discrete cutoff replaces the analytical one so β
+  is consistent with the profile. Port setup at 12k tets: 1014 s → <0.1 s.
+- `port_abc_scale` default 0.5 → 1.0. The sweep optimum is measured at
+  exactly 1.0; the knob is diagnostic only. Per-port β replaces the
+  port-0-only β (latent multi-port bug), and β is now computed from the
+  material adjacent to the port (complex for lossy fills), so
+  dielectric-filled guides get a matched port impedance.
+
+### Fixed
+
+- Triangle local-edge-table mismatch: the mesh loader fills Tri3 edges in
+  order (0,1),(1,2),(2,0), but `lumped_port.cpp` (and initially the new
+  surface assembly) used (0,1),(0,2),(1,2), silently scattering surface
+  integrals to wrong edges. All surface code now uses the loader's order;
+  `test_triangle_mass_matrix` guards the convention.
+
+### Measured impact (WR-90)
+
+- Band sweep 7-12 GHz: |S11| 0.003-0.053 (was 0.04-0.14), |S21| ≥ 0.997.
+- Mesh convergence at 10 GHz: |S11| 0.15 → 5×10⁻⁴ and |S21| error
+  1.3% → 0.01% from 5 to 18 elements/wavelength. The previous 1-2%
+  magnitude floor (non-convergent) is eliminated; phase error unchanged
+  at ~O(h²).
+- Full CTest suite: 347 s → 62 s.
+
 ## Unreleased (2026-07-11) — documentation and validation integrity pass
 
 Outcome of a full technical review of v1.0.0. No solver physics changed;
