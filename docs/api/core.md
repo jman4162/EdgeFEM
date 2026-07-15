@@ -114,7 +114,7 @@ class MaxwellParams:
     mu_r_regions: Dict[int, complex]   # Relative permeability per volume tag
     use_abc: bool                   # Enable ABC on outer boundaries
     use_pml: bool                   # Enable PML layers
-    port_abc_scale: float           # ABC scaling factor (optimal: 0.5)
+    port_abc_scale: float           # Port ABC operator scale (leave at default 1.0)
 ```
 
 Maxwell equation parameters for assembly.
@@ -127,7 +127,6 @@ params.eps_r_regions = {
     100: complex(1.0, 0),      # Air
     101: complex(4.4, -0.088), # FR-4 substrate (eps_r=4.4, tan_d=0.02)
 }
-params.port_abc_scale = 0.5  # Optimal for accurate S-parameters
 ```
 
 ---
@@ -176,7 +175,7 @@ Compute S-parameter matrix using eigenmode-based extraction. **Recommended** for
 **Parameters:**
 
 - `mesh` - FEM mesh
-- `params` - Maxwell parameters (set `port_abc_scale=0.5` for optimal accuracy)
+- `params` - Maxwell parameters (leave `port_abc_scale` at its default 1.0)
 - `bc` - Boundary conditions
 - `ports` - List of wave ports
 
@@ -186,15 +185,13 @@ Compute S-parameter matrix using eigenmode-based extraction. **Recommended** for
 ```python
 params = em.MaxwellParams()
 params.omega = 2 * np.pi * 10e9
-params.port_abc_scale = 0.5  # Optimal
 
 S = em.calculate_sparams_eigenmode(mesh, params, bc, [port1, port2])
 print(f"S11 = {S[0,0]:.4f}, S21 = {S[1,0]:.4f}")
 ```
 
 !!! note "Accuracy"
-    Typical matched-waveguide accuracy at ~10 elements/wavelength: |S21| within ~1%, |S11| < 0.15 (see docs/validation.md).
-    Always use `port_abc_scale=0.5` for best results.
+    Typical matched-waveguide accuracy at ~10 elements/wavelength: |S21| within ~0.3%, |S11| < 0.06, converging with mesh refinement (see docs/validation.md).
 
 ---
 

@@ -159,7 +159,6 @@ bc = em.build_edge_pec(mesh, 1)
 # Set up Maxwell parameters
 params = em.MaxwellParams()
 params.omega = 2 * np.pi * 10e9  # 10 GHz
-params.port_abc_scale = 0.5
 
 # Build ports (extract from physical tags 2 and 3)
 port_dim = em.RectWaveguidePort()

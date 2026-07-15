@@ -259,7 +259,6 @@ port2 = em.build_wave_port(mesh, surface2, mode)
 # Maxwell parameters
 params = em.MaxwellParams()
 params.omega = 2 * np.pi * freq
-params.port_abc_scale = 0.5  # Optimal for accuracy
 
 # Compute S-parameters
 S = em.calculate_sparams_eigenmode(mesh, params, bc, [port1, port2])

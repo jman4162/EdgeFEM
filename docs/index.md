@@ -8,7 +8,7 @@ EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and micro
 
 | Feature | Description |
 |---------|-------------|
-| **S-parameters** | Wave ports with 3D-eigenvector-based extraction; lumped ports for antenna feeds |
+| **S-parameters** | Wave ports with 2D discrete port modes and assembled surface-mass ABC; lumped ports for antenna feeds |
 | **Radiation Patterns** | 3D far-field via Stratton-Chu integration |
 | **Periodic Structures** | Phase-shifted (Bloch) periodic BCs along one lattice axis, for small unit cells |
 | **Open Boundaries** | First-order ABC and a graded absorbing layer |
