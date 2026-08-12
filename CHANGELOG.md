@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Stratton-Chu far-field kernel: three defects, one fix.** (1) The
+  radiation-integral kernel applied `jk0` to the magnetic-current term only;
+  both current terms carry it, so J was mis-weighted against M by roughly a
+  factor of k0 and patterns from a Huygens surface were effectively M-only.
+  (2) The J term used `-Z0 rhat x J` where the kernel requires
+  `Z0 (rhat x J) x rhat`, and the M term used the transverse projection where
+  it requires `rhat x M`. (3) Eigen's `cross()` conjugates complex operands'
+  products, silently corrupting every complex cross in the chain — the file
+  now uses an explicit conjugation-free cross, and pattern projection no
+  longer conjugates the field (Eigen `dot()` conjugates its first argument).
+  The kernel also gains the physical `1/(4 pi)` prefactor, making the output
+  an absolute r-normalized far field.
+
+  **Pattern outputs shift.** Ratio-based metrics (directivity, HPBW,
+  normalized pattern shape) were approximately right before because the
+  dominant M term alone carries most of the shape for outgoing fields;
+  cross-polarization and any absolute quantity (RCS, gain from absolute
+  fields) were wrong. `tests/test_ntf.cpp` now checks the kernel against the
+  analytic Hertzian-dipole far field — absolute magnitude to 2%, pure
+  polarization, and directivity 1.5 — with assertions that survive
+  `-DNDEBUG` builds (the previous asserts silently vanished in release
+  builds). Prerequisite for the planned RCS capability.
+
 ## Unreleased (2026-07-14) — assembled port operator, mesh-convergent S-parameters
 
 Wave-port formulation rework in `calculate_sparams_eigenmode`; no API

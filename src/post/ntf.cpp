@@ -10,6 +10,32 @@ namespace edgefem {
 
 static constexpr double Z0 = 376.730313668; // free-space impedance [ohm]
 
+// Plain mathematical cross product for complex vectors. Eigen's cross()
+// CONJUGATES complex operands' products (verified against numpy), which
+// silently corrupts any mixed real/complex kernel built from it. Never
+// call .cross() on a Vector3cd in this file.
+static Eigen::Vector3cd cross_c(const Eigen::Vector3d &a,
+                                const Eigen::Vector3cd &b) {
+  return Eigen::Vector3cd(a.y() * b.z() - a.z() * b.y(),
+                          a.z() * b.x() - a.x() * b.z(),
+                          a.x() * b.y() - a.y() * b.x());
+}
+
+static Eigen::Vector3cd cross_c(const Eigen::Vector3cd &a,
+                                const Eigen::Vector3d &b) {
+  return Eigen::Vector3cd(a.y() * b.z() - a.z() * b.y(),
+                          a.z() * b.x() - a.x() * b.z(),
+                          a.x() * b.y() - a.y() * b.x());
+}
+
+// Projection of a complex field onto a real unit vector. Eigen's dot()
+// conjugates its first argument, which flips the phase of every pattern
+// sample; this keeps the field's own phase.
+static std::complex<double> project(const Eigen::Vector3cd &field,
+                                    const Eigen::Vector3d &axis) {
+  return field.x() * axis.x() + field.y() * axis.y() + field.z() * axis.z();
+}
+
 // -----------------------------------------------------------------------------
 // FFPattern3D member functions
 // -----------------------------------------------------------------------------
@@ -77,18 +103,26 @@ std::vector<NTFPoint2D> stratton_chu_2d(const std::vector<Eigen::Vector3d> &r,
     const std::complex<double> j(0.0, 1.0);
 
     for (size_t i = 0; i < r.size(); ++i) {
-      Eigen::Vector3cd J = n[i].cross(H[i]);
-      Eigen::Vector3cd M = -n[i].cross(E[i]);
+      Eigen::Vector3cd J = cross_c(n[i], H[i]);
+      Eigen::Vector3cd M = -cross_c(n[i], E[i]);
       std::complex<double> phase = std::exp(-j * k0 * rhat.dot(r[i]));
+      // Radiation-integral kernel (r-normalized far field, e^{-jwt}
+      // convention matching the e^{-jk rhat.r'} phase above):
+      //   E_far = (jk0/4pi) * [ Z0 * (rhat x J) x rhat  -  rhat x M ]
+      // Both current terms carry the same jk0/4pi factor; an earlier
+      // version applied jk0 to the M term only (and used M_t instead of
+      // rhat x M), which mis-weighted J against M by ~k0 and distorted
+      // patterns whenever both contribute. Verified against the analytic
+      // Hertzian-dipole far field in tests/test_ntf.cpp.
       Eigen::Vector3cd term =
-          j * k0 * (rhat.cross(M)).cross(rhat) - Z0 * rhat.cross(J);
-      Efar += term * phase * area[i];
+          Z0 * cross_c(cross_c(rhat, J), rhat) - cross_c(rhat, M);
+      Efar += (j * k0 / (4.0 * M_PI)) * term * phase * area[i];
     }
 
     NTFPoint2D p;
     p.theta_deg = th * 180.0 / M_PI;
-    p.e_theta = Efar.dot(th_hat);
-    p.e_phi = Efar.dot(ph_hat);
+    p.e_theta = project(Efar, th_hat);
+    p.e_phi = project(Efar, ph_hat);
     out.push_back(p);
   }
   return out;
@@ -143,23 +177,28 @@ FFPattern3D stratton_chu_3d(const std::vector<Eigen::Vector3d> &r,
       // Integrate over Huygens surface
       Eigen::Vector3cd Efar = Eigen::Vector3cd::Zero();
       for (size_t s = 0; s < r.size(); ++s) {
-        // Equivalent surface currents
-        Eigen::Vector3cd J = n[s].cross(H[s]);  // Electric current
-        Eigen::Vector3cd M = -n[s].cross(E[s]); // Magnetic current
+        // Equivalent surface currents (Love equivalence, n outward)
+        Eigen::Vector3cd J = cross_c(n[s], H[s]);  // Electric current
+        Eigen::Vector3cd M = -cross_c(n[s], E[s]); // Magnetic current
 
         // Phase factor for this surface point
         std::complex<double> phase = std::exp(-j_imag * k0 * rhat.dot(r[s]));
 
-        // Far-field contribution from this patch
-        // E_far = jk0 * (rhat x M) x rhat - Z0 * rhat x J
+        // Radiation-integral kernel (r-normalized far field):
+        //   E_far = (jk0/4pi) * [ Z0 * (rhat x J) x rhat  -  rhat x M ]
+        // Both current terms carry the same jk0/4pi factor; an earlier
+        // version applied jk0 to the M term only (and used M_t instead
+        // of rhat x M), which mis-weighted J against M by ~k0 and
+        // distorted patterns whenever both contribute. Verified against
+        // the analytic Hertzian-dipole far field in tests/test_ntf.cpp.
         Eigen::Vector3cd term =
-            j_imag * k0 * (rhat.cross(M)).cross(rhat) - Z0 * rhat.cross(J);
-        Efar += term * phase * area[s];
+            Z0 * cross_c(cross_c(rhat, J), rhat) - cross_c(rhat, M);
+        Efar += (j_imag * k0 / (4.0 * M_PI)) * term * phase * area[s];
       }
 
       // Project onto spherical basis vectors
-      pattern.E_theta(ti, pi) = Efar.dot(th_hat);
-      pattern.E_phi(ti, pi) = Efar.dot(ph_hat);
+      pattern.E_theta(ti, pi) = project(Efar, th_hat);
+      pattern.E_phi(ti, pi) = project(Efar, ph_hat);
     }
   }
 
