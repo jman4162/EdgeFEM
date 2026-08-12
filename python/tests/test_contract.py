@@ -19,8 +19,8 @@ from edgefem import contract  # noqa: E402
 @pytest.fixture(scope="module")
 def written(tmp_path_factory):
     out = tmp_path_factory.mktemp("contract")
-    json_path, csv_path = contract.write_golden_array_package(out)
-    return json_path, csv_path
+    json_path, csv_path, scan_path = contract.write_golden_array_package(out)
+    return json_path, csv_path, scan_path
 
 
 class TestArrayPackageJson:
@@ -88,3 +88,48 @@ def test_deterministic(tmp_path):
     b = contract.write_golden_array_package(tmp_path / "b")
     assert a[0].read_bytes() == b[0].read_bytes()
     assert a[1].read_bytes() == b[1].read_bytes()
+
+
+class TestScanCsv:
+    def test_header_and_row_count(self, written):
+        lines = written[2].read_text().strip().splitlines()
+        assert lines[0] == (
+            "theta_deg,phi_deg,element_idx,Gamma_real,Gamma_imag,Z_real,Z_imag,VSWR"
+        )
+        # 3 scan angles x 4 elements
+        assert len(lines) == 1 + 3 * 4
+
+    def test_angles_in_degrees_grouped_by_scan(self, written):
+        lines = written[2].read_text().strip().splitlines()[1:]
+        thetas = [float(line.split(",")[0]) for line in lines]
+        assert thetas == [0.0] * 4 + [30.0] * 4 + [60.0] * 4
+        elems = [int(line.split(",")[2]) for line in lines]
+        assert elems == [0, 1, 2, 3] * 3
+
+    def test_hand_computed_vswr_row(self, written):
+        """Element 0 at 60 deg has Gamma = 0.5 exactly: VSWR = 3, Z = 150."""
+        lines = written[2].read_text().strip().splitlines()[1:]
+        row = lines[8].split(",")  # first element of the 60-deg group
+        gamma = complex(float(row[3]), float(row[4]))
+        assert gamma == pytest.approx(0.5 + 0.0j, abs=1e-12)
+        assert float(row[7]) == pytest.approx(3.0, abs=1e-9)
+        assert float(row[5]) == pytest.approx(150.0, abs=1e-9)
+        assert float(row[6]) == pytest.approx(0.0, abs=1e-9)
+
+    def test_gamma_z_consistency_all_rows(self, written):
+        """Every row satisfies Z = Z0 (1 + Gamma) / (1 - Gamma) at 50 ohms."""
+        lines = written[2].read_text().strip().splitlines()[1:]
+        for line in lines:
+            row = line.split(",")
+            gamma = complex(float(row[3]), float(row[4]))
+            z = complex(float(row[5]), float(row[6]))
+            expected = 50.0 * (1 + gamma) / (1 - gamma)
+            assert z.real == pytest.approx(expected.real, abs=1e-9)
+            assert z.imag == pytest.approx(expected.imag, abs=1e-9)
+
+    def test_vswr_matches_gamma_magnitude(self, written):
+        lines = written[2].read_text().strip().splitlines()[1:]
+        for line in lines:
+            row = line.split(",")
+            mag = abs(complex(float(row[3]), float(row[4])))
+            assert float(row[7]) == pytest.approx((1 + mag) / (1 - mag), rel=1e-9)

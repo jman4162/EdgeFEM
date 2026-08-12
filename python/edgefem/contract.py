@@ -24,12 +24,20 @@ demonstrates and the docs guarantee:
   phi90_mag, phi90_phase``. Angles in the CSV are degrees; magnitudes are
   linear voltage patterns relative to isotropic (|mag|^2 is element gain);
   phases are degrees.
+- Active-impedance scan (CSV, written by ``export_scan_csv``): one row per
+  (scan angle, element), columns ``theta_deg, phi_deg, element_idx,
+  Gamma_real, Gamma_imag, Z_real, Z_imag, VSWR``. Angles in degrees; Gamma
+  is the linear active reflection coefficient; Z is ohms against the
+  package's reference impedance, consistent with Gamma via
+  Z = Z0 (1 + Gamma) / (1 - Gamma); VSWR = (1 + |Gamma|) / (1 - |Gamma|).
+  Rows are grouped by scan angle in sweep order, elements ascending.
 
 Usage::
 
     python -m edgefem.contract out_dir/
 
-writes ``golden_array_package.json`` and ``golden_patterns.csv``.
+writes ``golden_array_package.json``, ``golden_patterns.csv``, and
+``golden_scan.csv``.
 """
 
 from __future__ import annotations
@@ -43,7 +51,7 @@ import numpy as np
 import pyedgefem
 
 #: Bump when the fixture content changes; consumers pin this via metadata.
-FIXTURE_REVISION = 1
+FIXTURE_REVISION = 2
 
 _N_X, _N_Y = 2, 2
 _SPACING_M = 0.015  # half wavelength at 10 GHz
@@ -117,16 +125,56 @@ def canonical_patterns() -> list[pyedgefem.EmbeddedPattern]:
     return patterns
 
 
-def write_golden_array_package(out_dir: str | Path) -> tuple[Path, Path]:
-    """Write the golden JSON + patterns CSV pair into *out_dir*."""
+#: Hand-pinned active reflection coefficients per (theta_deg, phi_deg).
+#: Chosen for hand-checkable derived values: |0.5| and |0.3 - 0.4j| are both
+#: exactly 0.5, so their VSWR is exactly 3 and Z(0.5) is exactly 150 ohms.
+_SCAN_GAMMAS: dict[tuple[float, float], list[complex]] = {
+    (0.0, 0.0): [0.10 + 0.00j, 0.12 + 0.02j, 0.12 - 0.02j, 0.10 + 0.00j],
+    (30.0, 0.0): [0.20 + 0.10j, 0.25 + 0.05j, 0.25 - 0.05j, 0.20 - 0.10j],
+    (60.0, 0.0): [0.50 + 0.00j, 0.30 - 0.40j, 0.30 + 0.40j, 0.50 + 0.00j],
+}
+
+#: Hand-pinned scan loss per scan angle (dB, relative to broadside).
+_SCAN_LOSS_DB: dict[tuple[float, float], float] = {
+    (0.0, 0.0): 0.0,
+    (30.0, 0.0): 0.62,
+    (60.0, 0.0): 3.01,
+}
+
+
+def canonical_scan_results() -> list[pyedgefem.ActiveImpedanceResult]:
+    """Hand-pinned active-impedance scan results for the 2x2 fixture.
+
+    Z_active derives from Gamma at the package's 50-ohm reference via
+    Z = Z0 (1 + Gamma) / (1 - Gamma), which is exactly the consistency a
+    consumer may rely on.
+    """
+    z0 = canonical_array_package().reference_impedance
+    results = []
+    for (theta_deg, phi_deg), gammas in _SCAN_GAMMAS.items():
+        res = pyedgefem.ActiveImpedanceResult()
+        res.theta = math.radians(theta_deg)
+        res.phi = math.radians(phi_deg)
+        gamma_arr = np.array(gammas, dtype=complex)
+        res.Gamma_active = pyedgefem.VecC(gamma_arr)
+        res.Z_active = pyedgefem.VecC(z0 * (1 + gamma_arr) / (1 - gamma_arr))
+        res.scan_loss_db = _SCAN_LOSS_DB[(theta_deg, phi_deg)]
+        results.append(res)
+    return results
+
+
+def write_golden_array_package(out_dir: str | Path) -> tuple[Path, Path, Path]:
+    """Write the golden JSON + patterns CSV + scan CSV into *out_dir*."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     json_path = out / "golden_array_package.json"
     csv_path = out / "golden_patterns.csv"
+    scan_path = out / "golden_scan.csv"
 
     pyedgefem.export_array_package_json(str(json_path), canonical_array_package())
     pyedgefem.export_patterns_csv(str(csv_path), canonical_patterns())
-    return json_path, csv_path
+    pyedgefem.export_scan_csv(str(scan_path), canonical_scan_results())
+    return json_path, csv_path, scan_path
 
 
 if __name__ == "__main__":
