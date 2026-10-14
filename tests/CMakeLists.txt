@@ -19,7 +19,9 @@ set_tests_properties(test_triangle_mass_matrix PROPERTIES WORKING_DIRECTORY ${PR
 add_executable(test_maxwell test_maxwell.cpp)
 target_link_libraries(test_maxwell PRIVATE edgefem)
 add_test(NAME test_maxwell COMMAND test_maxwell)
-set_tests_properties(test_maxwell PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped;known_issue")
+set_tests_properties(test_maxwell PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped")
+add_test(NAME test_maxwell_lossy_material COMMAND test_maxwell lossy_material)
+set_tests_properties(test_maxwell_lossy_material PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
 
 add_executable(test_ports test_ports.cpp)
 target_link_libraries(test_ports PRIVATE edgefem)
