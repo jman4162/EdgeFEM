@@ -9,8 +9,9 @@ namespace edgefem {
 
 /// Weight computation strategy for lumped ports.
 enum class LumpedPortWeightMode {
-  /// Projection: w_i = edge_vec . e_dir (simple dot product, then normalize).
-  /// Fast but not mesh-convergent — weight accuracy depends on element shape.
+  /// Projection: w_i = edge_vec . e_dir, scaled so that a uniform gap field
+  /// gives the exact voltage. Not mesh-convergent: weight accuracy depends
+  /// on element shape.
   Projection,
 
   /// SurfaceIntegral: w_i = ∫(N_i · e_dir) dS using Whitney basis functions
@@ -25,10 +26,13 @@ struct LumpedPortConfig {
   LumpedPortWeightMode weight_mode = LumpedPortWeightMode::SurfaceIntegral;
 };
 
-/// Build a lumped port from a tagged surface.
-/// The returned WavePort has weights computed by projecting edge vectors onto
-/// the specified E-field direction. It plugs directly into assemble_maxwell()
-/// with no modifications — the assembly only uses edges, weights, and mode.Z0.
+/// Build a lumped (gap) port from a tagged surface strip.
+/// The returned weights are the port voltage functional v = w / W, where
+/// w_i = int_S N_i . e_dir dS and W = strip area / (strip extent along
+/// e_dir) is the strip width, so the gap voltage is V = v^T x. Use the port
+/// directly with assemble_maxwell(), calculate_sparams() and
+/// frequency_sweep(); no weight normalization is needed. Throws if e_dir has
+/// no extent in the surface (e_dir normal to the strip).
 ///
 /// @param mesh Volume mesh
 /// @param config Lumped port configuration (surface tag, Z0, E-field direction)

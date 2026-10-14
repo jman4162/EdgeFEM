@@ -277,8 +277,17 @@ P = (1/2)·Re∫∫ E×H* · dS = 1
 3. **ILUT preconditioner** (`src/solver.cpp`): BiCGSTAB now uses `Eigen::IncompleteLUT` by default. Auto-fallback to SparseLU on convergence failure.
 4. **Frequency sweep efficiency** (`src/sweep.cpp`): `frequency_sweep()` pre-assembles K and M separately, reuses symbolic factorization across frequencies.
 
+**Superseded (Oct 2026)**: the `w w^H / Z0` load and the `normalize_port_weights()` step above were not physical (see the next section).
+
+### Gap-Port Formulation (Oct 2026)
+
+**Problem**: the port term `w w^H / Z0` is real in a curl-curl system scaled by mu0, so it acts as a reactance. A lossless closed box gave |S11| = 0.994 (real S11) as built and 0 after `normalize_port_weights()`; a matched 50 ohm TEM line gave |S21| = 0.03 to 0.11.
+
+**Fix** (derivation in `src/assemble_maxwell.cpp`): `build_lumped_port()` returns the voltage functional `v = w / W` (surface-integral weights over the strip width), `V = v^H x`. Every port adds the load `j k0 eta0 / Z0 v v^H` (`port_load_matrix()`, scaled by `j k0` per frequency in `frequency_sweep()`); the driven port adds `j k0 eta0 (2 / sqrt(Z0)) v` (`port_excitation()`, incident wave a = 1); `S(j, i) = V_j / sqrt(Z0_j) - delta_ij` (`fill_sparam_column()`). `calculate_sparams()` assembles and factors once and solves one RHS per port. `normalize_port_weights()` is deprecated: it returns the ports unchanged and warns once.
+
 **Guidelines for lumped port development**:
-- Always call `normalize_port_weights()` before `calculate_sparams()` for lumped ports
+- Do not call `normalize_port_weights()`; pass the ports from `build_lumped_port()` directly
+- Checks: `ctest -L lumped` (lossless box |S11| = 1, matched TEM line S11 = 0, S21 = exp(-j k0 L))
 - Use `SurfaceIntegral` weight mode (default) for mesh-convergent weights
 - Use `convergence_check()` on design classes to verify mesh adequacy
 - Passivity violations (|S11| > 1) on coarse meshes are expected; refine mesh rather than clamping

@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "edgefem/fem.hpp"
 
@@ -61,5 +62,12 @@ struct SolveResult {
 /// @return SolveResult containing solution vector and convergence info
 SolveResult solve_linear(const SpMatC &A, const VecC &b,
                          const SolveOptions &opt = SolveOptions());
+
+/// Solve A x_k = b_k for several right-hand sides. With opt.use_direct the
+/// matrix is factored once and every b_k reuses the factorization; the
+/// iterative path calls solve_linear for each b_k.
+std::vector<SolveResult>
+solve_linear_multi(const SpMatC &A, const std::vector<VecC> &rhs,
+                   const SolveOptions &opt = SolveOptions());
 
 } // namespace edgefem

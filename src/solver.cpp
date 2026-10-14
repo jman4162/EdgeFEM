@@ -192,4 +192,43 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
   return res;
 }
 
+std::vector<SolveResult> solve_linear_multi(const SpMatC &A,
+                                            const std::vector<VecC> &rhs,
+                                            const SolveOptions &opt) {
+  std::vector<SolveResult> out;
+  out.reserve(rhs.size());
+  if (!opt.use_direct) {
+    for (const VecC &b : rhs)
+      out.push_back(solve_linear(A, b, opt));
+    return out;
+  }
+
+  Eigen::SparseLU<SpMatC> solver;
+  solver.compute(A);
+  const bool factored = (solver.info() == Eigen::Success);
+  if (!factored && opt.verbose) {
+    std::cerr << "Solver: SparseLU factorization FAILED\n";
+  }
+  for (const VecC &b : rhs) {
+    SolveResult res;
+    res.method = "SparseLU";
+    if (!factored) {
+      res.converged = false;
+      res.error_message = "SparseLU factorization failed";
+      out.push_back(res);
+      continue;
+    }
+    res.x = solver.solve(b);
+    res.iters = 1;
+    const double b_norm = b.norm();
+    res.residual = b_norm > 0.0 ? (A * res.x - b).norm() / b_norm : 0.0;
+    res.converged = (solver.info() == Eigen::Success);
+    if (!res.converged) {
+      res.error_message = "SparseLU solve failed";
+    }
+    out.push_back(res);
+  }
+  return out;
+}
+
 } // namespace edgefem

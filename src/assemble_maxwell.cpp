@@ -3,6 +3,7 @@
 
 #include <Eigen/SparseCore>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <complex>
 #include <iostream>
@@ -42,6 +43,140 @@ constexpr double eps0 =
     1.0 / (mu0 * c0 * c0);        // permittivity of free space (F/m)
 constexpr double eta0 = mu0 * c0; // free-space impedance ≈ 377 ohms
 } // namespace
+
+// ===========================================================================
+// Gap (lumped) port formulation
+// ===========================================================================
+// Time convention exp(+j omega t), as in the rest of the code: the ABC adds
+// +j k0, a lossy dielectric has Im(eps_r) < 0, and the eigenmode path
+// expects phase(S21) = -beta L.
+//
+// Field equation, scaled by mu0 like the assembled matrix:
+//   curl(mu_r^-1 curl E) - k0^2 eps_r E = -j omega mu0 J = -j k0 eta0 J.
+// Galerkin with edge functions N_i gives A0 x = b with
+//   A0 = K / mu_r - k0^2 eps_r M (+ ABC),  b_i = -j k0 eta0 int N_i . J dV.
+//
+// Port geometry: a strip S of width W across which the field points along
+// the unit vector e (gap length h along e). Let w_i = int_S N_i . e dS (the
+// surface-integral weights of build_lumped_port). For E uniform on the
+// strip, w^T x = int_S E . e dS = (V / h) h W = V W, so the gap voltage is
+//   V = w^T x / W = v^T x,   v = w / W.
+// build_lumped_port stores v in WavePort::weights.
+//
+// Source: a sheet current I entering the + terminal flows along -e, i.e.
+// J = -(I / W) e on S, and delivers P = Re(V conj(I)) / 2. Then
+//   b = +j k0 eta0 (I / W) w = j k0 eta0 I v.
+// Load: a resistor Z0 across the gap carries V / Z0 along +e, which adds
+//   -j k0 eta0 (V / Z0) v = -(j k0 eta0 / Z0) v v^T x
+// to b. Moved to the left-hand side:
+//   (A0 + (j k0 eta0 / (Z0 W^2)) w w^T) x = j k0 eta0 (I / W) w.     (1)
+// Without the load, Z = V / I = j k0 eta0 v^T A0^-1 v
+//                         = j k0 eta0 w^T A0^-1 w / W^2,
+// the readout of the 2026-10-12 investigation (scripts/e2_port_algebra.py).
+//
+// Passivity: A0 = R + j B with R, B real symmetric and B >= 0 (ABC, and
+// k0^2 |Im eps_r| M for loss). For x = A0^-1 v, v^H x = x^H R x - j x^H B x,
+// so Re Z = k0 eta0 x^H B x >= 0. The same holds for c^H Z c with any port
+// combination, so the N-port Z (and S) is passive. In a lossless closed
+// region B = 0 and Z is purely reactive: |S11| = 1.
+//
+// Complex weights: the code uses v v^H for the load and V = v^H x. For real
+// v (every lumped port) these equal v v^T and v^T x above. With v v^H a
+// constant phase on a port's weights (eigenvector wave ports carry a
+// factor j) cancels, and the load stays passive for any weights.
+//
+// Excitation and S: a Norton current I = 2 / sqrt(Z0) in parallel with the
+// load Z0 equals a Thevenin source 2 sqrt(Z0) behind Z0, i.e. an incident
+// power wave a = 1 (V+ = sqrt(Z0)). With the other ports terminated in
+// their Z0 and not driven,
+//   S(j, i) = V_j / sqrt(Z0_j) - delta_ij.
+// For one port, V = Z Z0 I / (Z + Z0) gives S11 = (Z - Z0) / (Z + Z0).
+// All N ports share the matrix of (1) with every load present; port i only
+// changes the right-hand side, so one factorization serves N solves. The S
+// definition assumes real Z0 (a complex Z0 enters as 1/Z0 and sqrt(Z0)).
+// The load is frequency dependent only through the factor j k0:
+// port_load_matrix returns L = (eta0 / Z0) v v^H and callers add j k0 L.
+
+namespace {
+bool port_has_load(const WavePort &port) {
+  return port.weights.size() == static_cast<int>(port.edges.size()) &&
+         port.mode.Z0 != std::complex<double>(0.0);
+}
+} // namespace
+
+SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
+                        int num_edges) {
+  using T = Eigen::Triplet<std::complex<double>>;
+  std::vector<T> trips;
+  for (const auto &port : ports) {
+    if (!port_has_load(port))
+      continue;
+    const std::complex<double> scale = eta0 / port.mode.Z0;
+    for (size_t a = 0; a < port.edges.size(); ++a) {
+      const int ga = port.edges[a];
+      if (bc.dirichlet_edges.count(ga))
+        continue;
+      for (size_t b = 0; b < port.edges.size(); ++b) {
+        const int gb = port.edges[b];
+        if (bc.dirichlet_edges.count(gb))
+          continue;
+        trips.emplace_back(
+            ga, gb, scale * port.weights[a] * std::conj(port.weights[b]));
+      }
+    }
+  }
+  SpMatC L(num_edges, num_edges);
+  L.setFromTriplets(trips.begin(), trips.end());
+  L.makeCompressed();
+  return L;
+}
+
+VecC port_excitation(const WavePort &port, const BC &bc, int num_edges,
+                     double k0) {
+  VecC b = VecC::Zero(num_edges);
+  if (!port_has_load(port))
+    return b;
+  const std::complex<double> current = 2.0 / std::sqrt(port.mode.Z0);
+  const std::complex<double> scale =
+      std::complex<double>(0.0, k0 * eta0) * current;
+  for (size_t a = 0; a < port.edges.size(); ++a) {
+    const int ga = port.edges[a];
+    if (bc.dirichlet_edges.count(ga))
+      continue;
+    b(ga) += scale * port.weights[a];
+  }
+  return b;
+}
+
+std::complex<double> port_voltage(const WavePort &port, const BC &bc,
+                                  const VecC &x) {
+  std::complex<double> v = 0.0;
+  if (port.weights.size() != static_cast<int>(port.edges.size()))
+    return v;
+  for (size_t k = 0; k < port.edges.size(); ++k) {
+    const int e = port.edges[k];
+    if (bc.dirichlet_edges.count(e))
+      continue;
+    v += std::conj(port.weights[k]) * x(e);
+  }
+  return v;
+}
+
+void fill_sparam_column(Eigen::MatrixXcd &S, int active,
+                        const std::vector<WavePort> &ports, const BC &bc,
+                        const VecC &x) {
+  for (int j = 0; j < static_cast<int>(ports.size()); ++j) {
+    if (!port_has_load(ports[j])) {
+      S(j, active) =
+          std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
+                               std::numeric_limits<double>::quiet_NaN());
+      continue;
+    }
+    const std::complex<double> b_out =
+        port_voltage(ports[j], bc, x) / std::sqrt(ports[j].mode.Z0);
+    S(j, active) = (j == active) ? b_out - 1.0 : b_out;
+  }
+}
 
 MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
                                  const BC &bc,
@@ -206,38 +341,19 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
 
   asmbl.A.makeCompressed();
 
-  // Add port admittances and sources
-  // NOTE: Skip edges that are constrained by Dirichlet BC (PEC) to avoid
-  // inconsistent system. PEC edges have zero field by definition.
-  for (size_t i = 0; i < ports.size(); ++i) {
-    const auto &port = ports[i];
-    if (port.weights.size() != static_cast<int>(port.edges.size()))
-      continue;
-    if (port.mode.Z0 == std::complex<double>(0.0))
-      continue;
-
-    for (size_t a = 0; a < port.edges.size(); ++a) {
-      int ga = port.edges[a];
-      if (bc.dirichlet_edges.count(ga))
-        continue; // Skip PEC edges
-      const std::complex<double> wa = port.weights[a];
-      for (size_t b = 0; b < port.edges.size(); ++b) {
-        int gb = port.edges[b];
-        if (bc.dirichlet_edges.count(gb))
-          continue; // Skip PEC edges
-        const std::complex<double> wb = port.weights[b];
-        asmbl.A.coeffRef(ga, gb) += wa * std::conj(wb) / port.mode.Z0;
-      }
+  // Gap-port loads j k0 (eta0 / Z0) v v^H on every port, and the active
+  // port's source j k0 eta0 (2 / sqrt(Z0)) v (derivation above). PEC edges
+  // are skipped: their field is zero by definition.
+  if (!ports.empty()) {
+    const double k0_port = p.omega / c0;
+    const SpMatC L = port_load_matrix(ports, bc, m);
+    if (L.nonZeros() > 0) {
+      asmbl.A += std::complex<double>(0.0, k0_port) * L;
+      asmbl.A.makeCompressed();
     }
-
-    if (static_cast<int>(i) == active_port_idx) {
-      const std::complex<double> scale = 2.0 / std::sqrt(port.mode.Z0);
-      for (size_t a = 0; a < port.edges.size(); ++a) {
-        int ga = port.edges[a];
-        if (bc.dirichlet_edges.count(ga))
-          continue; // Skip PEC edges
-        asmbl.b(ga) += scale * port.weights[a];
-      }
+    if (active_port_idx >= 0 &&
+        active_port_idx < static_cast<int>(ports.size())) {
+      asmbl.b += port_excitation(ports[active_port_idx], bc, m, k0_port);
     }
   }
 
@@ -354,14 +470,23 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
                                    const std::vector<WavePort> &ports,
                                    const SolveOptions &opts) {
   const int num_ports = static_cast<int>(ports.size());
+  const int m = static_cast<int>(mesh.edges.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
+  if (num_ports == 0)
+    return S;
+
+  // One loaded matrix for all ports; port i only changes the RHS.
+  const auto asmbl = assemble_maxwell(mesh, p, bc, ports, -1);
+  const double k0 = p.omega / c0;
+  std::vector<VecC> rhs;
+  rhs.reserve(ports.size());
+  for (const auto &port : ports)
+    rhs.push_back(port_excitation(port, bc, m, k0));
+  const std::vector<SolveResult> sols = solve_linear_multi(asmbl.A, rhs, opts);
 
   for (int i = 0; i < num_ports; ++i) { // active port
-    auto asmbl = assemble_maxwell(mesh, p, bc, ports, i);
-    auto res = solve_linear(asmbl.A, asmbl.b, opts);
-
-    if (!check_solver_convergence(res, "calculate_sparams (active port " +
-                                           std::to_string(i) + ")")) {
+    if (!check_solver_convergence(sols[i], "calculate_sparams (active port " +
+                                               std::to_string(i) + ")")) {
       // Fill column with NaN to signal bad results
       for (int j = 0; j < num_ports; ++j) {
         S(j, i) =
@@ -370,126 +495,23 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
       }
       continue;
     }
-
-    const std::complex<double> V_inc_i = std::sqrt(ports[i].mode.Z0);
-
-    for (int j = 0; j < num_ports; ++j) { // passive port
-      std::complex<double> Vj = 0.0;
-      for (size_t k = 0; k < ports[j].edges.size(); ++k) {
-        int edge_idx = ports[j].edges[k];
-        // Skip PEC edges (they have zero solution by definition)
-        if (bc.dirichlet_edges.count(edge_idx))
-          continue;
-        Vj += std::conj(ports[j].weights[k]) * res.x(edge_idx);
-      }
-      if (i == j) { // Reflection coefficient S_ii
-        const std::complex<double> V_ref_i = Vj - V_inc_i;
-        S(j, i) = V_ref_i / V_inc_i;
-      } else { // Transmission coefficient S_ji
-        S(j, i) = Vj / V_inc_i;
-      }
-    }
+    fill_sparam_column(S, i, ports, bc, sols[i].x);
   }
   return S;
 }
 
-void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, std::vector<WavePort> &ports,
-                            const SolveOptions &opts) {
-  if (ports.empty())
-    return;
-
-  // Assemble FEM matrix without port loading
-  std::vector<WavePort> no_ports;
-  auto asmbl = assemble_maxwell(mesh, p, bc, no_ports, -1);
-
-  for (auto &port : ports) {
-    if (port.weights.size() != static_cast<int>(port.edges.size()))
-      continue;
-    if (port.mode.Z0 == std::complex<double>(0.0))
-      continue;
-
-    const int n_edges = static_cast<int>(port.edges.size());
-    const double Z0_real = std::real(port.mode.Z0);
-
-    // Compute w^H A^-1 w exactly via forward solve
-    // Construct RHS = w (only at port edges)
-    const int m = asmbl.A.rows();
-    VecC rhs = VecC::Zero(m);
-    for (int k = 0; k < n_edges; ++k) {
-      int edge_idx = port.edges[k];
-      if (!bc.dirichlet_edges.count(edge_idx)) {
-        rhs(edge_idx) = port.weights[k];
-      }
-    }
-
-    // Solve A * y = w to get y = A^-1 * w
-    auto sol = solve_linear(asmbl.A, rhs, opts);
-
-    if (!check_solver_convergence(sol, "normalize_port_weights")) {
-      std::cerr << "  Skipping normalization for this port due to solver "
-                   "failure."
-                << std::endl;
-      continue;
-    }
-
-    // Check port weight norm sanity
-    double weight_norm = port.weights.norm();
-    if (weight_norm < 1e-15) {
-      std::cerr << "WARNING: Port weight vector norm is near-zero ("
-                << weight_norm
-                << "). This indicates a port formulation issue — check that "
-                   "port edges and mode weights are correctly assigned."
-                << std::endl;
-      continue;
-    }
-
-    // Compute w^H * y = w^H * A^-1 * w
-    std::complex<double> wAinvw = 0.0;
-    int free_count = 0;
-    for (int k = 0; k < n_edges; ++k) {
-      int edge_idx = port.edges[k];
-      if (!bc.dirichlet_edges.count(edge_idx)) {
-        wAinvw += std::conj(port.weights[k]) * sol.x(edge_idx);
-        free_count++;
-      }
-    }
-
-    double wAinvw_mag = std::abs(wAinvw);
-
-    // Also compute diagonal approximation for comparison
-    double wAinvw_diag_est = 0.0;
-    for (int k = 0; k < n_edges; ++k) {
-      int edge_idx = port.edges[k];
-      if (!bc.dirichlet_edges.count(edge_idx)) {
-        std::complex<double> w_k = port.weights[k];
-        double w_sq = std::real(std::conj(w_k) * w_k);
-        double A_diag = std::abs(asmbl.A.coeff(edge_idx, edge_idx));
-        if (A_diag > 1e-15) {
-          wAinvw_diag_est += w_sq / A_diag;
-        }
-      }
-    }
-
-    // Target: w^H A^-1 w = Z0 for proper S-parameter extraction
-    // This comes from the Woodbury identity analysis:
-    // With port loading Y = ww^H/Z0, using b = 2w/sqrt(Z0), the port voltage
-    // is: V = w^H (A+Y)^-1 b = 2*Z0*w^H A^-1 w / (sqrt(Z0)*(Z0 + w^H A^-1 w))
-    // For matched port (V = V_inc = sqrt(Z0)), we need w^H A^-1 w = Z0
-    double target = Z0_real;
-    double ratio = wAinvw_mag / target;
-
-    std::cerr << "  Port normalization: free_edges=" << free_count
-              << ", wAinvw_exact=" << wAinvw_mag
-              << ", wAinvw_diag=" << wAinvw_diag_est << ", target=Z0=" << target
-              << ", ratio=" << ratio << std::endl;
-
-    if (wAinvw_mag > 1e-15 && target > 1e-15) {
-      // Scale factor: alpha^2 * wAinvw = target => alpha = sqrt(target/wAinvw)
-      double alpha = std::sqrt(target / wAinvw_mag);
-      std::cerr << "  Applying scale factor alpha=" << alpha << std::endl;
-      port.weights *= alpha;
-    }
+void normalize_port_weights(const Mesh & /*mesh*/, const MaxwellParams & /*p*/,
+                            const BC & /*bc*/,
+                            std::vector<WavePort> & /*ports*/,
+                            const SolveOptions & /*opts*/) {
+  static std::atomic<bool> warned{false};
+  if (!warned.exchange(true)) {
+    std::cerr << "WARNING: normalize_port_weights is deprecated and leaves the "
+                 "ports unchanged. calculate_sparams and frequency_sweep use "
+                 "the gap-port load j k0 eta0 / Z0 v v^H, which needs no "
+                 "weight normalization. Remove the call; the function will be "
+                 "removed in a later release."
+              << std::endl;
   }
 }
 
@@ -612,24 +634,7 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
       x_full(s_edge) = phase * x_full(m_edge);
     }
 
-    const std::complex<double> V_inc_i = std::sqrt(ports[i].mode.Z0);
-
-    for (int j = 0; j < num_ports; ++j) { // passive port
-      std::complex<double> Vj = 0.0;
-      for (size_t k = 0; k < ports[j].edges.size(); ++k) {
-        int edge_idx = ports[j].edges[k];
-        // Skip PEC edges (they have zero solution by definition)
-        if (bc.dirichlet_edges.count(edge_idx))
-          continue;
-        Vj += std::conj(ports[j].weights[k]) * x_full(edge_idx);
-      }
-      if (i == j) {
-        const std::complex<double> V_ref_i = Vj - V_inc_i;
-        S(j, i) = V_ref_i / V_inc_i;
-      } else {
-        S(j, i) = Vj / V_inc_i;
-      }
-    }
+    fill_sparam_column(S, i, ports, bc, x_full);
   }
   return S;
 }

@@ -199,34 +199,10 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
 
     KMMatrices km = assemble_maxwell_km(mesh, p, bc);
 
-    // Pre-compute port loading (frequency-independent for lumped ports)
-    // Port admittance: Y_ij = w_i * conj(w_j) / Z0
-    using T = Eigen::Triplet<std::complex<double>>;
-    std::vector<T> port_trips;
-    for (const auto &port : ports) {
-      if (port.weights.size() != static_cast<int>(port.edges.size()))
-        continue;
-      if (port.mode.Z0 == std::complex<double>(0.0))
-        continue;
-      for (size_t a = 0; a < port.edges.size(); ++a) {
-        int ga = port.edges[a];
-        if (bc.dirichlet_edges.count(ga))
-          continue;
-        for (size_t b = 0; b < port.edges.size(); ++b) {
-          int gb = port.edges[b];
-          if (bc.dirichlet_edges.count(gb))
-            continue;
-          port_trips.emplace_back(ga, gb,
-                                  port.weights[a] * std::conj(port.weights[b]) /
-                                      port.mode.Z0);
-        }
-      }
-    }
-
+    // Gap-port load (eta0 / Z0) v v^H; the system gets j k0 times it at
+    // each frequency (derivation in assemble_maxwell.cpp).
     const int m_size = static_cast<int>(mesh.edges.size());
-    SpMatC Y_port(m_size, m_size);
-    Y_port.setFromTriplets(port_trips.begin(), port_trips.end());
-    Y_port.makeCompressed();
+    const SpMatC L_port = port_load_matrix(ports, bc, m_size);
 
     // ABC edge set (frequency-independent geometry)
     std::unordered_set<int> abc_edges;
@@ -251,8 +227,8 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
       double omega = 2.0 * M_PI * freq;
       double k0 = omega / c0;
 
-      // Combine A = K - k₀²M + Y_port + ABC
-      SpMatC A = km.combine(omega) + Y_port;
+      // Combine A = K - k₀²M + j k₀ L_port + ABC
+      SpMatC A = km.combine(omega) + std::complex<double>(0.0, k0) * L_port;
 
       // Add ABC: jk₀ on diagonal of ABC edges
       if (p.use_abc) {
@@ -261,45 +237,47 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
           A.coeffRef(e, e) += abc_coeff;
         }
       }
+      A.makeCompressed();
 
-      // Solve for each active port
-      Eigen::MatrixXcd S(num_ports, num_ports);
+      // One matrix for all ports; port `active` only changes the RHS.
+      std::vector<VecC> rhs;
+      rhs.reserve(ports.size());
+      for (const auto &port : ports)
+        rhs.push_back(port_excitation(port, bc, m_size, k0));
 
-      for (int active = 0; active < num_ports; ++active) {
-        // Build RHS: b = 2w/sqrt(Z0) for active port
-        VecC b_rhs = VecC::Zero(m_size);
-        const auto &aport = ports[active];
-        std::complex<double> scale = 2.0 / std::sqrt(aport.mode.Z0);
-        for (size_t a = 0; a < aport.edges.size(); ++a) {
-          int ga = aport.edges[a];
-          if (!bc.dirichlet_edges.count(ga))
-            b_rhs(ga) += scale * aport.weights[a];
+      std::vector<SolveResult> sols;
+      if (opts.use_direct) {
+        // Symbolic analysis once per sweep, numeric factorization once per
+        // frequency, one solve per port.
+        if (!symbolic_done) {
+          lu_solver.analyzePattern(A);
+          symbolic_done = true;
         }
-
-        // Solve
-        SolveResult sol;
-        if (opts.use_direct) {
-          if (!symbolic_done) {
-            lu_solver.analyzePattern(A);
-            symbolic_done = true;
-          }
-          lu_solver.factorize(A);
-          if (lu_solver.info() != Eigen::Success) {
+        lu_solver.factorize(A);
+        const bool factored = (lu_solver.info() == Eigen::Success);
+        for (const VecC &b_rhs : rhs) {
+          SolveResult sol;
+          sol.method = "SparseLU";
+          if (!factored) {
             sol.converged = false;
-            sol.method = "SparseLU";
             sol.error_message = "Factorization failed";
           } else {
             sol.x = lu_solver.solve(b_rhs);
             sol.converged = (lu_solver.info() == Eigen::Success);
-            sol.method = "SparseLU";
             sol.iters = 1;
-            sol.residual = (A * sol.x - b_rhs).norm() / b_rhs.norm();
+            const double b_norm = b_rhs.norm();
+            sol.residual =
+                b_norm > 0.0 ? (A * sol.x - b_rhs).norm() / b_norm : 0.0;
           }
-        } else {
-          sol = solve_linear(A, b_rhs, opts);
+          sols.push_back(sol);
         }
+      } else {
+        sols = solve_linear_multi(A, rhs, opts);
+      }
 
-        if (!sol.converged) {
+      Eigen::MatrixXcd S(num_ports, num_ports);
+      for (int active = 0; active < num_ports; ++active) {
+        if (!sols[active].converged) {
           for (int j = 0; j < num_ports; ++j) {
             S(j, active) =
                 std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
@@ -307,22 +285,7 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
           }
           continue;
         }
-
-        // Extract S-parameters
-        std::complex<double> V_inc = std::sqrt(aport.mode.Z0);
-        for (int j = 0; j < num_ports; ++j) {
-          std::complex<double> Vj = 0.0;
-          for (size_t k = 0; k < ports[j].edges.size(); ++k) {
-            int edge_idx = ports[j].edges[k];
-            if (!bc.dirichlet_edges.count(edge_idx))
-              Vj += std::conj(ports[j].weights[k]) * sol.x(edge_idx);
-          }
-          if (j == active) {
-            S(j, active) = (Vj - V_inc) / V_inc;
-          } else {
-            S(j, active) = Vj / V_inc;
-          }
-        }
+        fill_sparam_column(S, active, ports, bc, sols[active].x);
       }
 
       result.S_matrices.push_back(S);

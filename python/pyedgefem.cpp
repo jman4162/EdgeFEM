@@ -343,7 +343,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("port_abc_type", &MaxwellParams::port_abc_type,
                      "Port ABC formulation type.")
       .def_readwrite("port_weight_scale", &MaxwellParams::port_weight_scale,
-                     "Port weight scaling factor.")
+                     "Unused; kept for compatibility.")
       .def_readwrite("port_abc_scale", &MaxwellParams::port_abc_scale,
                      "ABC coefficient scale (0.5 optimal).")
       .def_readwrite("use_eigenmode_excitation",
@@ -444,8 +444,11 @@ PYBIND11_MODULE(pyedgefem, m) {
                      "Weight computation mode (default: SurfaceIntegral)");
 
   m.def("build_lumped_port", &build_lumped_port,
-        "Build a lumped port from a tagged surface.\n"
-        "Returns a WavePort compatible with assemble_maxwell().",
+        "Build a lumped (gap) port from a tagged surface strip.\n"
+        "The weights are the port voltage functional v = w / W (w: surface "
+        "integrals of the edge functions along e_direction, W: strip width), "
+        "so V = v^T x. Use with assemble_maxwell(), calculate_sparams() and "
+        "frequency_sweep() directly.",
         py::arg("mesh"), py::arg("config"));
 
   // Huygens surface extraction
@@ -545,8 +548,11 @@ PYBIND11_MODULE(pyedgefem, m) {
          const SolveOptions &opts) -> Eigen::MatrixXcd {
         return calculate_sparams(mesh, p, bc, ports, opts);
       },
-      "Calculates S-parameters for a set of wave ports.", py::arg("mesh"),
-      py::arg("params"), py::arg("bc"), py::arg("ports"),
+      "N-port S-matrix with gap (lumped) ports: load j k0 eta0 / Z0 v v^H "
+      "per port, one factorization, one solve per port. Port weights are the "
+      "voltage functional v (build_lumped_port sets them); no normalization "
+      "is needed.",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
       py::arg("solver_options") = SolveOptions());
 
   m.def(
@@ -554,11 +560,20 @@ PYBIND11_MODULE(pyedgefem, m) {
       [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
          std::vector<WavePort> ports,
          const SolveOptions &opts) -> std::vector<WavePort> {
+        if (PyErr_WarnEx(PyExc_DeprecationWarning,
+                         "normalize_port_weights is deprecated and returns "
+                         "the ports unchanged; calculate_sparams and "
+                         "frequency_sweep need no weight normalization. "
+                         "Remove the call.",
+                         1) < 0) {
+          throw py::error_already_set();
+        }
         normalize_port_weights(mesh, p, bc, ports, opts);
         return ports;
       },
-      "Normalize port weights so w^H A^-1 w = Z0 for proper S-parameter "
-      "extraction. Returns the modified ports (since Python passes by value).",
+      "Deprecated: returns the ports unchanged and emits a "
+      "DeprecationWarning. The gap-port formulation needs no weight "
+      "normalization.",
       py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
       py::arg("solver_options") = SolveOptions());
 

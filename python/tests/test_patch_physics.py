@@ -9,7 +9,8 @@ probe through a PEC cavity. The earlier patch tests only checked
 |S11| <= 1.05, which that output satisfies.
 
 - test_stacked_patch_s11_is_not_a_short_*: observable effect of the
-  dropped normalization (S11 pinned at -1).
+  non-physical port term (S11 pinned at -1). Since the gap-port fix the
+  designs no longer call normalize_port_weights.
 - test_*_substrate_volume*: the substrate tag must fill the substrate.
 - test_patch_known_answer_resonance (slow): resonance against the
   cavity model.

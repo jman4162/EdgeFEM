@@ -21,8 +21,11 @@ PortSurfaceMesh extract_surface_mesh(const Mesh &volume_mesh, int surface_tag);
 struct WavePort {
   int surface_tag = 0;
   PortMode mode;
-  std::vector<int> edges;   // global edge indices participating in the port
-  Eigen::VectorXcd weights; // line-integral weights for each edge
+  std::vector<int> edges; // global edge indices participating in the port
+  // Per-edge weights. For calculate_sparams and frequency_sweep they are the
+  // port voltage functional, V = sum_k conj(weights_k) x(edges_k); for
+  // calculate_sparams_eigenmode they are the modal field (rescaled there).
+  Eigen::VectorXcd weights;
 };
 
 WavePort build_wave_port(const Mesh &volume_mesh,

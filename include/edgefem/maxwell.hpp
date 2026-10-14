@@ -80,8 +80,8 @@ struct MaxwellParams {
   bool use_port_abc = false;
   // Port ABC formulation type (only used if use_port_abc = true)
   PortABCType port_abc_type = PortABCType::Beta;
-  // Port weight scaling factor (1.0 = use automatic normalization)
-  // Set to custom value if manual tuning is needed
+  // Unused: no code path reads it (gap ports need no weight scaling). Kept
+  // so existing callers that set it still compile.
   double port_weight_scale = 1.0;
   // Scaling of the port ABC operator jβ·M_s in calculate_sparams_eigenmode.
   // The correct value for the assembled surface mass matrix is 1.0; the
@@ -170,23 +170,50 @@ MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
                                           const std::vector<WavePort> &ports,
                                           int active_port_idx = -1);
 
+// ---------------------------------------------------------------------------
+// Gap-port (lumped) network terms used by assemble_maxwell, calculate_sparams
+// and frequency_sweep. The derivation is in src/assemble_maxwell.cpp. Each
+// port's `weights` are its voltage functional: V = sum_k conj(weights_k) *
+// x(edges_k) in volts (build_lumped_port sets weights = w / W, with w the
+// surface-integral weights and W the strip width). Dirichlet (PEC) edges are
+// skipped in all of these functions.
+// ---------------------------------------------------------------------------
+
+/// Frequency-independent port load L = sum_p (eta0 / Z0_p) v_p v_p^H over
+/// ports with a nonzero Z0 and one weight per edge. The system matrix gets
+/// j k0 L, the load of a resistor Z0_p across each port gap.
+SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
+                        int num_edges);
+
+/// Right-hand side for a unit incident power wave (a = 1) at `port`: a
+/// Norton source of current 2 / sqrt(Z0) across the gap,
+/// b = j k0 eta0 (2 / sqrt(Z0)) v.
+VecC port_excitation(const WavePort &port, const BC &bc, int num_edges,
+                     double k0);
+
+/// Port voltage V = v^H x.
+std::complex<double> port_voltage(const WavePort &port, const BC &bc,
+                                  const VecC &x);
+
+/// S-parameter column for an excitation of port `active` with a = 1:
+/// S(j, active) = V_j / sqrt(Z0_j) - delta(j, active).
+void fill_sparam_column(Eigen::MatrixXcd &S, int active,
+                        const std::vector<WavePort> &ports, const BC &bc,
+                        const VecC &x);
+
+/// N-port S-matrix with gap (lumped) ports: the loaded system is assembled
+/// and factored once (direct solver) and solved for one right-hand side per
+/// port. Ports with modal weights also give a passive S here, but modal
+/// ports are verified through calculate_sparams_eigenmode.
 Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
                                    const BC &bc,
                                    const std::vector<WavePort> &ports,
                                    const SolveOptions &opts = SolveOptions());
 
-/// Normalize port weights for self-consistent port loading.
-/// Computes w^H A^-1 w and scales weights so that w^H A^-1 w = Z0/2,
-/// which is required for proper S-parameter extraction.
-///
-/// This should be called before calculate_sparams() for accurate results.
-/// Without normalization, the port admittance may not properly match the
-/// FEM matrix scale, leading to incorrect S-parameters.
-///
-/// @param mesh Volume mesh
-/// @param p Maxwell parameters (frequency, materials)
-/// @param bc PEC boundary conditions
-/// @param ports Wave ports to normalize (modified in place)
+/// Deprecated: returns the ports unchanged and prints a one-time warning to
+/// stderr. The gap-port formulation needs no weight normalization; the
+/// former scaling (w^H A^-1 w = Z0) is what made a lossless port look
+/// matched. Kept for one release so callers do not break.
 void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
                             const BC &bc, std::vector<WavePort> &ports,
                             const SolveOptions &opts = SolveOptions());

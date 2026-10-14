@@ -504,8 +504,9 @@ class StackedPatchDesign:
         """
         Run full-wave FEM simulation at given frequency.
 
-        Uses the standard calculate_sparams() path with normalize_port_weights()
-        for proper lumped port S-parameter extraction.
+        Uses calculate_sparams() with the gap-port formulation of the C++
+        core (load j k0 eta0 / Z0 on the port strip); the lumped port needs
+        no weight normalization.
 
         Args:
             freq: Frequency in Hz
@@ -528,12 +529,6 @@ class StackedPatchDesign:
 
         opts = em.SolveOptions()
         opts.use_direct = True
-
-        # Normalize port weights so that w^H A^{-1} w = Z0,
-        # which is required for correct S-parameter extraction.
-        em.normalize_port_weights(
-            self._mesh, params, self._bc, self._ports, opts
-        )
 
         # Use standard S-parameter extraction (same path as waveguide design)
         S = em.calculate_sparams(
@@ -670,12 +665,12 @@ class StackedPatchDesign:
         """
         freqs = np.linspace(f_start, f_stop, n_points)
 
-        # Set up simulation (BC + ports) at mid-frequency for normalization
+        # Set up BC and ports (frequency-independent for the lumped port)
         f_mid = (f_start + f_stop) / 2.0
         self._setup_simulation(f_mid)
 
         params = em.MaxwellParams()
-        params.omega = 2 * np.pi * f_mid  # Used for port normalization
+        params.omega = 2 * np.pi * f_mid  # overwritten per frequency by the sweep
         params.use_abc = True
         params.abc_surface_tags = {self._TAG_ABC}
         for si, sub in enumerate(self.substrates):
@@ -686,11 +681,6 @@ class StackedPatchDesign:
 
         opts = em.SolveOptions()
         opts.use_direct = True
-
-        # Normalize port weights once at mid-frequency
-        em.normalize_port_weights(
-            self._mesh, params, self._bc, self._ports, opts
-        )
 
         if verbose:
             print(f"  Running {n_points}-point frequency sweep "

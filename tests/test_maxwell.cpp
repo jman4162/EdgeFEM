@@ -17,6 +17,13 @@ void test_symmetry() {
   CHECK(A.isApprox(A.adjoint(), 1e-9));
 }
 
+// Gap-port source and load (derivation in src/assemble_maxwell.cpp). The
+// port's weights are its voltage functional v (here v = 1 on one edge).
+// With omega = 1 rad/s, k0 eta0 = omega mu0 = 4 pi 1e-7 exactly, so
+//   source  b = j k0 eta0 (2 / sqrt(Z0)) v = j 3.5543e-7  (Z0 = 50 ohm),
+//   load    A += j k0 eta0 / Z0 v v^H        = j 2.5133e-8 on the diagonal.
+// Until 2026-10 this test expected b = 2 / sqrt(Z0) = 0.2828, the source of
+// the non-physical port term w w^H / Z0 (a real load).
 void test_wave_port_excitation() {
   Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");
   BC bc = build_edge_pec(mesh, 1);
@@ -31,25 +38,39 @@ void test_wave_port_excitation() {
   WavePort port2 = port1;
   port2.edges[0] = 20;
 
+  // The checks below need port edges that are not PEC.
+  CHECK(!bc.dirichlet_edges.count(port1.edges[0]));
+  CHECK(!bc.dirichlet_edges.count(port2.edges[0]));
+
   // Excite port 1
   std::vector<WavePort> ports{port1, port2};
   auto asmbl = assemble_maxwell(mesh, p, bc, ports, 0);
+  auto bare = assemble_maxwell(mesh, p, bc, {}, -1);
 
   const double Z0 = 50.0;
-  const std::complex<double> Is = 2.0 / std::sqrt(Z0);
+  const double mu0 = 4.0 * M_PI * 1e-7;
+  const double k0_eta0 = p.omega * mu0;
+  const std::complex<double> j(0.0, 1.0);
+  const std::complex<double> b_ref = j * k0_eta0 * 2.0 / std::sqrt(Z0);
+  const std::complex<double> y_ref = j * k0_eta0 / Z0;
 
-  // Check that the current source is applied to the correct DOF
-  CHECK(std::abs(asmbl.b(port1.edges[0]) - Is) < 1e-9);
+  // Source on the active port's edge only.
+  CHECK(std::abs(asmbl.b(port1.edges[0]) - b_ref) < 1e-9 * std::abs(b_ref));
+  CHECK(std::abs(asmbl.b(port2.edges[0])) == 0.0);
+  CHECK(std::abs(asmbl.b.norm() - std::abs(b_ref)) < 1e-9 * std::abs(b_ref));
 
-  // Check that the admittance is added to the diagonal
-  SpMatC A_ref(mesh.edges.size(), mesh.edges.size());
-  A_ref.insert(port1.edges[0], port1.edges[0]) = 1.0 / Z0;
-  A_ref.insert(port2.edges[0], port2.edges[0]) = 1.0 / Z0;
-  SpMatC A_port =
-      asmbl.A; // This is not a great way to test, but will do for now.
-  // This test is flawed because A contains many other terms.
-  // A better test would be to check the value of A(10,10) before and after.
-  // For now, we trust the implementation is correct if the RHS is correct.
+  // Load j k0 eta0 / Z0 on each port's diagonal, and nowhere else.
+  for (int e : {port1.edges[0], port2.edges[0]}) {
+    const std::complex<double> dy = asmbl.A.coeff(e, e) - bare.A.coeff(e, e);
+    CHECK(std::abs(dy - y_ref) < 1e-9 * std::abs(y_ref));
+  }
+  const SpMatC diff = asmbl.A - bare.A;
+  int changed = 0;
+  for (int col = 0; col < diff.outerSize(); ++col)
+    for (SpMatC::InnerIterator it(diff, col); it; ++it)
+      if (std::abs(it.value()) > 0.0)
+        ++changed;
+  CHECK(changed == 2);
 }
 
 void test_sparam_calculation() {

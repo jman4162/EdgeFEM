@@ -1,8 +1,10 @@
 #include "edgefem/ports/lumped_port.hpp"
 
 #include <Eigen/Geometry>
+#include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -119,13 +121,46 @@ WavePort build_lumped_port(const Mesh &mesh, const LumpedPortConfig &config) {
   }
 
   Eigen::Vector3d e_dir = config.e_direction.normalized();
-  Eigen::VectorXcd weights;
 
+  // Strip geometry: area, and gap length h = extent of the strip along
+  // e_dir. The strip width is W = area / h (exact for a rectangle with one
+  // side along e_dir, the shape the port builders produce).
+  double strip_area = 0.0;
+  double s_min = std::numeric_limits<double>::infinity();
+  double s_max = -std::numeric_limits<double>::infinity();
+  for (const auto &tri : mesh.tris) {
+    if (tri.phys != config.surface_tag)
+      continue;
+    Eigen::Vector3d v[3];
+    for (int k = 0; k < 3; ++k) {
+      v[k] = mesh.nodes[mesh.nodeIndex.at(tri.conn[k])].xyz;
+      const double s = v[k].dot(e_dir);
+      s_min = std::min(s_min, s);
+      s_max = std::max(s_max, s);
+    }
+    strip_area += 0.5 * (v[1] - v[0]).cross(v[2] - v[0]).norm();
+  }
+  const double gap_length = s_max - s_min;
+  if (!(gap_length > 1e-9 * std::sqrt(strip_area))) {
+    throw std::runtime_error(
+        "build_lumped_port: e_direction is normal to the port surface " +
+        std::to_string(config.surface_tag) +
+        " (no extent along it); it must point across the gap, in the surface");
+  }
+  const double strip_width = strip_area / gap_length;
+
+  // weights = port voltage functional v, V = v^T x (see the gap-port
+  // derivation in assemble_maxwell.cpp). Both modes give V = E0 h for a
+  // uniform field E0 e_dir on the strip.
+  Eigen::VectorXcd weights;
   if (config.weight_mode == LumpedPortWeightMode::SurfaceIntegral) {
+    // v = w / W with w_i = int_S N_i . e_dir dS.
     weights = compute_surface_integral_weights(mesh, config.surface_tag, e_dir,
-                                               edges, edge_to_idx);
+                                               edges, edge_to_idx) /
+              strip_width;
   } else {
-    // Projection mode (original method)
+    // Projection p_i = edge_vec . e_dir. A uniform field E0 e_dir has DOFs
+    // x_i = E0 p_i, so v = p h / (p . p) gives V = E0 h.
     weights.resize(edges.size());
     for (size_t i = 0; i < edges.size(); ++i) {
       int ei = edges[i];
@@ -137,14 +172,9 @@ WavePort build_lumped_port(const Mesh &mesh, const LumpedPortConfig &config) {
       Eigen::Vector3d edge_vec = p1 - p0;
       weights(i) = std::complex<double>(edge_vec.dot(e_dir), 0.0);
     }
-  }
-
-  // Initial normalization: scale ||w|| to sqrt(Z0).
-  // This is a rough starting point — normalize_port_weights() should be called
-  // after assembly for accurate scaling via w^H A^{-1} w = Z0.
-  double w_norm = weights.norm();
-  if (w_norm > 1e-15) {
-    weights *= std::sqrt(config.z0) / w_norm;
+    const double p_sq = weights.squaredNorm();
+    if (p_sq > 0.0)
+      weights *= gap_length / p_sq;
   }
 
   WavePort port;
