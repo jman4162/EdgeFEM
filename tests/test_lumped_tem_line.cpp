@@ -32,16 +32,20 @@
 // phase(S21) within 0.11 deg of -k0 L. Z11 and Z21 agree with the
 // formulas above to 0.1% (2 GHz) and 0.9% (8 GHz).
 //
-// The tolerances below leave margin over those numbers: |S11| < 0.1 and
-// |S21| > 0.95 (task targets), reciprocity 1e-6, losslessness
-// |S11|^2 + |S21|^2 = 1 within 1e-3, phase within 1 deg. frequency_sweep
-// must reproduce calculate_sparams to 1e-6 at the same frequencies.
+// The tolerances below leave margin over those numbers: |S11| < 0.02 and
+// |S21| > 0.95, reciprocity 1e-6, losslessness |S11|^2 + |S21|^2 = 1
+// within 1e-3, phase within 1 deg, and Z11, Z21 (converted from S with
+// Z = Z0 (I + S)(I - S)^-1) within 2% of -j Zc cot(k0 L) and
+// -j Zc / sin(k0 L). frequency_sweep must reproduce calculate_sparams to
+// 1e-6 at the same frequencies.
 
 #include "edgefem/bc.hpp"
 #include "edgefem/maxwell.hpp"
 #include "edgefem/ports/lumped_port.hpp"
 #include "edgefem/sweep.hpp"
 #include "test_check.hpp"
+
+#include <Eigen/Dense>
 
 #include <cmath>
 #include <complex>
@@ -55,6 +59,8 @@ namespace {
 
 constexpr double kC0 = 299792458.0;
 constexpr double kLength = 20.0e-3;
+constexpr double kZ0 = 50.0;
+constexpr double kZc = 50.0; // eta0 h / w by the choice of w
 constexpr int kTagPlates = 1;
 constexpr int kTagPort1 = 2;
 constexpr int kTagPort2 = 3;
@@ -82,14 +88,29 @@ void check_matched_line(const char *path, double f, const Eigen::MatrixXcd &S) {
             << std::endl;
 
   CHECK(S.rows() == 2 && S.cols() == 2);
-  CHECK(std::abs(S(0, 0)) < 0.1);
-  CHECK(std::abs(S(1, 1)) < 0.1);
+  CHECK(std::abs(S(0, 0)) < 0.02);
+  CHECK(std::abs(S(1, 1)) < 0.02);
   CHECK(std::abs(S(1, 0)) > 0.95);
   CHECK(std::abs(S(0, 1)) > 0.95);
   CHECK_NEAR(S(0, 1), S(1, 0), 1e-6);
   CHECK_NEAR(std::norm(S(0, 0)) + std::norm(S(1, 0)), 1.0, 1e-3);
   CHECK_NEAR(std::norm(S(1, 1)) + std::norm(S(0, 1)), 1.0, 1e-3);
   CHECK(phase_err_deg < 1.0);
+
+  // Open-circuit Z-parameters of the line section.
+  const Eigen::MatrixXcd I2 = Eigen::MatrixXcd::Identity(2, 2);
+  const Eigen::MatrixXcd Z = kZ0 * (I2 + S) * (I2 - S).inverse();
+  const std::complex<double> j(0.0, 1.0);
+  const std::complex<double> z11_ref = -j * kZc / std::tan(k0 * kLength);
+  const std::complex<double> z21_ref = -j * kZc / std::sin(k0 * kLength);
+  const double z11_rel = std::abs(Z(0, 0) - z11_ref) / std::abs(z11_ref);
+  const double z21_rel = std::abs(Z(1, 0) - z21_ref) / std::abs(z21_ref);
+  std::cout << "  Z11 = " << Z(0, 0) << " ohm, reference " << z11_ref
+            << " (rel err " << z11_rel << ")\n"
+            << "  Z21 = " << Z(1, 0) << " ohm, reference " << z21_ref
+            << " (rel err " << z21_rel << ")" << std::endl;
+  CHECK(z11_rel < 0.02);
+  CHECK(z21_rel < 0.02);
 }
 
 } // namespace

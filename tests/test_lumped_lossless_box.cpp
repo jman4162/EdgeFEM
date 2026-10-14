@@ -23,6 +23,12 @@
 // Three production paths are checked: calculate_sparams on the port as
 // built, the documented normalize_port_weights + calculate_sparams recipe,
 // and frequency_sweep.
+//
+// |S11| = 1 alone also holds for an open (S11 = 1) or a short (S11 = -1),
+// which a port that does not couple to the field returns. The box
+// reactances above give |S11 + 1| between 0.17 and 0.70, so each path must
+// also keep S11 at least 0.1 away from both: |S11 + 1| > 0.1 and
+// |S11 - 1| > 0.1.
 
 #include "edgefem/bc.hpp"
 #include "edgefem/maxwell.hpp"
@@ -45,6 +51,7 @@ constexpr int kTagPort1 = 2;
 constexpr int kTagPort2Face = 3;
 constexpr int kTagSides = 4;
 constexpr double kTol = 1e-3;
+constexpr double kNotOpenOrShort = 0.1;
 
 BC pec_from_tags(const Mesh &mesh, const std::vector<int> &tags) {
   BC bc;
@@ -59,7 +66,15 @@ BC pec_from_tags(const Mesh &mesh, const std::vector<int> &tags) {
 void report(const char *path, double f, std::complex<double> s11) {
   std::cout << std::setw(28) << std::left << path << " f = " << f / 1e9
             << " GHz  S11 = " << s11 << "  |S11| = " << std::abs(s11)
-            << std::endl;
+            << "  |S11+1| = " << std::abs(s11 + 1.0)
+            << "  |S11-1| = " << std::abs(s11 - 1.0) << std::endl;
+}
+
+// |S11| = 1, and S11 is neither a short (-1) nor an open (+1).
+void check_reactive(std::complex<double> s11) {
+  CHECK_NEAR(std::abs(s11), 1.0, kTol);
+  CHECK(std::abs(s11 + 1.0) > kNotOpenOrShort);
+  CHECK(std::abs(s11 - 1.0) > kNotOpenOrShort);
 }
 
 } // namespace
@@ -93,7 +108,7 @@ int main() {
       std::vector<WavePort> ports{port};
       Eigen::MatrixXcd S = calculate_sparams(mesh, p, bc, ports, opts);
       report("calculate_sparams", f, S(0, 0));
-      CHECK_NEAR(std::abs(S(0, 0)), 1.0, kTol);
+      check_reactive(S(0, 0));
     }
 
     // Documented recipe: normalize_port_weights, then calculate_sparams.
@@ -102,7 +117,7 @@ int main() {
       normalize_port_weights(mesh, p, bc, ports, opts);
       Eigen::MatrixXcd S = calculate_sparams(mesh, p, bc, ports, opts);
       report("normalize+calculate_sparams", f, S(0, 0));
-      CHECK_NEAR(std::abs(S(0, 0)), 1.0, kTol);
+      check_reactive(S(0, 0));
     }
   }
 
@@ -114,7 +129,7 @@ int main() {
     for (size_t i = 0; i < sweep.S_matrices.size(); ++i) {
       const std::complex<double> s11 = sweep.S_matrices[i](0, 0);
       report("frequency_sweep", freqs[i], s11);
-      CHECK_NEAR(std::abs(s11), 1.0, kTol);
+      check_reactive(s11);
     }
   }
 
