@@ -1,19 +1,8 @@
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
-
-// assert() vanishes under -DNDEBUG (release builds); the dipole test below
-// must fail loudly regardless of build type.
-#define CHECK(cond)                                                            \
-  do {                                                                         \
-    if (!(cond)) {                                                             \
-      std::fprintf(stderr, "CHECK failed: %s (%s:%d)\n", #cond, __FILE__,      \
-                   __LINE__);                                                  \
-      std::exit(1);                                                            \
-    }                                                                          \
-  } while (0)
 
 #include "edgefem/post/ntf.hpp"
 
@@ -29,8 +18,8 @@ int main() {
     std::vector<double> area = {1.0};
     std::vector<double> theta = {0.0, M_PI / 2};
     auto pat = stratton_chu_2d(r, n, E, H, area, theta, 0.0, 2 * M_PI);
-    assert(pat.size() == 2);
-    assert(std::abs(pat[0].e_theta) < 1e-12);
+    CHECK(pat.size() == 2);
+    CHECK(std::abs(pat[0].e_theta) < 1e-12);
   }
 
   // Two-point surface with nonzero E and H; expect phi-polarized far field
@@ -43,11 +32,11 @@ int main() {
     std::vector<double> area = {1.0, 1.0};
     std::vector<double> theta = {0.0, M_PI / 2, M_PI};
     auto pat = stratton_chu_2d(r, n, E, H, area, theta, 0.0, 2 * M_PI);
-    assert(pat.size() == 3);
+    CHECK(pat.size() == 3);
 
     // Far field should be purely phi-polarized
     for (const auto &p : pat) {
-      assert(std::abs(p.e_theta) < 1e-12);
+      CHECK(std::abs(p.e_theta) < 1e-12);
     }
 
     double mag0 = std::abs(pat[0].e_phi);
@@ -55,10 +44,10 @@ int main() {
     double mag2 = std::abs(pat[2].e_phi);
 
     // Non-zero far field with symmetry about theta=pi/2
-    assert(mag0 > 1e-3 && mag1 > 1e-3);
-    assert(std::abs(mag0 - mag2) / mag0 < 1e-12);
+    CHECK(mag0 > 1e-3 && mag1 > 1e-3);
+    CHECK(std::abs(mag0 - mag2) / mag0 < 1e-12);
     // Broadside maximum at theta=0 greater than at theta=pi/2
-    assert(mag0 > 10 * mag1);
+    CHECK(mag0 > 10 * mag1);
   }
 
     // Hertzian dipole absolute test: exact near fields sampled on a Huygens
@@ -151,5 +140,5 @@ int main() {
     }
   }
 
-  return 0;
+  return edgefem_test::exit_code();
 }

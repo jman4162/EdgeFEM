@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_check.hpp"
 #include <cstdio>
 #include <vector>
 
@@ -17,11 +17,11 @@ int main() {
   auto log = sweep_two_resonator(freqs, SweepPolicy::Discrete);
   const char *path = "vector_fit_model.json";
   auto fit = vector_fit(freqs, log.s21, 2, path);
-  assert(fit.rms_error < 0.01);
-  assert(fit.passive);
+  CHECK(fit.rms_error < 0.01);
+  CHECK(fit.passive);
   std::FILE *fp = std::fopen(path, "r");
-  assert(fp != nullptr);
+  CHECK(fp != nullptr);
   std::fclose(fp);
   std::remove(path);
-  return 0;
+  return edgefem_test::exit_code();
 }

@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -20,7 +20,7 @@ void test_tet_volume_positive() {
 
   // Volume of regular tet with edge a is a^3 / (6*sqrt(2))
   double expected = 1.0 / (6.0 * std::sqrt(2.0));
-  assert(std::abs(vol - expected) < 1e-10);
+  CHECK(std::abs(vol - expected) < 1e-10);
 
   std::cout << "  Volume: " << vol << " (expected: " << expected << ")"
             << std::endl;
@@ -38,7 +38,7 @@ void test_tet_volume_inverted() {
 
   double vol = tet_volume(p0, p1, p2, p3);
 
-  assert(vol < 0);
+  CHECK(vol < 0);
   std::cout << "  Inverted tet volume: " << vol << " (correctly negative)"
             << std::endl;
 }
@@ -54,7 +54,7 @@ void test_tet_volume_degenerate() {
 
   double vol = tet_volume(p0, p1, p2, p3);
 
-  assert(std::abs(vol) < 1e-15);
+  CHECK(std::abs(vol) < 1e-15);
   std::cout << "  Degenerate tet volume: " << vol << " (correctly ~0)"
             << std::endl;
 }
@@ -73,10 +73,10 @@ void test_validate_mesh_good() {
   std::cout << "  Min volume: " << report.min_volume << std::endl;
   std::cout << "  Max aspect ratio: " << report.max_aspect_ratio << std::endl;
 
-  assert(report.is_valid());
-  assert(report.min_volume > 0);
-  assert(report.max_aspect_ratio > 0);
-  assert(report.max_aspect_ratio < 100); // Reasonable aspect ratio
+  CHECK(report.is_valid());
+  CHECK(report.min_volume > 0);
+  CHECK(report.max_aspect_ratio > 0);
+  CHECK(report.max_aspect_ratio < 100); // Reasonable aspect ratio
 }
 
 void test_aspect_ratio() {
@@ -107,7 +107,7 @@ void test_aspect_ratio() {
   // For a regular tet, aspect ratio should be 1.0
   // For this right-angle tet, longest edge is sqrt(2), shortest is 1
   double expected_ar = std::sqrt(2.0);
-  assert(std::abs(report.max_aspect_ratio - expected_ar) < 1e-10);
+  CHECK(std::abs(report.max_aspect_ratio - expected_ar) < 1e-10);
 
   std::cout << "  Aspect ratio: " << report.max_aspect_ratio << std::endl;
 }
@@ -119,5 +119,5 @@ int main() {
   test_validate_mesh_good();
   test_aspect_ratio();
   std::cout << "All mesh quality tests passed!" << std::endl;
-  return 0;
+  return edgefem_test::exit_code();
 }

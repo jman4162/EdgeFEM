@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_check.hpp"
 #include <numeric>
 #include <vector>
 
@@ -18,6 +18,6 @@ int main() {
       std::accumulate(disc.iterations.begin(), disc.iterations.end(), 0);
   int it_reuse =
       std::accumulate(reuse.iterations.begin(), reuse.iterations.end(), 0);
-  assert(it_disc >= 2 * it_reuse);
-  return 0;
+  CHECK(it_disc >= 2 * it_reuse);
+  return edgefem_test::exit_code();
 }

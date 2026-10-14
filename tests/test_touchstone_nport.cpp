@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <complex>
 #include <fstream>
@@ -12,11 +12,11 @@ using namespace edgefem;
 void test_touchstone_extension() {
   std::cout << "test_touchstone_extension..." << std::endl;
 
-  assert(touchstone_extension(1) == ".s1p");
-  assert(touchstone_extension(2) == ".s2p");
-  assert(touchstone_extension(3) == ".s3p");
-  assert(touchstone_extension(4) == ".s4p");
-  assert(touchstone_extension(10) == ".s10p");
+  CHECK(touchstone_extension(1) == ".s1p");
+  CHECK(touchstone_extension(2) == ".s2p");
+  CHECK(touchstone_extension(3) == ".s3p");
+  CHECK(touchstone_extension(4) == ".s4p");
+  CHECK(touchstone_extension(10) == ".s10p");
 
   std::cout << "  Extension for 4 ports: " << touchstone_extension(4)
             << std::endl;
@@ -48,7 +48,7 @@ void test_write_3port() {
 
   // Verify file was created
   std::ifstream ifs(path);
-  assert(ifs.good());
+  CHECK(ifs.good());
 
   // Read first few lines
   std::string line;
@@ -56,7 +56,7 @@ void test_write_3port() {
   std::getline(ifs, line); // Comment
   std::getline(ifs, line); // Option line
 
-  assert(line.find("Hz S RI R 50") != std::string::npos);
+  CHECK(line.find("Hz S RI R 50") != std::string::npos);
 
   std::cout << "  Wrote 3-port file: " << path << std::endl;
 }
@@ -93,14 +93,14 @@ void test_write_4port() {
 
   // Verify file was created
   std::ifstream ifs(path);
-  assert(ifs.good());
+  CHECK(ifs.good());
 
   std::string line;
   std::getline(ifs, line);
   std::getline(ifs, line);
   std::getline(ifs, line); // Option line
 
-  assert(line.find("Hz S MA R 50") != std::string::npos);
+  CHECK(line.find("Hz S MA R 50") != std::string::npos);
 
   std::cout << "  Wrote 4-port file with MA format: " << path << std::endl;
 }
@@ -123,14 +123,14 @@ void test_db_format() {
   write_touchstone_nport(path, freq, S_matrices, opts);
 
   std::ifstream ifs(path);
-  assert(ifs.good());
+  CHECK(ifs.good());
 
   std::string line;
   std::getline(ifs, line);
   std::getline(ifs, line);
   std::getline(ifs, line);
 
-  assert(line.find("Hz S DB R 50") != std::string::npos);
+  CHECK(line.find("Hz S DB R 50") != std::string::npos);
 
   std::cout << "  Wrote 2-port file with dB format: " << path << std::endl;
 }
@@ -148,7 +148,7 @@ void test_empty_data_throws() {
     threw = true;
   }
 
-  assert(threw);
+  CHECK(threw);
   std::cout << "  Empty data correctly threw exception" << std::endl;
 }
 
@@ -169,7 +169,7 @@ void test_dimension_mismatch_throws() {
     threw = true;
   }
 
-  assert(threw);
+  CHECK(threw);
   std::cout << "  Dimension mismatch correctly threw exception" << std::endl;
 }
 
@@ -181,5 +181,5 @@ int main() {
   test_empty_data_throws();
   test_dimension_mismatch_throws();
   std::cout << "All Touchstone N-port tests passed!" << std::endl;
-  return 0;
+  return edgefem_test::exit_code();
 }

@@ -40,6 +40,12 @@ Documentation = "https://github.com/jman4162/EdgeFEM#readme"
 Repository = "https://github.com/jman4162/EdgeFEM"
 Issues = "https://github.com/jman4162/EdgeFEM/issues"
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: known-answer full-wave runs that take minutes and several GB of memory; deselected by default, run with `pytest -m slow`",
+]
+addopts = "-m 'not slow'"
+
 [tool.scikit-build]
 cmake.minimum-version = "3.20"
 cmake.build-type = "Release"

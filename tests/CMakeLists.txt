@@ -1,3 +1,11 @@
+# Labels:
+#   lumped       tests of the lumped-port path (build_lumped_port,
+#                normalize_port_weights, calculate_sparams, frequency_sweep).
+#   known_issue  tests that fail in Release since assert() became CHECK()
+#                (NDEBUG had compiled the asserts out) for reasons other than
+#                the lumped port or the patch geometry. They stay failing
+#                until fixed; `ctest -LE known_issue` skips them.
+
 add_executable(test_edge_indexing test_edge_indexing.cpp)
 target_link_libraries(test_edge_indexing PRIVATE edgefem)
 add_test(NAME test_edge_indexing COMMAND test_edge_indexing)
@@ -11,32 +19,32 @@ set_tests_properties(test_triangle_mass_matrix PROPERTIES WORKING_DIRECTORY ${PR
 add_executable(test_maxwell test_maxwell.cpp)
 target_link_libraries(test_maxwell PRIVATE edgefem)
 add_test(NAME test_maxwell COMMAND test_maxwell)
-set_tests_properties(test_maxwell PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(test_maxwell PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped;known_issue")
 
 add_executable(test_ports test_ports.cpp)
 target_link_libraries(test_ports PRIVATE edgefem)
 add_test(NAME test_ports COMMAND test_ports)
-set_tests_properties(test_ports PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(test_ports PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
 
 add_executable(test_waveguide_modal test_waveguide_modal.cpp)
 target_link_libraries(test_waveguide_modal PRIVATE edgefem)
 add_test(NAME test_waveguide_modal COMMAND test_waveguide_modal)
-set_tests_properties(test_waveguide_modal PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(test_waveguide_modal PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped;known_issue")
 
 add_executable(test_pml test_pml.cpp)
 target_link_libraries(test_pml PRIVATE edgefem)
 add_test(NAME test_pml COMMAND test_pml)
-set_tests_properties(test_pml PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS pml)
+set_tests_properties(test_pml PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "pml;known_issue")
 
 add_executable(test_abc test_abc.cpp)
 target_link_libraries(test_abc PRIVATE edgefem)
 add_test(NAME test_abc COMMAND test_abc)
-set_tests_properties(test_abc PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS abc)
+set_tests_properties(test_abc PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "abc;known_issue")
 
 add_executable(test_sweep test_sweep.cpp)
 target_link_libraries(test_sweep PRIVATE edgefem)
 add_test(NAME test_sweep COMMAND test_sweep)
-set_tests_properties(test_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+set_tests_properties(test_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "smoke;known_issue")
 
 add_executable(test_vector_fit test_vector_fit.cpp)
 target_link_libraries(test_vector_fit PRIVATE edgefem)
@@ -46,12 +54,12 @@ set_tests_properties(test_vector_fit PROPERTIES WORKING_DIRECTORY ${PROJECT_SOUR
 add_executable(test_ntf test_ntf.cpp)
 target_link_libraries(test_ntf PRIVATE edgefem)
 add_test(NAME test_ntf COMMAND test_ntf)
-set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
 
 add_executable(test_solver_convergence test_solver_convergence.cpp)
 target_link_libraries(test_solver_convergence PRIVATE edgefem)
 add_test(NAME test_solver_convergence COMMAND test_solver_convergence)
-set_tests_properties(test_solver_convergence PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+set_tests_properties(test_solver_convergence PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "smoke;known_issue")
 
 add_executable(test_mesh_quality test_mesh_quality.cpp)
 target_link_libraries(test_mesh_quality PRIVATE edgefem)
@@ -66,7 +74,7 @@ set_tests_properties(test_touchstone_nport PROPERTIES WORKING_DIRECTORY ${PROJEC
 add_executable(test_coupling test_coupling.cpp)
 target_link_libraries(test_coupling PRIVATE edgefem)
 add_test(NAME test_coupling COMMAND test_coupling)
-set_tests_properties(test_coupling PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(test_coupling PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
 
 add_executable(test_periodic test_periodic.cpp)
 target_link_libraries(test_periodic PRIVATE edgefem)
@@ -81,7 +89,7 @@ set_tests_properties(benchmark_2d_waveguide PROPERTIES WORKING_DIRECTORY ${PROJE
 add_executable(test_sparam_accuracy test_sparam_accuracy.cpp)
 target_link_libraries(test_sparam_accuracy PRIVATE edgefem)
 add_test(NAME test_sparam_accuracy COMMAND test_sparam_accuracy)
-set_tests_properties(test_sparam_accuracy PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(test_sparam_accuracy PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped")
 
 add_executable(test_eigenmode_sparams test_eigenmode_sparams.cpp)
 target_link_libraries(test_eigenmode_sparams PRIVATE edgefem)
@@ -126,7 +134,7 @@ set_tests_properties(test_coax_waveguide PROPERTIES WORKING_DIRECTORY ${PROJECT_
 add_executable(test_lumped_port test_lumped_port.cpp)
 target_link_libraries(test_lumped_port PRIVATE edgefem)
 add_test(NAME test_lumped_port COMMAND test_lumped_port)
-set_tests_properties(test_lumped_port PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+set_tests_properties(test_lumped_port PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped")
 
 add_executable(test_huygens_surface test_huygens_surface.cpp)
 target_link_libraries(test_huygens_surface PRIVATE edgefem)
@@ -138,12 +146,26 @@ target_link_libraries(test_dielectric_slab_fresnel PRIVATE edgefem)
 add_test(NAME test_dielectric_slab_fresnel COMMAND test_dielectric_slab_fresnel)
 set_tests_properties(test_dielectric_slab_fresnel PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
+add_executable(test_frequency_sweep test_frequency_sweep.cpp)
+target_link_libraries(test_frequency_sweep PRIVATE edgefem)
+add_test(NAME test_frequency_sweep COMMAND test_frequency_sweep)
+set_tests_properties(test_frequency_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS lumped)
+
+# Lumped-port physics: known answers on examples/parallel_plate_line.msh.
+add_executable(test_lumped_lossless_box test_lumped_lossless_box.cpp)
+target_link_libraries(test_lumped_lossless_box PRIVATE edgefem)
+add_test(NAME test_lumped_lossless_box COMMAND test_lumped_lossless_box)
+set_tests_properties(test_lumped_lossless_box PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS lumped)
+
+add_executable(test_lumped_tem_line test_lumped_tem_line.cpp)
+target_link_libraries(test_lumped_tem_line PRIVATE edgefem)
+add_test(NAME test_lumped_tem_line COMMAND test_lumped_tem_line)
+set_tests_properties(test_lumped_tem_line PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS lumped)
+
 # One-off diagnostic executables from port/solver development. They print
 # results but contain no assertions, so they are NOT registered with CTest;
 # built only on demand for manual investigation.
 if (EDGEFEM_BUILD_DEBUG_TOOLS)
-  add_executable(test_frequency_sweep test_frequency_sweep.cpp)
-  target_link_libraries(test_frequency_sweep PRIVATE edgefem)
   add_executable(test_normalized_ports test_normalized_ports.cpp)
   target_link_libraries(test_normalized_ports PRIVATE edgefem)
   add_executable(test_flipped_port test_flipped_port.cpp)

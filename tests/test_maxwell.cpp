@@ -1,5 +1,5 @@
+#include "test_check.hpp"
 #include <Eigen/Dense>
-#include <cassert>
 
 #include "edgefem/maxwell.hpp"
 
@@ -11,9 +11,9 @@ void test_symmetry() {
   MaxwellParams p;
   p.omega = 1.0;
   auto asmbl = assemble_maxwell(mesh, p, bc, {}, -1);
-  assert(asmbl.A.rows() == static_cast<int>(mesh.edges.size()));
+  CHECK(asmbl.A.rows() == static_cast<int>(mesh.edges.size()));
   Eigen::MatrixXcd A = Eigen::MatrixXcd(asmbl.A);
-  assert(A.isApprox(A.adjoint(), 1e-9));
+  CHECK(A.isApprox(A.adjoint(), 1e-9));
 }
 
 void test_wave_port_excitation() {
@@ -38,7 +38,7 @@ void test_wave_port_excitation() {
   const std::complex<double> Is = 2.0 / std::sqrt(Z0);
 
   // Check that the current source is applied to the correct DOF
-  assert(std::abs(asmbl.b(port1.edges[0]) - Is) < 1e-9);
+  CHECK(std::abs(asmbl.b(port1.edges[0]) - Is) < 1e-9);
 
   // Check that the admittance is added to the diagonal
   SpMatC A_ref(mesh.edges.size(), mesh.edges.size());
@@ -68,14 +68,14 @@ void test_sparam_calculation() {
 
   auto S = calculate_sparams(mesh, p, bc, ports);
 
-  assert(S.rows() == 2);
-  assert(S.cols() == 2);
+  CHECK(S.rows() == 2);
+  CHECK(S.cols() == 2);
 
   // Check for passivity (for the first column)
   double s11_mag_sq = std::norm(S(0, 0));
   double s21_mag_sq = std::norm(S(1, 0));
-  assert(s11_mag_sq + s21_mag_sq <=
-         1.0 + 1e-6); // Add tolerance for numerical error
+  CHECK(s11_mag_sq + s21_mag_sq <=
+        1.0 + 1e-6); // Add tolerance for numerical error
 }
 
 void test_mixed_bc() {
@@ -87,8 +87,8 @@ void test_mixed_bc() {
 
   // The mixed cavity has one PMC wall, so it should have fewer PEC edges
   // than the fully PEC cavity.
-  assert(mixed_bc.dirichlet_edges.size() < pec_bc.dirichlet_edges.size());
-  assert(mixed_bc.dirichlet_edges.size() > 0);
+  CHECK(mixed_bc.dirichlet_edges.size() < pec_bc.dirichlet_edges.size());
+  CHECK(mixed_bc.dirichlet_edges.size() > 0);
 }
 
 void test_lossy_material() {
@@ -101,7 +101,7 @@ void test_lossy_material() {
   auto asmbl = assemble_maxwell(mesh, p, bc, {}, -1);
   Eigen::MatrixXcd A = Eigen::MatrixXcd(asmbl.A);
   // With loss, the matrix should no longer be Hermitian
-  assert(!A.isApprox(A.adjoint(), 1e-9));
+  CHECK(!A.isApprox(A.adjoint(), 1e-9));
 }
 
 int main() {
@@ -110,5 +110,5 @@ int main() {
   test_sparam_calculation();
   test_mixed_bc();
   test_lossy_material();
-  return 0;
+  return edgefem_test::exit_code();
 }

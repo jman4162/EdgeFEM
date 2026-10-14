@@ -1,6 +1,6 @@
 #include "edgefem/materials/dispersive.hpp"
 
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <complex>
 #include <iostream>
@@ -35,14 +35,14 @@ void test_debye_basic() {
 
   // At DC (omega=0), should return eps_s
   auto eps_dc = debye.eval_eps(0.0);
-  assert(approx_equal(eps_dc, std::complex<double>(eps_s, 0.0), 1e-10));
+  CHECK(approx_equal(eps_dc, std::complex<double>(eps_s, 0.0), 1e-10));
   std::cout << "  DC limit: eps = " << eps_dc << " (expected " << eps_s << ")"
             << std::endl;
 
   // At very high frequency, should approach eps_inf
   double omega_high = 1e15; // ~159 THz
   auto eps_high = debye.eval_eps(omega_high);
-  assert(std::abs(eps_high.real() - eps_inf) < 0.1);
+  CHECK(std::abs(eps_high.real() - eps_inf) < 0.1);
   std::cout << "  High-freq limit: eps = " << eps_high << " (expected ~"
             << eps_inf << ")" << std::endl;
 
@@ -52,9 +52,9 @@ void test_debye_basic() {
   std::cout << "  At omega*tau=1: eps = " << eps_peak << std::endl;
 
   // Verify accessor methods
-  assert(debye.eps_static() == eps_s);
-  assert(debye.eps_inf() == eps_inf);
-  assert(debye.tau() == tau);
+  CHECK(debye.eps_static() == eps_s);
+  CHECK(debye.eps_inf() == eps_inf);
+  CHECK(debye.tau() == tau);
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -74,8 +74,8 @@ void test_debye_water() {
   // At 10 GHz: eps' ~ 55, eps'' ~ 35
   std::cout << "  At 10 GHz: eps = " << eps.real() << " - j" << -eps.imag()
             << std::endl;
-  assert(eps.real() > 40 && eps.real() < 70); // Reasonable range
-  assert(eps.imag() < 0); // Loss should be negative imaginary (eps'' > 0)
+  CHECK(eps.real() > 40 && eps.real() < 70); // Reasonable range
+  CHECK(eps.imag() < 0); // Loss should be negative imaginary (eps'' > 0)
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -94,22 +94,22 @@ void test_lorentz_single_pole() {
   double omega_low = omega0 / 100.0;
   auto eps_low = lorentz.eval_eps(omega_low);
   std::cout << "  Below resonance: eps = " << eps_low << std::endl;
-  assert(eps_low.real() > delta_eps); // Should be above delta_eps
+  CHECK(eps_low.real() > delta_eps); // Should be above delta_eps
 
   // At resonance: maximum imaginary part
   auto eps_res = lorentz.eval_eps(omega0);
   std::cout << "  At resonance: eps = " << eps_res << std::endl;
-  assert(std::abs(eps_res.imag()) > 0.1); // Should have significant loss
+  CHECK(std::abs(eps_res.imag()) > 0.1); // Should have significant loss
 
   // Far above resonance: eps should approach eps_inf
   double omega_high = omega0 * 100.0;
   auto eps_high = lorentz.eval_eps(omega_high);
   std::cout << "  Above resonance: eps = " << eps_high << std::endl;
-  assert(std::abs(eps_high.real() - 1.0) < 0.1); // Should approach eps_inf
+  CHECK(std::abs(eps_high.real() - 1.0) < 0.1); // Should approach eps_inf
 
   // Verify structure
-  assert(lorentz.num_poles() == 1);
-  assert(lorentz.eps_inf() == 1.0);
+  CHECK(lorentz.num_poles() == 1);
+  CHECK(lorentz.eps_inf() == 1.0);
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -123,7 +123,7 @@ void test_lorentz_multi_pole() {
   lorentz.add_pole(3.0, 2.0 * PI * 5e9, 2.0 * PI * 0.2e9);  // 5 GHz
   lorentz.add_pole(2.0, 2.0 * PI * 15e9, 2.0 * PI * 0.3e9); // 15 GHz
 
-  assert(lorentz.num_poles() == 2);
+  CHECK(lorentz.num_poles() == 2);
 
   // Test at various frequencies
   auto eps_1ghz = lorentz.eval_eps(2.0 * PI * 1e9);
@@ -135,9 +135,9 @@ void test_lorentz_multi_pole() {
   std::cout << "  At 50 GHz: eps = " << eps_50ghz << std::endl;
 
   // Low frequency should have high eps (all poles contribute)
-  assert(eps_1ghz.real() > 5.0);
+  CHECK(eps_1ghz.real() > 5.0);
   // High frequency should approach eps_inf
-  assert(std::abs(eps_50ghz.real() - 2.0) < 0.5);
+  CHECK(std::abs(eps_50ghz.real() - 2.0) < 0.5);
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -154,23 +154,23 @@ void test_drude_basic() {
   double omega_low = omega_p / 10.0;
   auto eps_low = drude.eval_eps(omega_low);
   std::cout << "  At omega_p/10: eps = " << eps_low << std::endl;
-  assert(eps_low.real() < 0); // Metallic behavior
+  CHECK(eps_low.real() < 0); // Metallic behavior
 
   // At plasma frequency: eps_real should be near zero
   auto eps_plasma = drude.eval_eps(omega_p);
   std::cout << "  At omega_p: eps = " << eps_plasma << std::endl;
   // Real part should be small compared to 1
-  assert(std::abs(eps_plasma.real()) < 1.0);
+  CHECK(std::abs(eps_plasma.real()) < 1.0);
 
   // Above plasma frequency: eps should approach 1
   double omega_high = omega_p * 10.0;
   auto eps_high = drude.eval_eps(omega_high);
   std::cout << "  At 10*omega_p: eps = " << eps_high << std::endl;
-  assert(eps_high.real() > 0.9 && eps_high.real() < 1.1);
+  CHECK(eps_high.real() > 0.9 && eps_high.real() < 1.1);
 
   // Verify accessor methods
-  assert(drude.omega_p() == omega_p);
-  assert(drude.gamma() == gamma);
+  CHECK(drude.omega_p() == omega_p);
+  CHECK(drude.gamma() == gamma);
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -195,7 +195,7 @@ void test_drude_gold_optical() {
             << std::endl;
 
   // Gold at visible frequencies has negative real part
-  assert(eps.real() < 0);
+  CHECK(eps.real() < 0);
 
   // Test at 1550 nm (telecom wavelength)
   lambda = 1550e-9;
@@ -203,7 +203,7 @@ void test_drude_gold_optical() {
   eps = gold.eval_eps(omega);
   std::cout << "  At 1550 nm: eps = " << eps.real() << " + j" << eps.imag()
             << std::endl;
-  assert(eps.real() < 0); // Still metallic
+  CHECK(eps.real() < 0); // Still metallic
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -231,11 +231,11 @@ void test_drude_lorentz_combined() {
             << std::endl;
 
   // Should still be metallic but modified by Lorentz pole
-  assert(eps.real() < 5); // Negative or small positive due to interband
+  CHECK(eps.real() < 5); // Negative or small positive due to interband
 
   // Verify structure
-  assert(gold_dl.lorentz_poles().size() == 1);
-  assert(gold_dl.omega_p() == omega_p);
+  CHECK(gold_dl.lorentz_poles().size() == 1);
+  CHECK(gold_dl.omega_p() == omega_p);
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -250,7 +250,7 @@ void test_parameter_validation() {
   } catch (const std::invalid_argument &) {
     caught = true;
   }
-  assert(caught);
+  CHECK(caught);
   std::cout << "  Debye negative tau: correctly rejected" << std::endl;
 
   // Drude: omega_p must be positive
@@ -260,7 +260,7 @@ void test_parameter_validation() {
   } catch (const std::invalid_argument &) {
     caught = true;
   }
-  assert(caught);
+  CHECK(caught);
   std::cout << "  Drude zero omega_p: correctly rejected" << std::endl;
 
   // Drude: gamma must be non-negative
@@ -270,7 +270,7 @@ void test_parameter_validation() {
   } catch (const std::invalid_argument &) {
     caught = true;
   }
-  assert(caught);
+  CHECK(caught);
   std::cout << "  Drude negative gamma: correctly rejected" << std::endl;
 
   // Lorentz: omega0 must be positive
@@ -281,7 +281,7 @@ void test_parameter_validation() {
   } catch (const std::invalid_argument &) {
     caught = true;
   }
-  assert(caught);
+  CHECK(caught);
   std::cout << "  Lorentz negative omega0: correctly rejected" << std::endl;
 
   // Lorentz: gamma must be non-negative
@@ -292,7 +292,7 @@ void test_parameter_validation() {
   } catch (const std::invalid_argument &) {
     caught = true;
   }
-  assert(caught);
+  CHECK(caught);
   std::cout << "  Lorentz negative gamma: correctly rejected" << std::endl;
 
   std::cout << "  PASSED" << std::endl;
@@ -309,9 +309,9 @@ void test_mu_default() {
   // All non-magnetic materials should return mu_r = 1
   double omega = 2.0 * PI * 10e9;
 
-  assert(approx_equal(debye.eval_mu(omega), std::complex<double>(1.0, 0.0)));
-  assert(approx_equal(drude.eval_mu(omega), std::complex<double>(1.0, 0.0)));
-  assert(approx_equal(lorentz.eval_mu(omega), std::complex<double>(1.0, 0.0)));
+  CHECK(approx_equal(debye.eval_mu(omega), std::complex<double>(1.0, 0.0)));
+  CHECK(approx_equal(drude.eval_mu(omega), std::complex<double>(1.0, 0.0)));
+  CHECK(approx_equal(lorentz.eval_mu(omega), std::complex<double>(1.0, 0.0)));
 
   std::cout << "  All materials return mu_r = 1.0" << std::endl;
   std::cout << "  PASSED" << std::endl;
@@ -333,8 +333,8 @@ void test_silicon_10ghz() {
 
   // At 10 GHz with tau=1e-13, omega*tau ~ 6e-3 << 1
   // So eps should be very close to eps_s
-  assert(std::abs(eps.real() - 11.68) < 0.1);
-  assert(std::abs(eps.imag()) < 0.1);
+  CHECK(std::abs(eps.real() - 11.68) < 0.1);
+  CHECK(std::abs(eps.imag()) < 0.1);
 
   std::cout << "  PASSED" << std::endl;
 }
@@ -356,5 +356,5 @@ int main() {
 
   std::cout << std::endl;
   std::cout << "=== All tests PASSED ===" << std::endl;
-  return 0;
+  return edgefem_test::exit_code();
 }

@@ -6,9 +6,9 @@
 // (0,1), (1,2), (2,0) — the ordering build_edges() uses for Tri3.
 
 #include "edgefem/edge_basis.hpp"
+#include "test_check.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
-#include <cassert>
 #include <cmath>
 #include <iostream>
 
@@ -71,14 +71,14 @@ void check_triangle(const std::array<Eigen::Vector3d, 3> &v,
   double err = (M - Mq).norm() / Mq.norm();
   std::cout << label << ": closed-form vs quadrature rel. error = " << err
             << std::endl;
-  assert(err < 1e-12);
+  CHECK(err < 1e-12);
 
-  assert((M - M.transpose()).norm() < 1e-14 * M.norm());
+  CHECK((M - M.transpose()).norm() < 1e-14 * M.norm());
 
   Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> es(M);
   double min_ev = es.eigenvalues().minCoeff();
   std::cout << label << ": min eigenvalue = " << min_ev << std::endl;
-  assert(min_ev > 0.0); // 3 tangential edge functions are independent
+  CHECK(min_ev > 0.0); // 3 tangential edge functions are independent
 }
 
 } // namespace
@@ -102,5 +102,5 @@ int main() {
                  "3D-embedded triangle");
 
   std::cout << "All triangle mass matrix tests passed." << std::endl;
-  return 0;
+  return edgefem_test::exit_code();
 }

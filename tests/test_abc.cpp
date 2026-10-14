@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <complex>
 
@@ -17,7 +17,7 @@ int main() {
   p.use_abc = true;
   auto asmbl_abc = assemble_maxwell(mesh, p, bc, {}, -1);
 
-  assert(asmbl_noabc.A.rows() == asmbl_abc.A.rows());
+  CHECK(asmbl_noabc.A.rows() == asmbl_abc.A.rows());
   const int m = asmbl_abc.A.rows();
   int damped_edges = 0;
 
@@ -26,16 +26,16 @@ int main() {
     const std::complex<double> val_no = asmbl_noabc.A.coeff(e, e);
     const std::complex<double> delta = val_abc - val_no;
     if (std::abs(delta) > 1e-12) {
-      assert(std::abs(delta - std::complex<double>(0.0, p.omega)) < 1e-9);
+      CHECK(std::abs(delta - std::complex<double>(0.0, p.omega)) < 1e-9);
       ++damped_edges;
     }
   }
-  assert(damped_edges > 0);
+  CHECK(damped_edges > 0);
 
   // Manufactured plane-wave reflection estimate for unit-thickness ABC layer.
   const double refl = std::exp(-p.omega);
   const double refl_dB = 20.0 * std::log10(refl);
-  assert(refl_dB < -8.0);
+  CHECK(refl_dB < -8.0);
 
-  return 0;
+  return edgefem_test::exit_code();
 }

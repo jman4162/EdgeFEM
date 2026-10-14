@@ -6,7 +6,7 @@
 #include "edgefem/post/huygens_surface.hpp"
 #include "edgefem/solver.hpp"
 
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -72,11 +72,11 @@ int main() {
 
   std::cout << "Extracted " << huygens.r.size() << " surface points\n";
 
-  assert(huygens.r.size() > 0 && "Must have surface points");
-  assert(huygens.r.size() == huygens.n.size() && "Size mismatch: normals");
-  assert(huygens.r.size() == huygens.E_tan.size() && "Size mismatch: E_tan");
-  assert(huygens.r.size() == huygens.H_tan.size() && "Size mismatch: H_tan");
-  assert(huygens.r.size() == huygens.area.size() && "Size mismatch: area");
+  CHECK(huygens.r.size() > 0 && "Must have surface points");
+  CHECK(huygens.r.size() == huygens.n.size() && "Size mismatch: normals");
+  CHECK(huygens.r.size() == huygens.E_tan.size() && "Size mismatch: E_tan");
+  CHECK(huygens.r.size() == huygens.H_tan.size() && "Size mismatch: H_tan");
+  CHECK(huygens.r.size() == huygens.area.size() && "Size mismatch: area");
 
   // Verify fields are non-zero
   double E_total = 0, H_total = 0;
@@ -87,8 +87,8 @@ int main() {
   std::cout << "Total |E_tan| = " << E_total << "\n";
   std::cout << "Total |H_tan| = " << H_total << "\n";
 
-  assert(E_total > 1e-20 && "E_tan must be non-zero");
-  assert(H_total > 1e-20 && "H_tan must be non-zero");
+  CHECK(E_total > 1e-20 && "E_tan must be non-zero");
+  CHECK(H_total > 1e-20 && "H_tan must be non-zero");
 
   // Verify fields are tangential (dot product with normal should be ~0)
   double max_E_normal = 0, max_H_normal = 0;
@@ -116,15 +116,15 @@ int main() {
 
   // Verify areas are positive
   for (size_t i = 0; i < huygens.area.size(); ++i) {
-    assert(huygens.area[i] > 0 && "Triangle areas must be positive");
+    CHECK(huygens.area[i] > 0 && "Triangle areas must be positive");
   }
 
   // Verify normals are unit vectors
   for (size_t i = 0; i < huygens.n.size(); ++i) {
     double n_mag = huygens.n[i].norm();
-    assert(std::abs(n_mag - 1.0) < 1e-10 && "Normals must be unit vectors");
+    CHECK(std::abs(n_mag - 1.0) < 1e-10 && "Normals must be unit vectors");
   }
 
   std::cout << "\nAll Huygens surface tests passed!\n";
-  return 0;
+  return edgefem_test::exit_code();
 }

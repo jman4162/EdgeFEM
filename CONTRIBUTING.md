@@ -80,7 +80,7 @@ clang-format -i src/*.cpp include/edgefem/*.hpp
 
 ### Writing Tests
 
-- Tests use simple `assert()` macros (no external framework)
+- Tests use `CHECK(cond)` / `CHECK_NEAR(a, b, tol)` from `tests/test_check.hpp` (no external framework); `main` returns `edgefem_test::exit_code()`. Do not use `assert()`: Release builds define `NDEBUG` and compile it out
 - Place tests in `tests/` directory
 - Name test files `test_*.cpp`
 - Add appropriate CTest labels (`smoke`, `pml`, `abc`, etc.)

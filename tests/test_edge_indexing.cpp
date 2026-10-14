@@ -1,5 +1,5 @@
+#include "test_check.hpp"
 #include <array>
-#include <cassert>
 
 #include "edgefem/mesh.hpp"
 
@@ -7,12 +7,12 @@ using namespace edgefem;
 
 int main() {
   Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");
-  assert(!mesh.edges.empty());
+  CHECK(!mesh.edges.empty());
   for (size_t i = 0; i < mesh.edges.size(); ++i) {
     const auto &e = mesh.edges[i];
-    assert(e.n0 < e.n1);
+    CHECK(e.n0 < e.n1);
     auto key = make_edge_key(e.n0, e.n1);
-    assert(mesh.edgeIndex.at(key) == static_cast<int>(i));
+    CHECK(mesh.edgeIndex.at(key) == static_cast<int>(i));
   }
   const std::array<std::array<int, 2>, 6> tet_pairs = {
       std::array<int, 2>{0, 1}, std::array<int, 2>{0, 2},
@@ -25,10 +25,10 @@ int main() {
       int eid = tet.edges[k];
       int sign = tet.edge_orient[k];
       const auto &edge = mesh.edges[eid];
-      assert(edge.n0 == std::min(a, b) && edge.n1 == std::max(a, b));
+      CHECK(edge.n0 == std::min(a, b) && edge.n1 == std::max(a, b));
       int expected = (a < b) ? 1 : -1;
-      assert(sign == expected);
+      CHECK(sign == expected);
     }
   }
-  return 0;
+  return edgefem_test::exit_code();
 }

@@ -1,5 +1,5 @@
+#include "test_check.hpp"
 #include <Eigen/Dense>
-#include <cassert>
 #include <cmath>
 #include <iostream>
 
@@ -28,11 +28,11 @@ void test_convergence_options() {
 
   auto result = solve_linear(A, b, opts);
 
-  assert(result.converged);
-  assert(result.method == "BiCGSTAB");
-  assert(result.residual < opts.tolerance);
-  assert(result.iters > 0);
-  assert(result.error_message.empty());
+  CHECK(result.converged);
+  CHECK(result.method == "BiCGSTAB");
+  CHECK(result.residual < opts.tolerance);
+  CHECK(result.iters > 0);
+  CHECK(result.error_message.empty());
 
   std::cout << "  Converged in " << result.iters << " iterations" << std::endl;
   std::cout << "  Residual: " << result.residual << std::endl;
@@ -62,8 +62,8 @@ void test_cg_solver() {
 
   auto result = solve_linear(A, b, opts);
 
-  assert(result.converged);
-  assert(result.method == "CG");
+  CHECK(result.converged);
+  CHECK(result.method == "CG");
 
   std::cout << "  CG converged in " << result.iters << " iterations"
             << std::endl;
@@ -94,7 +94,7 @@ void test_max_iterations_limit() {
   auto result = solve_linear(A, b, opts);
 
   // Should either converge or hit max iterations
-  assert(result.iters <= opts.max_iterations || result.converged);
+  CHECK(result.iters <= opts.max_iterations || result.converged);
 
   std::cout << "  Iterations: " << result.iters
             << ", Converged: " << (result.converged ? "yes" : "no")
@@ -124,10 +124,10 @@ void test_tolerance_respected() {
   opts2.tolerance = 1e-12;
   auto result2 = solve_linear(A, b, opts2);
 
-  assert(result1.converged);
-  assert(result2.converged);
-  assert(result1.residual <= opts1.tolerance * 10); // Allow some slack
-  assert(result2.residual <= opts2.tolerance * 10);
+  CHECK(result1.converged);
+  CHECK(result2.converged);
+  CHECK(result1.residual <= opts1.tolerance * 10); // Allow some slack
+  CHECK(result2.residual <= opts2.tolerance * 10);
 
   std::cout << "  Loose tol residual: " << result1.residual << std::endl;
   std::cout << "  Tight tol residual: " << result2.residual << std::endl;
@@ -139,5 +139,5 @@ int main() {
   test_max_iterations_limit();
   test_tolerance_respected();
   std::cout << "All solver convergence tests passed!" << std::endl;
-  return 0;
+  return edgefem_test::exit_code();
 }

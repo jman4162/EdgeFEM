@@ -4,7 +4,7 @@
 #include "edgefem/ports/lumped_port.hpp"
 #include "edgefem/solver.hpp"
 
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -45,16 +45,16 @@ int main() {
   std::cout << "Port edges: " << port.edges.size() << "\n";
   std::cout << "Port Z0: " << port.mode.Z0 << "\n";
 
-  assert(port.edges.size() > 0 && "Lumped port must have edges");
-  assert(port.weights.size() == static_cast<int>(port.edges.size()) &&
-         "Weight count must match edge count");
-  assert(std::abs(port.mode.Z0 - 50.0) < 1e-10 && "Z0 must be 50 ohms");
-  assert(port.mode.beta == 0.0 && "Lumped port beta must be 0");
+  CHECK(port.edges.size() > 0 && "Lumped port must have edges");
+  CHECK(port.weights.size() == static_cast<int>(port.edges.size()) &&
+        "Weight count must match edge count");
+  CHECK(std::abs(port.mode.Z0 - 50.0) < 1e-10 && "Z0 must be 50 ohms");
+  CHECK(port.mode.beta == 0.0 && "Lumped port beta must be 0");
 
   // Test 2: Weights are non-zero
   double w_norm = port.weights.norm();
   std::cout << "Weight norm: " << w_norm << "\n";
-  assert(w_norm > 1e-10 && "Weights must be non-zero");
+  CHECK(w_norm > 1e-10 && "Weights must be non-zero");
 
   // Test 3: Assembly with lumped port doesn't produce singular system
   BC bc;
@@ -79,18 +79,18 @@ int main() {
             << assembly.A.cols() << "\n";
   std::cout << "RHS norm: " << assembly.b.norm() << "\n";
 
-  assert(assembly.A.rows() > 0 && "System matrix must be non-empty");
-  assert(assembly.b.norm() > 1e-15 &&
-         "RHS must be non-zero when port is active");
+  CHECK(assembly.A.rows() > 0 && "System matrix must be non-empty");
+  CHECK(assembly.b.norm() > 1e-15 &&
+        "RHS must be non-zero when port is active");
 
   // Test 4: System is solvable
   auto result = solve_linear(assembly.A, assembly.b);
   VecC solution = result.x;
   double sol_norm = solution.norm();
   std::cout << "Solution norm: " << sol_norm << "\n";
-  assert(sol_norm > 1e-20 && "Solution must be non-zero");
-  assert(std::isfinite(sol_norm) && "Solution must be finite");
+  CHECK(sol_norm > 1e-20 && "Solution must be non-zero");
+  CHECK(std::isfinite(sol_norm) && "Solution must be finite");
 
   std::cout << "\nAll lumped port tests passed!\n";
-  return 0;
+  return edgefem_test::exit_code();
 }

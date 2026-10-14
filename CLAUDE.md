@@ -85,6 +85,8 @@ ctest --test-dir build -j
 # Specific test labels
 ctest --test-dir build -L pml    # PML absorption
 ctest --test-dir build -L abc    # ABC boundary
+ctest --test-dir build -L lumped # lumped-port physics
+ctest --test-dir build -LE known_issue  # skip tests with open known issues
 
 # Single test binary
 ./build/tests/test_maxwell
@@ -162,7 +164,7 @@ Python CLIs under `tools/` (see AGENTS.md):
 
 - All code in `namespace edgefem`
 - Public headers in `include/edgefem/`, implementations in `src/`
-- Tests use simple `assert()` macros (no external framework)
+- Tests use `CHECK(cond)` / `CHECK_NEAR(a, b, tol)` from `tests/test_check.hpp` (no external framework); `main` returns `edgefem_test::exit_code()`. Do not use `assert()`: Release builds define `NDEBUG` and compile it out
 - Edge canonical form: `(n0 < n1)` stored in `mesh.edges`
 
 ## Known Issues & Critical Fixes

@@ -1,6 +1,6 @@
+#include "test_check.hpp"
 #include <Eigen/Dense>
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 
 #include "edgefem/maxwell.hpp"
@@ -24,15 +24,15 @@ int main() {
   p.pml_tensor_regions.emplace(pml_tag, spec);
   auto asmbl = assemble_maxwell(mesh, p, bc, {}, -1); // No ports
 
-  assert(!asmbl.diagnostics.empty());
+  CHECK(!asmbl.diagnostics.empty());
   const auto &diag = asmbl.diagnostics.front();
   for (int axis = 0; axis < 3; ++axis) {
     double refl = diag.reflection_est[axis];
     double refl_dB = 20.0 * std::log10(std::max(refl, 1e-12));
     // Expect at least ~40 dB attenuation per axis
-    assert(refl_dB <= -40.0);
+    CHECK(refl_dB <= -40.0);
   }
   // sanity: matrix built with expected size
-  assert(asmbl.A.rows() == static_cast<int>(mesh.edges.size()));
-  return 0;
+  CHECK(asmbl.A.rows() == static_cast<int>(mesh.edges.size()));
+  return edgefem_test::exit_code();
 }

@@ -11,9 +11,9 @@
 //   S11 = 0 (matched)
 //   S21 = exp(-jβL) for length L
 
+#include "test_check.hpp"
 #include <Eigen/Dense>
 #include <Eigen/Eigenvalues>
-#include <cassert>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
@@ -101,19 +101,19 @@ void test_whitney_matrices() {
   // Check curl-curl matrix symmetry
   bool K_symmetric = K.isApprox(K.transpose(), 1e-12);
   std::cout << "K symmetric: " << (K_symmetric ? "PASS" : "FAIL") << std::endl;
-  assert(K_symmetric);
+  CHECK(K_symmetric);
 
   // Check mass matrix symmetry and positive semi-definiteness
   bool M_symmetric = M.isApprox(M.transpose(), 1e-12);
   std::cout << "M symmetric: " << (M_symmetric ? "PASS" : "FAIL") << std::endl;
-  assert(M_symmetric);
+  CHECK(M_symmetric);
 
   Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, 6, 6>> es_M(M);
   double min_M_eig = es_M.eigenvalues().minCoeff();
   bool M_psd = min_M_eig >= -1e-12;
   std::cout << "M positive semi-definite: " << (M_psd ? "PASS" : "FAIL")
             << " (min eigenvalue = " << min_M_eig << ")" << std::endl;
-  assert(M_psd);
+  CHECK(M_psd);
 
   // For reference tet, K should have known structure
   // K_ij = V * (curl_i · curl_j)
@@ -124,7 +124,7 @@ void test_whitney_matrices() {
   std::cout << "K(0,0) check: expected=" << K00_expected
             << ", actual=" << K00_actual << " " << (K00_ok ? "PASS" : "FAIL")
             << std::endl;
-  assert(K00_ok);
+  CHECK(K00_ok);
 
   // Check K has correct null space dimension (gradient fields)
   // For tetrahedral edge elements, null space of K is dim 4 (gradients of node
@@ -149,7 +149,7 @@ void test_whitney_matrices() {
   bool M_trace_ok = M_trace > 0.0;
   std::cout << "M trace = " << M_trace << " " << (M_trace_ok ? "PASS" : "FAIL")
             << std::endl;
-  assert(M_trace_ok);
+  CHECK(M_trace_ok);
 
   std::cout << "\nCurl-curl matrix K:\n" << K << std::endl;
   std::cout << "\nMass matrix M:\n" << M << std::endl;
@@ -187,7 +187,7 @@ void test_assembly_formulation() {
   std::cout << "Matrix dimensions: " << asmbl.A.rows() << "x" << asmbl.A.cols()
             << " (expected " << n_edges << "x" << n_edges << ") "
             << (dim_ok ? "PASS" : "FAIL") << std::endl;
-  assert(dim_ok);
+  CHECK(dim_ok);
 
   // Check Hermitian symmetry (should be symmetric for lossless, real materials)
   Eigen::MatrixXcd A_dense = Eigen::MatrixXcd(asmbl.A);
@@ -195,7 +195,7 @@ void test_assembly_formulation() {
   bool symmetric = sym_error < 1e-10;
   std::cout << "Matrix Hermitian symmetry error: " << sym_error << " "
             << (symmetric ? "PASS" : "FAIL") << std::endl;
-  assert(symmetric);
+  CHECK(symmetric);
 
   // Analyze diagonal structure
   // For free-space (εr=μr=1), diagonal should be: K_ii - k0²*M_ii
@@ -281,8 +281,8 @@ void test_assembly_formulation() {
             << std::endl;
   std::cout << "  High freq negative: " << (high_negative ? "PASS" : "FAIL")
             << std::endl;
-  assert(low_positive);
-  assert(high_negative);
+  CHECK(low_positive);
+  CHECK(high_negative);
 }
 
 // =============================================================================
@@ -339,7 +339,7 @@ void test_waveguide_sparams() {
   std::cout << "\nMode verification: fc " << (fc_match ? "PASS" : "FAIL")
             << ", β " << (beta_match ? "PASS" : "FAIL") << ", Z0 "
             << (Z0_match ? "PASS" : "FAIL") << std::endl;
-  assert(fc_match && beta_match && Z0_match);
+  CHECK(fc_match && beta_match && Z0_match);
 
   // Extract port surfaces and build wave ports
   PortSurfaceMesh port1 = extract_surface_mesh(mesh, 2); // z=0 face
@@ -669,5 +669,5 @@ int main() {
   std::cout << "Benchmark complete." << std::endl;
   std::cout << "========================================" << std::endl;
 
-  return 0;
+  return edgefem_test::exit_code();
 }

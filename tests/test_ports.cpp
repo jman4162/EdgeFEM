@@ -1,4 +1,4 @@
-#include <cassert>
+#include "test_check.hpp"
 #include <cmath>
 #include <iostream>
 
@@ -9,9 +9,9 @@ using namespace edgefem;
 
 int main() {
   auto mesh = load_gmsh_v2("examples/wr90_port.msh");
-  assert(!mesh.nodes.empty());
-  assert(!mesh.tris.empty());
-  assert(!mesh.boundary_lines.empty());
+  CHECK(!mesh.nodes.empty());
+  CHECK(!mesh.tris.empty());
+  CHECK(!mesh.boundary_lines.empty());
 
   // For TM modes with Ez=0 on boundary, lowest mode is TM11.
   const int num_modes = 1;
@@ -36,7 +36,7 @@ int main() {
   std::cout << "Analytical TE10 fc = " << fc_te10 / 1e9 << " GHz\n";
 
   // Check if the computed fc is within 5% of the analytical value.
-  assert(std::abs(mode.fc - fc_te10) / fc_te10 < 0.05);
+  CHECK(std::abs(mode.fc - fc_te10) / fc_te10 < 0.05);
 
-  return 0;
+  return edgefem_test::exit_code();
 }

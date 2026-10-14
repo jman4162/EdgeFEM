@@ -1,5 +1,5 @@
+#include "test_check.hpp"
 #include <Eigen/Dense>
-#include <cassert>
 #include <cmath>
 #include <iostream>
 
@@ -38,10 +38,10 @@ int main() {
   double length = 0.05;
   auto analytic = straight_waveguide_sparams(dims, length, freq);
 
-  assert(S.rows() == 2 && S.cols() == 2);
-  assert(std::abs(S(0, 0)) < 0.2);
-  assert(std::abs(S(1, 1)) < 0.2);
-  assert(std::abs(std::abs(S(1, 0)) - std::abs(analytic.s21)) < 0.2);
+  CHECK(S.rows() == 2 && S.cols() == 2);
+  CHECK(std::abs(S(0, 0)) < 0.2);
+  CHECK(std::abs(S(1, 1)) < 0.2);
+  CHECK(std::abs(std::abs(S(1, 0)) - std::abs(analytic.s21)) < 0.2);
 
-  return 0;
+  return edgefem_test::exit_code();
 }

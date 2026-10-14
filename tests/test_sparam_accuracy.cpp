@@ -1,9 +1,24 @@
 // Comprehensive S-parameter accuracy test
 // Tests different normalization and ABC strategies to find the best approach
 // Target: |S21| > 0.95, |S11| < 0.1 for matched 50mm WR-90 waveguide
+//
+// Pass/fail (until 2026-10 the test passed if any one variant met the
+// target, so it stayed green with 17 of 18 variants failing):
+//   - "2D port mode + eigenmode" (calculate_sparams_eigenmode, the wave-port
+//     path) must meet the full target.
+//   - "Eigenvector + norm" must meet the full target. It is the documented
+//     production recipe for calculate_sparams: build ports, call
+//     normalize_port_weights, then calculate_sparams.
+//   - Every other calculate_sparams variant must be passive,
+//     |S11|^2 + |S21|^2 <= 1.01. The guide is lossless and the port loads
+//     are passive, so no weight scaling or port-ABC choice can make a
+//     physical port formulation return more power than it receives. The
+//     remaining variants use hand-picked weight scales and stay
+//     diagnostics for the full target.
 
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"
+#include "test_check.hpp"
 #include <cmath>
 #include <iomanip>
 #include <iostream>
@@ -22,6 +37,7 @@ struct TestResult {
   std::complex<double> S11, S21;
   double passivity;
   double phase_error_deg;
+  bool must_match = false; // must meet the full target, not only passivity
 };
 
 void print_result(const TestResult &r, double expected_phase_deg) {
@@ -156,6 +172,7 @@ int main() {
 
     TestResult r;
     r.name = "Eigenvector + norm (wAinvw=Z0/2)";
+    r.must_match = true;
     r.S11 = S(0, 0);
     r.S21 = S(1, 0);
     r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
@@ -335,6 +352,7 @@ int main() {
 
     TestResult r;
     r.name = "2D port mode + eigenmode";
+    r.must_match = true;
     r.S11 = S(0, 0);
     r.S21 = S(1, 0);
     r.passivity = std::norm(S(0, 0)) + std::norm(S(1, 0));
@@ -353,30 +371,24 @@ int main() {
   std::cout << "\nTarget: |S11| < 0.1, |S21| > 0.95, passivity ≤ 1.01"
             << std::endl;
 
-  bool any_pass = false;
   for (const auto &r : results) {
-    if (std::abs(r.S21) > 0.95 && std::abs(r.S11) < 0.1 &&
-        r.passivity <= 1.01) {
+    const bool passive = r.passivity <= 1.01;
+    const bool meets_target =
+        std::abs(r.S21) > 0.95 && std::abs(r.S11) < 0.1 && passive;
+    if (meets_target) {
       std::cout << "PASS: " << r.name << std::endl;
-      any_pass = true;
+    }
+    if (r.must_match && !meets_target) {
+      std::cout << "FAIL (target): " << r.name << std::endl;
+    } else if (!passive) {
+      std::cout << "FAIL (passivity): " << r.name << std::endl;
+    }
+    if (r.must_match) {
+      CHECK(meets_target);
+    } else {
+      CHECK(passive);
     }
   }
 
-  if (!any_pass) {
-    std::cout << "No configuration meets all criteria yet." << std::endl;
-
-    // Find best transmission
-    double best_s21 = 0;
-    std::string best_name;
-    for (const auto &r : results) {
-      if (std::abs(r.S21) > best_s21) {
-        best_s21 = std::abs(r.S21);
-        best_name = r.name;
-      }
-    }
-    std::cout << "Best |S21| = " << best_s21 << " from: " << best_name
-              << std::endl;
-  }
-
-  return any_pass ? 0 : 1;
+  return edgefem_test::exit_code();
 }
