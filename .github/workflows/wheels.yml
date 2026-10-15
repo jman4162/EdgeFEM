@@ -12,7 +12,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-13, macos-14]
+        # macos-14 is Apple silicon (arm64); macos-15-intel is the Intel
+        # (x86_64) image that replaced the retired macos-13.
+        os: [ubuntu-22.04, macos-14, macos-15-intel]
 
     steps:
       - uses: actions/checkout@v4
@@ -22,19 +24,45 @@ jobs:
         run: brew install eigen
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.16
+        uses: pypa/cibuildwheel@v2.21.3
         env:
-          # Build for Python 3.9-3.12
-          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-*"
+          # Build for Python 3.9-3.13
+          CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           # Skip musllinux (Alpine) and 32-bit builds
           CIBW_SKIP: "*-musllinux_* *-manylinux_i686 *-win32"
-          # Install Eigen on Linux before building
+          # Published wheels are built WITHOUT SuiteSparse UMFPACK, which is
+          # GPL-2.0-or-later; EdgeFEM is MIT. A wheel that links UMFPACK
+          # (EDGEFEM_USE_SUITESPARSE=ON) would carry the GPL's conditions,
+          # and its libumfpack dependency would not resolve on a user's
+          # machine. SKBUILD_CMAKE_DEFINE overrides pyproject.toml, so the
+          # wheels stay on Eigen SparseLU even if that default changes.
+          CIBW_ENVIRONMENT: >
+            SKBUILD_CMAKE_DEFINE="EDGEFEM_USE_SUITESPARSE=OFF"
+          CIBW_ENVIRONMENT_MACOS: >
+            SKBUILD_CMAKE_DEFINE="EDGEFEM_USE_SUITESPARSE=OFF"
+            MACOSX_DEPLOYMENT_TARGET=14.0
+          # CMakeLists.txt needs Eigen >= 3.4; the manylinux images ship
+          # 3.3. Install the 3.4.0 headers and CMake config (cmake from pip,
+          # since the image may not have it).
           CIBW_BEFORE_ALL_LINUX: >
-            yum install -y eigen3-devel ||
-            apt-get update && apt-get install -y libeigen3-dev
-          # Test the wheel after building
+            curl -sSL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+            | tar xz -C /tmp &&
+            /opt/python/cp312-cp312/bin/pip install cmake &&
+            /opt/python/cp312-cp312/bin/cmake -S /tmp/eigen-3.4.0 -B /tmp/eigen-build
+            -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_TESTING=OFF &&
+            /opt/python/cp312-cp312/bin/cmake --install /tmp/eigen-build
+          # Fast smoke test of the installed wheel (about 1 s): version and
+          # build flags, one WR-90 waveguide solve from a committed mesh, and
+          # the contract-fixture tests. The sources are copied to a temporary
+          # directory so the repository's python/ cannot shadow the wheel.
+          CIBW_TEST_REQUIRES: pytest
+          CIBW_TEST_SOURCES: >
+            tools/wheel_smoke.py
+            examples/rect_waveguide.msh
+            python/tests/test_contract.py
           CIBW_TEST_COMMAND: >
-            python -c "import pyedgefem; print('EdgeFEM imported successfully')"
+            python tools/wheel_smoke.py --expect-umfpack off &&
+            python -m pytest -q python/tests/test_contract.py
 
       - uses: actions/upload-artifact@v4
         with:

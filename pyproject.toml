@@ -1,10 +1,10 @@
 [build-system]
-requires = ["scikit-build-core>=0.5", "pybind11>=2.11"]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "edgefem"
-version = "1.0.0"
+dynamic = ["version"]
 description = "3D FEM Electromagnetics Simulator for RF and mmWave"
 readme = "README.md"
 license = {text = "MIT"}
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: C++",
     "Topic :: Scientific/Engineering :: Physics",
     "Operating System :: MacOS",
@@ -47,16 +48,26 @@ markers = [
 addopts = "-m 'not slow'"
 
 [tool.scikit-build]
-cmake.minimum-version = "3.20"
+cmake.version = ">=3.20"
 cmake.build-type = "Release"
-# Install the compiled pyedgefem module at the root level
-wheel.install-dir = "."
 
 [tool.scikit-build.cmake.define]
 EDGEFEM_PYTHON = "ON"
 EDGEFEM_BUILD_VECTOR = "ON"
 EDGEFEM_BUILD_SCALAR = "ON"
+# UMFPACK is GPL-2.0-or-later and EdgeFEM is MIT, so wheels that are
+# distributed are built without it. A private build can turn it on with
+# `uv build --wheel -C cmake.define.EDGEFEM_USE_SUITESPARSE=ON`.
+EDGEFEM_USE_SUITESPARSE = "OFF"
 
+[tool.scikit-build.wheel]
+# Install the compiled pyedgefem module at the root level
+install-dir = "."
 # Include the edgefem Python package
-[tool.scikit-build.wheel.packages]
-edgefem = "python/edgefem"
+packages = ["python/edgefem"]
+
+# One source of truth for the version: __version__ in the package.
+# CMakeLists.txt reads the same line.
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "python/edgefem/__init__.py"

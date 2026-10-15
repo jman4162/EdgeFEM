@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.20)
-project(EdgeFEM VERSION 1.0.0 LANGUAGES CXX)
+
+# The version lives in python/edgefem/__init__.py (__version__); pyproject.toml
+# and this file both read it from there.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/python/edgefem/__init__.py"
+     _edgefem_version_line REGEX "^__version__ = \"[0-9]+\\.[0-9]+\\.[0-9]+\"")
+string(REGEX REPLACE "^__version__ = \"([0-9.]+)\".*" "\\1"
+       EDGEFEM_VERSION "${_edgefem_version_line}")
+if (NOT EDGEFEM_VERSION)
+  message(FATAL_ERROR "no __version__ = \"X.Y.Z\" line in python/edgefem/__init__.py")
+endif()
+
+project(EdgeFEM VERSION ${EDGEFEM_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

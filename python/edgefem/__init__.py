@@ -38,7 +38,7 @@ try:
 except ImportError:
     plots = None  # matplotlib not installed
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     # Re-exported from pyedgefem (documented for IDE support)
     "Mesh", "Node", "Element", "Edge", "ElemType",
