@@ -573,8 +573,8 @@ class PatchAntennaDesign:
     def directivity(
         self,
         freq: float,
-        n_theta: Optional[int] = None,
-        n_phi: Optional[int] = None,
+        n_theta: int = 91,
+        n_phi: int = 73,
     ) -> float:
         """
         Compute directivity at given frequency.

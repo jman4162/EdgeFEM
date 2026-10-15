@@ -187,8 +187,8 @@ class TestPatternCache:
         return calls
 
     def test_directivity_reuses_pattern(self, design, monkeypatch):
-        """directivity() after radiation_pattern() on the same grid does not
-        evaluate the far field again."""
+        """directivity() after radiation_pattern() on the same explicit grid
+        does not evaluate the far field again."""
         calls = self._count_extractions(monkeypatch)
         design.radiation_pattern(FREQ, n_theta=19, n_phi=13)
         assert len(calls) == 1
@@ -197,17 +197,15 @@ class TestPatternCache:
         assert len(calls) == 1
         assert np.isfinite(D) and D > 1.0
 
-    def test_directivity_defaults_to_latest_pattern_grid(
-            self, design, monkeypatch):
-        """directivity(freq) with no grid uses the most recent pattern at
-        that frequency, so the worker's radiation_pattern + directivity
-        pair costs one evaluation."""
-        calls = self._count_extractions(monkeypatch)
+    def test_directivity_default_ignores_earlier_patterns(self, design):
+        """directivity() with no grid is the 91 x 73 value whether or not a
+        pattern on another grid was computed first."""
+        fresh = design.directivity(FREQ)
+        design._clear_pattern_cache()
         design.radiation_pattern(FREQ, n_theta=19, n_phi=13)
-        D = design.directivity(FREQ)
-        assert len(calls) == 1
-        D_explicit = design.directivity(FREQ, n_theta=19, n_phi=13)
-        assert D == D_explicit
+        after_other_grid = design.directivity(FREQ)
+        assert after_other_grid == fresh
+        assert (FREQ, 91, 73) in design._pattern_cache
 
     def test_directivity_without_pattern_uses_default_grid(
             self, design, monkeypatch):

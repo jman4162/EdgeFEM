@@ -187,10 +187,8 @@ class StackedPatchDesign:
         self._last_solutions = {}
         # Far-field cache: (freq, n_theta, n_phi) -> (solution serial,
         # pattern). An entry is valid while the solution it was computed
-        # from is still the one stored for freq. _pattern_latest maps freq
-        # to the key of its most recent pattern.
+        # from is still the one stored for freq.
         self._pattern_cache = {}
-        self._pattern_latest = {}
         self._solution_serial = {}
         self._serial_counter = 0
 
@@ -285,7 +283,6 @@ class StackedPatchDesign:
 
     def _clear_pattern_cache(self) -> None:
         self._pattern_cache = {}
-        self._pattern_latest = {}
 
     def _check_air_box(self, freq: float) -> None:
         """Warn once per mesh when the air box is below lambda/2 at freq."""
@@ -823,13 +820,11 @@ class StackedPatchDesign:
         serial = self._solution_serial.get(freq)
         cached = self._pattern_cache.get(key)
         if cached is not None and cached[0] == serial:
-            self._pattern_latest[freq] = key
             return self._copy_pattern(cached[1])
 
         pattern = self._evaluate_pattern(freq, n_theta, n_phi)
         if serial is not None:  # None: solution set without _store_solution
             self._pattern_cache[key] = (serial, pattern)
-            self._pattern_latest[freq] = key
         return self._copy_pattern(pattern)
 
     @staticmethod
@@ -919,32 +914,27 @@ class StackedPatchDesign:
     def directivity(
         self,
         freq: float,
-        n_theta: Optional[int] = None,
-        n_phi: Optional[int] = None,
+        n_theta: int = 91,
+        n_phi: int = 73,
     ) -> float:
         """
         Compute directivity at given frequency.
 
+        The value depends on the pattern grid only through the numerical
+        integration, and the default grid is fixed (91 x 73), so it does
+        not depend on which patterns were computed earlier. The pattern
+        comes from the same cache as radiation_pattern(): a call with the
+        grid of an earlier radiation_pattern() call does not evaluate the
+        far field again.
+
         Args:
             freq: Frequency in Hz
-            n_theta, n_phi: Pattern grid. If both are None, the grid of the
-                most recent radiation_pattern() call at this frequency is
-                used, so a pattern computed first is not evaluated again;
-                with no earlier pattern the grid is 91 x 73. If only one is
-                given, the other takes its default (91 or 73).
+            n_theta, n_phi: Pattern grid used for the integration
 
         Returns:
             Directivity (linear scale)
         """
-        if n_theta is None and n_phi is None:
-            latest = self._pattern_latest.get(freq)
-            if latest is not None:
-                _, n_theta, n_phi = latest
-        pattern = self.radiation_pattern(
-            freq,
-            n_theta=91 if n_theta is None else n_theta,
-            n_phi=73 if n_phi is None else n_phi,
-        )
+        pattern = self.radiation_pattern(freq, n_theta=n_theta, n_phi=n_phi)
         if isinstance(pattern, _AperturePattern):
             return self._compute_directivity_py(pattern)
         return em.compute_directivity(pattern)

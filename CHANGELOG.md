@@ -10,9 +10,8 @@
   loop to 1e-15 relative to the peak). Patterns are cached per
   (frequency, n_theta, n_phi) and dropped when the field solution at that
   frequency is replaced or the mesh is regenerated. `directivity()` takes
-  optional `n_theta`/`n_phi`; without them it uses the grid of the latest
-  pattern at that frequency (previously always 91 x 73), so directivity
-  after a coarser pattern is computed on that coarser grid.
+  optional `n_theta`/`n_phi` (default 91 x 73, as before) and reuses a
+  cached pattern when the grid matches.
 
 ### Fixed
 

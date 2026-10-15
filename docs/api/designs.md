@@ -312,14 +312,14 @@ replaced or the mesh is regenerated.
 ```python
 D = patch.directivity(
     freq: float,
-    n_theta: Optional[int] = None,
-    n_phi: Optional[int] = None
+    n_theta: int = 91,
+    n_phi: int = 73
 ) -> float
 ```
 
-Compute directivity (linear scale). With a FEM mesh and no grid given, the
-grid of the latest `radiation_pattern()` call at `freq` is used (91 x 73 if
-there was none), so a pattern computed first is not evaluated again.
+Compute directivity (linear scale) on a fixed default grid of 91 x 73. With
+a FEM mesh, a call whose grid equals that of an earlier `radiation_pattern()`
+call reuses the cached pattern.
 
 #### bandwidth
 
