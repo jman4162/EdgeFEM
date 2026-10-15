@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`StackedPatchDesign.radiation_pattern` is vectorized and cached.** The
+  Stratton-Chu sum over Huygens faces runs as blocked numpy matrix products
+  instead of a Python loop over directions and faces (results agree with the
+  loop to 1e-15 relative to the peak). Patterns are cached per
+  (frequency, n_theta, n_phi) and dropped when the field solution at that
+  frequency is replaced or the mesh is regenerated. `directivity()` takes
+  optional `n_theta`/`n_phi`; without them it uses the grid of the latest
+  pattern at that frequency (previously always 91 x 73), so directivity
+  after a coarser pattern is computed on that coarser grid.
+
 ### Fixed
 
 - **Stratton-Chu far-field kernel: three defects, one fix.** (1) The

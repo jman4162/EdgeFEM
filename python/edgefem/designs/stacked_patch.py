@@ -185,6 +185,14 @@ class StackedPatchDesign:
         self._bc = None
         self._ports = None
         self._last_solutions = {}
+        # Far-field cache: (freq, n_theta, n_phi) -> (solution serial,
+        # pattern). An entry is valid while the solution it was computed
+        # from is still the one stored for freq. _pattern_latest maps freq
+        # to the key of its most recent pattern.
+        self._pattern_cache = {}
+        self._pattern_latest = {}
+        self._solution_serial = {}
+        self._serial_counter = 0
 
     @property
     def mesh(self):
@@ -265,6 +273,19 @@ class StackedPatchDesign:
         self._bc = None
         self._ports = None
         self._last_solutions = {}
+        self._solution_serial = {}
+        self._clear_pattern_cache()
+
+    def _store_solution(self, freq: float, solution) -> None:
+        """Record the field solution for freq. A new solution gets a new
+        serial number, which makes any cached pattern for freq stale."""
+        self._serial_counter += 1
+        self._last_solutions[freq] = solution
+        self._solution_serial[freq] = self._serial_counter
+
+    def _clear_pattern_cache(self) -> None:
+        self._pattern_cache = {}
+        self._pattern_latest = {}
 
     def _check_air_box(self, freq: float) -> None:
         """Warn once per mesh when the air box is below lambda/2 at freq."""
@@ -611,7 +632,7 @@ class StackedPatchDesign:
             self._mesh, params, self._bc, self._ports, 0
         )
         result = em.solve_linear(assembly.A, assembly.b, opts)
-        self._last_solutions[freq] = result.x
+        self._store_solution(freq, result.x)
 
         return S11, result.x
 
@@ -767,6 +788,13 @@ class StackedPatchDesign:
 
         return freqs, np.array(Z_list), np.array(S11_list)
 
+    # Far-field evaluation works on blocks of directions so the
+    # directions x faces phase matrix stays small. Per matrix entry a block
+    # holds the real phase argument (8 bytes) and the complex exponential
+    # (16 bytes); 32 allows for the temporaries of the matrix product.
+    _FARFIELD_BYTES_PER_ENTRY = 32
+    _FARFIELD_CHUNK_BYTES = 256 * 2**20
+
     def radiation_pattern(
         self,
         freq: float,
@@ -776,104 +804,147 @@ class StackedPatchDesign:
         """
         Compute 3D radiation pattern via Huygens surface + Stratton-Chu.
 
+        The pattern is cached per (freq, n_theta, n_phi) and reused until
+        the field solution at freq is replaced or generate_mesh() is
+        called. Each call returns its own copy of the arrays.
+
         Args:
             freq: Frequency in Hz
-            n_theta: Number of theta samples
-            n_phi: Number of phi samples
+            n_theta: Number of theta samples (0 to 90 deg)
+            n_phi: Number of phi samples (0 to 360 deg)
 
         Returns:
-            FFPattern3D object
+            Pattern object with theta_grid, phi_grid, E_theta, E_phi
         """
         if freq not in self._last_solutions:
             self.simulate(freq)
 
+        key = (freq, n_theta, n_phi)
+        serial = self._solution_serial.get(freq)
+        cached = self._pattern_cache.get(key)
+        if cached is not None and cached[0] == serial:
+            self._pattern_latest[freq] = key
+            return self._copy_pattern(cached[1])
+
+        pattern = self._evaluate_pattern(freq, n_theta, n_phi)
+        if serial is not None:  # None: solution set without _store_solution
+            self._pattern_cache[key] = (serial, pattern)
+            self._pattern_latest[freq] = key
+        return self._copy_pattern(pattern)
+
+    @staticmethod
+    def _copy_pattern(pattern):
+        return _AperturePattern(
+            pattern.theta_grid.copy(), pattern.phi_grid.copy(),
+            pattern.E_theta.copy(), pattern.E_phi.copy(),
+        )
+
+    def _evaluate_pattern(self, freq: float, n_theta: int, n_phi: int):
+        """Stratton-Chu sum over the Huygens faces for an n_theta x n_phi
+        grid, vectorized over directions and faces in blocks."""
         solution = self._last_solutions[freq]
         omega = 2 * np.pi * freq
         c0 = 299792458.0
         k0 = omega / c0
 
-        # Extract Huygens surface
+        # Extract Huygens surface. Each attribute is read once: pybind
+        # copies the whole face list on every access.
         huygens = em.extract_huygens_surface(
             self._mesh, solution, self._TAG_HUYGENS, omega
         )
+        r = np.asarray(huygens.r, dtype=float).reshape(-1, 3)
+        n = np.asarray(huygens.n, dtype=float).reshape(-1, 3)
+        E_tan = np.asarray(huygens.E_tan, dtype=complex).reshape(-1, 3)
+        area = np.asarray(huygens.area, dtype=float).reshape(-1)
 
         # Ensure consistent outward (+z) normals on the horizontal Huygens
         # surface. The C++ extractor picks one parent tet per face, and for
         # faces shared between tets above and below the surface the choice
         # is non-deterministic, occasionally flipping the normal.
         # Use aperture/image theory: for an antenna above a PEC ground
-        # plane, the far field equals 2× the magnetic-current (M = -n×E)
-        # contribution from the aperture. H_tan is set to zero because
-        # image theory accounts for it via the factor of 2.
-        normals_fixed = []
-        E_doubled = []
-        H_zero = []
-        for i in range(len(huygens.n)):
-            n = huygens.n[i]
-            E = huygens.E_tan[i]
-            if n[2] < 0:  # pointing downward — flip
-                normals_fixed.append(-n)
-                E_doubled.append(-2.0 * E)
-            else:
-                normals_fixed.append(n)
-                E_doubled.append(2.0 * E)
-            H_zero.append(np.zeros(3, dtype=complex))
+        # plane, the far field equals 2x the magnetic-current (M = -n x E)
+        # contribution from the aperture. H_tan is not used because image
+        # theory accounts for it via the factor of 2.
+        sign = np.where(n[:, 2] < 0.0, -1.0, 1.0)[:, None]
+        M = -np.cross(sign * n, sign * 2.0 * E_tan)
+        weighted_M = M * area[:, None]                       # (faces, 3)
 
         # Upper hemisphere only (ground plane blocks lower hemisphere)
-        theta_rad = np.linspace(0, np.pi / 2, n_theta).tolist()
-        phi_rad = np.linspace(0, 2 * np.pi, n_phi).tolist()
+        theta_rad = np.linspace(0, np.pi / 2, n_theta)
+        phi_rad = np.linspace(0, 2 * np.pi, n_phi)
+        theta_grid, phi_grid = np.meshgrid(theta_rad, phi_rad, indexing="ij")
+        th = theta_grid.ravel()
+        ph = phi_grid.ravel()
+        sin_th, cos_th = np.sin(th), np.cos(th)
+        sin_ph, cos_ph = np.sin(ph), np.cos(ph)
+        zeros = np.zeros_like(th)
+        rhat = np.stack([sin_th * cos_ph, sin_th * sin_ph, cos_th], axis=1)
+        th_hat = np.stack([cos_th * cos_ph, cos_th * sin_ph, -sin_th], axis=1)
+        ph_hat = np.stack([-sin_ph, cos_ph, zeros], axis=1)
 
-        # Compute pattern in Python with aperture obliquity factor
-        # (1+cos θ)/2 that accounts for the open single-plane Huygens
-        # surface. A closed surface would cancel horizon radiation via
-        # side-face contributions; the obliquity factor approximates this.
-        E_theta_out = np.zeros((n_theta, n_phi), dtype=complex)
-        E_phi_out = np.zeros((n_theta, n_phi), dtype=complex)
-        theta_grid = np.zeros((n_theta, n_phi))
-        phi_grid = np.zeros((n_theta, n_phi))
+        # Per direction, the loop form summed
+        #   j k0 (rhat x M_s) x rhat * exp(-j k0 rhat.r_s) * area_s * cos_th
+        # over faces s. (rhat x M) x rhat is the part of M perpendicular to
+        # rhat, and th_hat, ph_hat are perpendicular to rhat, so
+        #   E_theta = j k0 cos_th * th_hat . F,  E_phi = j k0 cos_th * ph_hat . F
+        # with F = sum_s exp(-j k0 rhat.r_s) area_s M_s. The aperture
+        # obliquity factor cos_th approximates the horizon cancellation a
+        # closed Huygens surface would give; an open single-plane surface
+        # has no side faces.
+        n_dir = th.size
+        n_faces = r.shape[0]
+        per_dir = self._FARFIELD_BYTES_PER_ENTRY * max(n_faces, 1)
+        chunk = max(1, int(self._FARFIELD_CHUNK_BYTES // per_dir))
 
-        for ti, th in enumerate(theta_rad):
-            sin_th = np.sin(th)
-            cos_th = np.cos(th)
-            obliquity = cos_th
+        F = np.zeros((n_dir, 3), dtype=complex)
+        if n_faces:
+            for start in range(0, n_dir, chunk):
+                stop = min(start + chunk, n_dir)
+                arg = rhat[start:stop] @ r.T                  # (dirs, faces)
+                arg *= -k0
+                phase = arg * 1j                              # complex copy
+                del arg
+                np.exp(phase, out=phase)
+                F[start:stop] = phase @ weighted_M
 
-            for pi_idx, ph in enumerate(phi_rad):
-                theta_grid[ti, pi_idx] = th
-                phi_grid[ti, pi_idx] = ph
+        scale = 1j * k0 * cos_th
+        E_theta_out = (scale * np.einsum("ij,ij->i", F, th_hat)).reshape(
+            n_theta, n_phi)
+        E_phi_out = (scale * np.einsum("ij,ij->i", F, ph_hat)).reshape(
+            n_theta, n_phi)
 
-                rhat = np.array([sin_th * np.cos(ph),
-                                 sin_th * np.sin(ph), cos_th])
-                th_hat = np.array([cos_th * np.cos(ph),
-                                   cos_th * np.sin(ph), -sin_th])
-                ph_hat = np.array([-np.sin(ph), np.cos(ph), 0.0])
+        # Lightweight pattern object compatible with the C++ API
+        return _AperturePattern(theta_grid, phi_grid, E_theta_out, E_phi_out)
 
-                Efar = np.zeros(3, dtype=complex)
-                for s in range(len(huygens.r)):
-                    M = -np.cross(normals_fixed[s], E_doubled[s])
-                    phase = np.exp(-1j * k0 * np.dot(rhat, huygens.r[s]))
-                    term = 1j * k0 * np.cross(np.cross(rhat, M), rhat)
-                    Efar += term * phase * huygens.area[s] * obliquity
-
-                E_theta_out[ti, pi_idx] = np.dot(Efar, th_hat)
-                E_phi_out[ti, pi_idx] = np.dot(Efar, ph_hat)
-
-        # Return a lightweight pattern object compatible with the C++ API
-        pattern = _AperturePattern(
-            theta_grid, phi_grid, E_theta_out, E_phi_out
-        )
-        return pattern
-
-    def directivity(self, freq: float) -> float:
+    def directivity(
+        self,
+        freq: float,
+        n_theta: Optional[int] = None,
+        n_phi: Optional[int] = None,
+    ) -> float:
         """
         Compute directivity at given frequency.
 
         Args:
             freq: Frequency in Hz
+            n_theta, n_phi: Pattern grid. If both are None, the grid of the
+                most recent radiation_pattern() call at this frequency is
+                used, so a pattern computed first is not evaluated again;
+                with no earlier pattern the grid is 91 x 73. If only one is
+                given, the other takes its default (91 or 73).
 
         Returns:
             Directivity (linear scale)
         """
-        pattern = self.radiation_pattern(freq)
+        if n_theta is None and n_phi is None:
+            latest = self._pattern_latest.get(freq)
+            if latest is not None:
+                _, n_theta, n_phi = latest
+        pattern = self.radiation_pattern(
+            freq,
+            n_theta=91 if n_theta is None else n_theta,
+            n_phi=73 if n_phi is None else n_phi,
+        )
         if isinstance(pattern, _AperturePattern):
             return self._compute_directivity_py(pattern)
         return em.compute_directivity(pattern)

@@ -570,18 +570,26 @@ class PatchAntennaDesign:
 
         return pattern
 
-    def directivity(self, freq: float) -> float:
+    def directivity(
+        self,
+        freq: float,
+        n_theta: Optional[int] = None,
+        n_phi: Optional[int] = None,
+    ) -> float:
         """
         Compute directivity at given frequency.
 
         Args:
             freq: Frequency in Hz
+            n_theta, n_phi: Pattern grid for the FEM backend (see
+                StackedPatchDesign.directivity); ignored by the analytical
+                model.
 
         Returns:
             Directivity (linear scale)
         """
         if self.has_fem:
-            return self._fem_backend.directivity(freq)
+            return self._fem_backend.directivity(freq, n_theta, n_phi)
 
         pattern = self.radiation_pattern(freq)
 

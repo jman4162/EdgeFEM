@@ -303,15 +303,23 @@ pattern = patch.radiation_pattern(
 ) -> FFPattern3D
 ```
 
-Compute 3D far-field radiation pattern.
+Compute 3D far-field radiation pattern. With a FEM mesh the pattern is
+cached per (freq, n_theta, n_phi) until the field solution at `freq` is
+replaced or the mesh is regenerated.
 
 #### directivity
 
 ```python
-D = patch.directivity(freq: float) -> float
+D = patch.directivity(
+    freq: float,
+    n_theta: Optional[int] = None,
+    n_phi: Optional[int] = None
+) -> float
 ```
 
-Compute directivity (linear scale).
+Compute directivity (linear scale). With a FEM mesh and no grid given, the
+grid of the latest `radiation_pattern()` call at `freq` is used (91 x 73 if
+there was none), so a pattern computed first is not evaluated again.
 
 #### bandwidth
 
