@@ -276,3 +276,30 @@ def test_near_field_matches_former_search(design):
     np.testing.assert_allclose(E, ref, rtol=1e-12, atol=0.0)
     assert np.all(np.abs(E[:2]).sum(axis=1) > 0.0)
     assert np.all(E[2] == 0.0)
+
+
+@gmsh_required
+def test_failed_sweep_point_gives_nan_z_and_a_warning(design, monkeypatch):
+    """A failed solve (NaN S from the C++ sweep) must not turn into a
+    number: Z_in is NaN there, not the 1e6 open-circuit placeholder, and a
+    RuntimeWarning names the frequency."""
+    real_sweep = em.frequency_sweep
+    nan = complex(np.nan, np.nan)
+
+    def sweep_with_failed_middle_point(*args, **kwargs):
+        res = real_sweep(*args, **kwargs)
+        S = [np.array(m, dtype=complex) for m in res.S_matrices]
+        S[1][:, :] = nan
+
+        class Result:
+            S_matrices = S
+            fields = res.fields
+            min_reflection_index = res.min_reflection_index
+        return Result()
+
+    monkeypatch.setattr(em, "frequency_sweep", sweep_with_failed_middle_point)
+    with pytest.warns(RuntimeWarning, match=r"1 of 3 frequencies.*2\.4 GHz"):
+        freqs, z, s11 = design.frequency_sweep(F_START, F_STOP, N_POINTS)
+    assert np.isnan(s11[1]) and np.isnan(z[1].real) and np.isnan(z[1].imag)
+    assert np.all(np.isfinite(z[[0, 2]]))
+    assert np.all(np.abs(z[[0, 2]]) < 1e5)

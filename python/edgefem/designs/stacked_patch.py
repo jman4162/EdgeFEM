@@ -539,8 +539,8 @@ class StackedPatchDesign:
           the 2.45 GHz FR-4 patch (tools/patch_convergence.py, 10 MHz steps)
           f_res is 2.313, 2.360, 2.370 GHz at density 8, 12, 16 with
           s = 0.75 h, h/2, 0.375 h, and 2.377 GHz at density 12 with
-          s = h/3; openEMS gives 2.389 GHz. s = h/4 at density 12 (456k
-          edges) is beyond what the UMFPACK build factors.
+          s = h/3, 2.388 GHz with s = h/4 (456k edges, 2.6x the time of
+          h/3); openEMS gives 2.389 GHz.
         """
         gp = self.ground_plane_size
         cx = gp / 2 + self.probe_offset[0]
@@ -805,7 +805,8 @@ class StackedPatchDesign:
             FrequencySweepResult: unpacks as (frequencies, Z_in_array,
             S11_array). With "min_s11" in keep_fields, its min_s11_index
             and min_s11_frequency name the frequency whose field was kept
-            (None otherwise).
+            (None otherwise). Where a solve failed, S11 and Z_in are NaN
+            and a RuntimeWarning names those frequencies.
         """
         freqs = np.linspace(f_start, f_stop, n_points)
         keep_indices, keep_min = self._keep_request(freqs, keep_fields)
@@ -844,15 +845,29 @@ class StackedPatchDesign:
 
         Z_list = []
         S11_list = []
+        failed = []
         Z0 = self.z0
         for i, S_mat in enumerate(sweep_result.S_matrices):
-            S11 = S_mat[0, 0]
+            S11 = complex(S_mat[0, 0])
             S11_list.append(S11)
-            if abs(1 - S11) > 1e-30:
+            if np.isnan(S11.real) or np.isnan(S11.imag):
+                # Failed solve: no S11, so no Z either.
+                failed.append(float(freqs[i]))
+                Z_in = complex(np.nan, np.nan)
+            elif abs(1 - S11) > 1e-30:
                 Z_in = Z0 * (1 + S11) / (1 - S11)
             else:
                 Z_in = complex(1e6, 0)
             Z_list.append(Z_in)
+        if failed:
+            warnings.warn(
+                f"StackedPatchDesign.frequency_sweep: the solve failed at "
+                f"{len(failed)} of {len(freqs)} frequencies (S11 and Z_in "
+                f"are NaN there): "
+                + ", ".join(f"{f / 1e9:.6g} GHz" for f in failed),
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         return FrequencySweepResult(freqs, np.array(Z_list),
                                     np.array(S11_list),
