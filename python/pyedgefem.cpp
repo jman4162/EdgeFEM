@@ -37,13 +37,12 @@ PYBIND11_MAKE_OPAQUE(VecC);
 
 namespace {
 
-// (elements.size(), ncols) int64 array with entry (i, k) = value(elements[i], k).
+// int64 array (elements.size(), ncols), entry (i, k) = value(elements[i], k).
 template <typename F>
 py::array_t<std::int64_t> element_array(const std::vector<Element> &elements,
                                         int ncols, F value) {
-  py::array_t<std::int64_t> out(
-      {static_cast<py::ssize_t>(elements.size()),
-       static_cast<py::ssize_t>(ncols)});
+  py::array_t<std::int64_t> out({static_cast<py::ssize_t>(elements.size()),
+                                 static_cast<py::ssize_t>(ncols)});
   auto r = out.mutable_unchecked<2>();
   for (size_t i = 0; i < elements.size(); ++i)
     for (int k = 0; k < ncols; ++k)
@@ -52,9 +51,8 @@ py::array_t<std::int64_t> element_array(const std::vector<Element> &elements,
 }
 
 // Element vertices as row indices into Mesh::nodes (conn holds node ids).
-py::array_t<std::int64_t> element_nodes(const Mesh &m,
-                                        const std::vector<Element> &elements,
-                                        int nverts) {
+py::array_t<std::int64_t>
+element_nodes(const Mesh &m, const std::vector<Element> &elements, int nverts) {
   return element_array(elements, nverts,
                        [&m](const Element &e, int k) -> std::int64_t {
                          return m.nodeIndex.at(e.conn[k]);

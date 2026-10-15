@@ -524,10 +524,11 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   return asmbl;
 }
 
-SParamSolution
-calculate_sparams_with_fields(const Mesh &mesh, const MaxwellParams &p,
-                              const BC &bc, const std::vector<WavePort> &ports,
-                              const SolveOptions &opts) {
+SParamSolution calculate_sparams_with_fields(const Mesh &mesh,
+                                             const MaxwellParams &p,
+                                             const BC &bc,
+                                             const std::vector<WavePort> &ports,
+                                             const SolveOptions &opts) {
   const int num_ports = static_cast<int>(ports.size());
   const int m = static_cast<int>(mesh.edges.size());
   SParamSolution out;

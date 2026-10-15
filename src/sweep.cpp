@@ -187,10 +187,10 @@ public:
       : min_reflection_(req.min_reflection) {
     for (std::size_t i : req.indices) {
       if (i >= num_freqs)
-        throw std::invalid_argument(
-            "frequency_sweep: kept field index " + std::to_string(i) +
-            " is out of range for " + std::to_string(num_freqs) +
-            " frequencies");
+        throw std::invalid_argument("frequency_sweep: kept field index " +
+                                    std::to_string(i) +
+                                    " is out of range for " +
+                                    std::to_string(num_freqs) + " frequencies");
       indices_.insert(i);
     }
   }

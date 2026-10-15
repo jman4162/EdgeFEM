@@ -100,10 +100,11 @@ struct SweepResult {
 ///        from the same factorization as the S-matrix: no extra solve.
 /// @return SweepResult with S-matrix at each frequency and the kept fields
 /// @throws std::invalid_argument if a kept index is out of range
-SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, const std::vector<WavePort> &ports,
-                            const std::vector<double> &frequencies,
-                            const SolveOptions &opts = SolveOptions(),
-                            const SweepFieldRequest &keep = SweepFieldRequest());
+SweepResult
+frequency_sweep(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+                const std::vector<WavePort> &ports,
+                const std::vector<double> &frequencies,
+                const SolveOptions &opts = SolveOptions(),
+                const SweepFieldRequest &keep = SweepFieldRequest());
 
 } // namespace edgefem

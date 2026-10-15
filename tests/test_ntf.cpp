@@ -50,7 +50,7 @@ int main() {
     CHECK(mag0 > 10 * mag1);
   }
 
-    // Hertzian dipole absolute test: exact near fields sampled on a Huygens
+  // Hertzian dipole absolute test: exact near fields sampled on a Huygens
   // sphere must reproduce the analytic far field in shape, polarization,
   // AND absolute magnitude. This is the test that arbitrates the kernel:
   // the pre-fix kernel (jk0 on the M term only) fails it by orders of
@@ -62,8 +62,8 @@ int main() {
   // Far field: |E_theta| = Z0 k Idl sin(th) / (4 pi r)  -> r-normalized
   // amplitude Z0 k Idl sin(th) / (4 pi).
   {
-    const double k0 = 2.0 * M_PI;         // 1 m wavelength
-    const double a = 0.75;                // Huygens sphere radius (ka ~ 4.7)
+    const double k0 = 2.0 * M_PI; // 1 m wavelength
+    const double a = 0.75;        // Huygens sphere radius (ka ~ 4.7)
     const double Z0l = 376.730313668;
     const std::complex<double> j(0.0, 1.0);
 
@@ -102,7 +102,8 @@ int main() {
         Eigen::Vector3cd Hvec = Hph * ph_hat.cast<std::complex<double>>();
         E.push_back(Evec.conjugate());
         H.push_back(Hvec.conjugate());
-        double dA = a * a * std::sin(th) * (M_PI / Ns_th) * (2.0 * M_PI / Ns_ph);
+        double dA =
+            a * a * std::sin(th) * (M_PI / Ns_th) * (2.0 * M_PI / Ns_ph);
         area.push_back(dA);
       }
     }
@@ -124,7 +125,7 @@ int main() {
       double expected = Z0l * k0 * std::sin(th) / (4.0 * M_PI);
       for (int ip = 0; ip < Nph; ++ip) {
         double got = std::abs(pat.E_theta(it, ip));
-        CHECK(std::abs(got - expected) / expected < 0.02); // 2% quadrature
+        CHECK(std::abs(got - expected) / expected < 0.02);    // 2% quadrature
         CHECK(std::abs(pat.E_phi(it, ip)) < 1e-3 * expected); // pure theta-pol
       }
     }
@@ -132,8 +133,10 @@ int main() {
     // Directivity of a Hertzian dipole is exactly 1.5 (1.76 dBi)
     {
       std::vector<double> theta_d(61), phi_d(121);
-      for (int i = 0; i < 61; ++i) theta_d[i] = i * M_PI / 60;
-      for (int i = 0; i < 121; ++i) phi_d[i] = i * 2.0 * M_PI / 120;
+      for (int i = 0; i < 61; ++i)
+        theta_d[i] = i * M_PI / 60;
+      for (int i = 0; i < 121; ++i)
+        phi_d[i] = i * 2.0 * M_PI / 120;
       FFPattern3D pat_d = stratton_chu_3d(r, n, E, H, area, theta_d, phi_d, k0);
       double D = compute_directivity(pat_d);
       CHECK(std::abs(D - 1.5) < 0.02);
