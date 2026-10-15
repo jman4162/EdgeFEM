@@ -127,7 +127,8 @@ export PATH="/path/to/gmsh/bin:$PATH"
 
 ### Eigen not found
 
-If CMake can't find Eigen, specify the path:
+EdgeFEM accepts Eigen 3.4.x and 5.x (`cmake/FindEigen3.cmake`); Eigen 3.3
+is too old. If CMake can't find Eigen, specify the path:
 
 ```bash
 cmake -S . -B build -DEIGEN3_INCLUDE_DIR=/path/to/eigen3 ...

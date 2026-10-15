@@ -20,6 +20,7 @@ enable_testing()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# cmake/FindEigen3.cmake accepts Eigen 3.4.x and 5.x (Homebrew ships 5.0.1).
 find_package(Eigen3 3.4 REQUIRED)
 
 option(EDGEFEM_BUILD_SCALAR "Build scalar prototype" ON)

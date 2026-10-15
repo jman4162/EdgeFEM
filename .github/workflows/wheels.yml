@@ -20,11 +20,15 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Eigen (macOS)
+        # Homebrew ships Eigen 5.x; cmake/FindEigen3.cmake accepts 3.4.x and 5.x.
         if: runner.os == 'macOS'
         run: brew install eigen
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21.3
+        # cibuildwheel 3.x: CIBW_TEST_SOURCES (added in 3.0; 2.21.3 ignores
+        # it, so the test command found no files) and manylinux_2_28 as the
+        # default Linux image. 3.4.1 is the last 3.x release (2026-04-02).
+        uses: pypa/cibuildwheel@v3.4.1
         env:
           # Build for Python 3.9-3.13
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
@@ -41,9 +45,9 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: >
             SKBUILD_CMAKE_DEFINE="EDGEFEM_USE_SUITESPARSE=OFF"
             MACOSX_DEPLOYMENT_TARGET=14.0
-          # CMakeLists.txt needs Eigen >= 3.4; the manylinux images ship
-          # 3.3. Install the 3.4.0 headers and CMake config (cmake from pip,
-          # since the image may not have it).
+          # CMakeLists.txt needs Eigen >= 3.4; the manylinux_2_28 image
+          # (AlmaLinux 8) offers 3.3. Install the 3.4.0 headers and CMake
+          # config (cmake from pip, since the image may not have it).
           CIBW_BEFORE_ALL_LINUX: >
             curl -sSL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
             | tar xz -C /tmp &&
@@ -53,8 +57,9 @@ jobs:
             /opt/python/cp312-cp312/bin/cmake --install /tmp/eigen-build
           # Fast smoke test of the installed wheel (about 1 s): version and
           # build flags, one WR-90 waveguide solve from a committed mesh, and
-          # the contract-fixture tests. The sources are copied to a temporary
-          # directory so the repository's python/ cannot shadow the wheel.
+          # the contract-fixture tests. cibuildwheel copies the listed
+          # sources into a temporary directory and runs the command there,
+          # so the repository's python/ cannot shadow the wheel.
           CIBW_TEST_REQUIRES: pytest
           CIBW_TEST_SOURCES: >
             tools/wheel_smoke.py

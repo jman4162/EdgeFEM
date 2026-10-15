@@ -42,6 +42,9 @@ automatically as a dependency).
 
 From source (for development):
 
+Eigen 3.4.x and 5.x both work (Homebrew installs 5.0.1; Ubuntu 24.04
+`libeigen3-dev` is 3.4.0).
+
 ```bash
 # macOS
 brew install cmake ninja eigen gmsh
