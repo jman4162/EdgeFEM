@@ -20,6 +20,7 @@ probe through a PEC cavity. The earlier patch tests only checked
 """
 
 import math
+import warnings
 
 import numpy as np
 import pytest
@@ -275,11 +276,15 @@ def test_domain_starts_at_ground_and_air_box_is_half_wavelength(tmp_path):
 
 
 def test_air_box_below_half_wavelength_warns(tmp_path):
+    # Default f_min is 0.8 x design_freq: no warning at 0.85 x, one below.
     patch = _fr4_patch()
     patch.generate_mesh(density=4, design_freq=FR4_DESIGN_FREQ,
                         output_path=str(tmp_path / "patch.msh"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        patch.simulate(0.85 * FR4_DESIGN_FREQ)
     with pytest.warns(UserWarning, match="lambda/2"):
-        patch.simulate(0.9 * FR4_DESIGN_FREQ)
+        patch.simulate(0.75 * FR4_DESIGN_FREQ)
 
 
 def test_cavity_arguments_are_deprecated():
@@ -299,10 +304,15 @@ def test_cavity_arguments_are_deprecated():
 # at 2.25 GHz (f_min). The cavity-model resonance
 # is 2.467 GHz, so the +/-5% band (2.344 to 2.590 GHz) lies inside the
 # sweep, and a minimum at either end of the sweep cannot pass.
-# Cost: one LU per point on a 117k-edge mesh. With UMFPACK the test takes
-# 36 s and 6.5 GB peak (process, including meshing); with the SparseLU
-# fallback before PEC elimination it took about 2 min per point, 8.3 GB
-# and 39 min. Deselected by default; run with `pytest -m slow`.
+# The result depends on the near-patch mesh size,
+# StackedPatchDesign._PATCH_SIZE_X_DENSITY: 2.350 GHz (-4.7%) at 6.0 (h/2
+# near the patch), 2.375 GHz (-3.7%) at 4.0 (h/3, the default since the
+# convergence study in docs/validation/patch_2p45ghz.md). openEMS puts
+# this patch at 2.389 GHz, 3.2% below the cavity model.
+# Cost with UMFPACK: 112 s and 8.4 GB peak (process, including meshing)
+# at h/3; 36 s and 6.5 GB at h/2. With the SparseLU fallback before PEC
+# elimination (h/2) it took about 2 min per point, 8.3 GB and 39 min.
+# Deselected by default; run with `pytest -m slow`.
 
 KNOWN_ANSWER_DENSITY = 12
 KNOWN_ANSWER_SWEEP = (2.25e9, 2.70e9, 19)

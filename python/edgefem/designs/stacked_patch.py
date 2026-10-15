@@ -120,10 +120,19 @@ class StackedPatchDesign:
     _DEFAULT_HOLE_RATIO = float(np.exp(50.0 / 60.0))
     # Default air box height above the top metal, in wavelengths at f_min.
     _AIR_BOX_WAVELENGTHS = 0.5
+    # Default f_min as a fraction of design_freq: a sweep of +/-20% around
+    # design_freq (the default band of PatchAntennaDesign.bandwidth) needs
+    # no f_min and raises no air box warning.
+    _F_MIN_DEFAULT_RATIO = 0.8
     # Mesh size field (see _set_mesh_size). Near the patches the size is
     # _PATCH_SIZE_X_DENSITY * (thinnest substrate thickness) / density:
-    # h/2 at density 12.
-    _PATCH_SIZE_X_DENSITY = 6.0
+    # h/3 at density 12. Chosen from the convergence study in
+    # docs/validation/patch_2p45ghz.md (tools/patch_convergence.py): on the
+    # 2.45 GHz FR-4 patch at density 12, 6.0 (h/2) gave f_res 2.360 GHz and
+    # 4.0 gave 2.377 GHz, against 2.389 GHz from openEMS, at 3x the solve
+    # time (97 s -> 303 s). The known-answer test in
+    # python/tests/test_patch_physics.py depends on this value.
+    _PATCH_SIZE_X_DENSITY = 4.0
     _PATCH_SIZE_SLOPE = 0.5
     _PROBE_SIZE_SLOPE = 0.5
 
@@ -254,8 +263,9 @@ class StackedPatchDesign:
                         If None, estimates from first patch dimensions.
             f_min: Lowest frequency to be simulated on this mesh (Hz).
                 Sets the default air box height to lambda/2 at f_min.
-                If None, design_freq. simulate() and frequency_sweep()
-                warn below the frequency at which the air box is lambda/2.
+                If None, 0.8 * design_freq. simulate() and
+                frequency_sweep() warn below the frequency at which the
+                air box is lambda/2.
         """
         try:
             import gmsh
@@ -271,7 +281,7 @@ class StackedPatchDesign:
             eps_r = self.substrates[0]['eps_r']
             design_freq = c0 / (2 * L * np.sqrt(eps_r))
         if f_min is None:
-            f_min = design_freq
+            f_min = self._F_MIN_DEFAULT_RATIO * design_freq
 
         wavelength = c0 / design_freq
         lc = wavelength / density
@@ -522,13 +532,15 @@ class StackedPatchDesign:
         - Probe: size min(a, b - a) / 3 (3 elements across the narrower of
           the probe half-side and the gap) within the hole, growing with
           slope 0.5 away from the probe and hole edges.
-        - Patches: size s = 6 min_t / density (h/2 at density 12) inside
-          the patch footprint from the ground plane to the highest patch,
-          and within min_t of the patch outlines, growing with slope 0.5.
-          f_res of the 2.45 GHz FR-4 patch rises as s shrinks (2.300,
-          2.350, 2.375 GHz at perimeter sizes h, h/2, 0.35 h, density 12),
-          so s sets the accuracy near the substrate; the global density
-          (lc) does not (density 16 gave the same 2.300 GHz as 12).
+        - Patches: size s = _PATCH_SIZE_X_DENSITY * min_t / density (h/3
+          at density 12) inside the patch footprint from the ground plane
+          to the highest patch, and within min_t of the patch outlines,
+          growing with slope 0.5. s sets the accuracy more than lc: on
+          the 2.45 GHz FR-4 patch (tools/patch_convergence.py, 10 MHz steps)
+          f_res is 2.313, 2.360, 2.370 GHz at density 8, 12, 16 with
+          s = 0.75 h, h/2, 0.375 h, and 2.377 GHz at density 12 with
+          s = h/3; openEMS gives 2.389 GHz. s = h/4 at density 12 (456k
+          edges) is beyond what the UMFPACK build factors.
         """
         gp = self.ground_plane_size
         cx = gp / 2 + self.probe_offset[0]

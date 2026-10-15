@@ -78,7 +78,8 @@ class TestStackedPatchValidation:
             substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4, 'tan_d': 0.02}],
             probe_radius=0.65e-3,
         )
-        self.design.generate_mesh(density=8)
+        # The sweeps below start at 2.0 GHz: size the air box for it.
+        self.design.generate_mesh(density=8, f_min=2.0e9)
 
     def test_passivity_across_band(self):
         """S11 magnitude stays bounded across frequency sweep."""

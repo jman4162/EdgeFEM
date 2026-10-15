@@ -285,7 +285,7 @@ class PatchAntennaDesign:
                         estimated resonant frequency.
             f_min: Lowest frequency to be simulated (Hz); the air box is
                 lambda/2 at f_min unless air_box_height was given. If
-                None, design_freq.
+                None, 0.8 * design_freq.
 
         Raises:
             RuntimeError: If Gmsh is not available or mesh generation fails

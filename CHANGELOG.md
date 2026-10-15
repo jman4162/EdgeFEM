@@ -52,6 +52,18 @@
 
 ### Changed
 
+- **Patch mesh: finer near the patches, larger default air box.**
+  `StackedPatchDesign._PATCH_SIZE_X_DENSITY` 6.0 -> 4.0: the mesh size
+  inside and near the patch footprint is h/3 at density 12 (was h/2). On
+  the 2.45 GHz FR-4 patch at density 12 f_res moves 2.360 -> 2.377 GHz
+  (openEMS: 2.389 GHz) and the solve time triples (97 s -> 303 s, peak
+  7.2 -> 9.7 GB); the known-answer test now finds 2.375 GHz (-3.7% from the
+  cavity model, was -4.7%) in 112 s. `generate_mesh(f_min=None)` now sizes
+  the air box for 0.8 x design_freq (was design_freq), so a sweep within
+  +/-20% of design_freq raises no air box warning; the fast Python suite
+  went from 30 warnings to 13 (all from the analytical
+  `PatchAntennaDesign` paths) and from 68 s to 123 s.
+  `tools/patch_convergence.py` reproduces the study.
 - **First-order ABC uses the boundary surface mass matrix.** `use_abc` now
   adds j k0 int_S N_i . N_j dS over the ABC triangles (the weak form of
   n x curl E + j k0 n x n x E = 0) instead of j k0 on the diagonal of each
