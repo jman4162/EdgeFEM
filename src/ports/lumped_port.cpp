@@ -181,6 +181,7 @@ WavePort build_lumped_port(const Mesh &mesh, const LumpedPortConfig &config) {
   port.surface_tag = config.surface_tag;
   port.edges = edges;
   port.weights = weights;
+  port.kind = PortKind::Lumped;
   port.mode.Z0 = config.z0;
   port.mode.beta = 0.0; // No propagation constant for lumped port
   port.mode.kc = 0.0;

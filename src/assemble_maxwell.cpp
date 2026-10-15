@@ -79,22 +79,38 @@ constexpr double eta0 = mu0 * c0; // free-space impedance ≈ 377 ohms
 // definition assumes real Z0 (a complex Z0 enters as 1/Z0 and sqrt(Z0)).
 // The load is frequency dependent only through the factor j k0:
 // port_load_matrix returns L = (eta0 / Z0) v v^H and callers add j k0 L.
+//
+// All of the above applies to ports with kind == PortKind::Lumped only
+// (build_lumped_port). Modal and Floquet ports (PortKind::Modal: modal
+// weights from build_wave_port and the other wave-port builders, which are
+// not a gap-voltage functional) keep the 1.0.0 terms unchanged:
+//   load    A += w w^H / Z0               (modal_port_load_matrix)
+//   source  b  = 2 w / sqrt(Z0)           (port_excitation)
+//   S(j, i) = V_j / sqrt(Z0_i) - delta_ij, V_j = w_j^H x  (fill_sparam_column)
+// These have no derivation behind them and their S-parameters are not
+// validated (WR-90 with analytic TE10 weights gives |S11| = 2.4 at 8 GHz);
+// calculate_sparams_eigenmode is the validated modal path. The S-parameter
+// functions print a one-time warning when a Modal port is present.
 
 namespace {
 bool port_has_load(const WavePort &port) {
   return port.weights.size() == static_cast<int>(port.edges.size()) &&
          port.mode.Z0 != std::complex<double>(0.0);
 }
-} // namespace
 
-SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
-                        int num_edges) {
+bool is_lumped(const WavePort &port) { return port.kind == PortKind::Lumped; }
+
+// Outer products scale * w w^H of every port that has a load and passes
+// `select`, PEC edges left out.
+template <typename Select, typename Scale>
+SpMatC port_outer_products(const std::vector<WavePort> &ports, const BC &bc,
+                           int num_edges, Select select, Scale scale_of) {
   using T = Eigen::Triplet<std::complex<double>>;
   std::vector<T> trips;
   for (const auto &port : ports) {
-    if (!port_has_load(port))
+    if (!select(port) || !port_has_load(port))
       continue;
-    const std::complex<double> scale = eta0 / port.mode.Z0;
+    const std::complex<double> scale = scale_of(port);
     for (size_t a = 0; a < port.edges.size(); ++a) {
       const int ga = port.edges[a];
       if (bc.dirichlet_edges.count(ga))
@@ -112,6 +128,44 @@ SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
   L.setFromTriplets(trips.begin(), trips.end());
   L.makeCompressed();
   return L;
+}
+} // namespace
+
+bool has_modal_ports(const std::vector<WavePort> &ports) {
+  for (const auto &port : ports)
+    if (!is_lumped(port))
+      return true;
+  return false;
+}
+
+void warn_modal_sparams(const std::vector<WavePort> &ports) {
+  static std::atomic<bool> warned{false};
+  if (!has_modal_ports(ports) || warned.exchange(true))
+    return;
+  std::cerr << "WARNING: S-parameters computed with modal or Floquet ports "
+               "(any port not built by build_lumped_port). Modal and Floquet "
+               "port S-parameters are not validated in this release; they "
+               "use the 1.0.0 port terms unchanged. calculate_sparams_"
+               "eigenmode is the validated modal path."
+            << std::endl;
+}
+
+SpMatC modal_port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
+                              int num_edges) {
+  return port_outer_products(
+      ports, bc, num_edges, [](const WavePort &p) { return !is_lumped(p); },
+      [](const WavePort &p) {
+        return std::complex<double>(1.0, 0.0) / p.mode.Z0;
+      });
+}
+
+SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
+                        int num_edges) {
+  return port_outer_products(
+      ports, bc, num_edges, [](const WavePort &p) { return is_lumped(p); },
+      [](const WavePort &p) {
+        return std::complex<double>(eta0, 0.0) / p.mode.Z0;
+      });
 }
 
 SpMatC abc_surface_matrix(const Mesh &mesh, const MaxwellParams &p,
@@ -136,8 +190,11 @@ VecC port_excitation(const WavePort &port, const BC &bc, int num_edges,
   if (!port_has_load(port))
     return b;
   const std::complex<double> current = 2.0 / std::sqrt(port.mode.Z0);
+  // Lumped: Norton current 2 / sqrt(Z0) across the gap. Modal: the 1.0.0
+  // source 2 w / sqrt(Z0), without the j k0 eta0 factor.
   const std::complex<double> scale =
-      std::complex<double>(0.0, k0 * eta0) * current;
+      is_lumped(port) ? std::complex<double>(0.0, k0 * eta0) * current
+                      : current;
   for (size_t a = 0; a < port.edges.size(); ++a) {
     const int ga = port.edges[a];
     if (bc.dirichlet_edges.count(ga))
@@ -164,6 +221,16 @@ std::complex<double> port_voltage(const WavePort &port, const BC &bc,
 void fill_sparam_column(Eigen::MatrixXcd &S, int active,
                         const std::vector<WavePort> &ports, const BC &bc,
                         const VecC &x) {
+  if (!is_lumped(ports[active])) {
+    // 1.0.0 extraction for a modal active port: every port's voltage over
+    // the active port's sqrt(Z0).
+    const std::complex<double> v_inc = std::sqrt(ports[active].mode.Z0);
+    for (int j = 0; j < static_cast<int>(ports.size()); ++j) {
+      const std::complex<double> vj = port_voltage(ports[j], bc, x);
+      S(j, active) = (j == active) ? (vj - v_inc) / v_inc : vj / v_inc;
+    }
+    return;
+  }
   for (int j = 0; j < static_cast<int>(ports.size()); ++j) {
     if (!port_has_load(ports[j])) {
       S(j, active) =
@@ -340,14 +407,20 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
 
   asmbl.A.makeCompressed();
 
-  // Gap-port loads j k0 (eta0 / Z0) v v^H on every port, and the active
-  // port's source j k0 eta0 (2 / sqrt(Z0)) v (derivation above). PEC edges
-  // are skipped: their field is zero by definition.
+  // Gap-port loads j k0 (eta0 / Z0) v v^H on every lumped port, the 1.0.0
+  // load w w^H / Z0 on every modal port, and the active port's source
+  // (derivation above). PEC edges are skipped: their field is zero by
+  // definition.
   if (!ports.empty()) {
     const double k0_port = p.omega / c0;
     const SpMatC L = port_load_matrix(ports, bc, m);
     if (L.nonZeros() > 0) {
       asmbl.A += std::complex<double>(0.0, k0_port) * L;
+      asmbl.A.makeCompressed();
+    }
+    const SpMatC Y_modal = modal_port_load_matrix(ports, bc, m);
+    if (Y_modal.nonZeros() > 0) {
+      asmbl.A += Y_modal;
       asmbl.A.makeCompressed();
     }
     if (active_port_idx >= 0 &&
@@ -461,6 +534,7 @@ calculate_sparams_with_fields(const Mesh &mesh, const MaxwellParams &p,
   out.S.resize(num_ports, num_ports);
   if (num_ports == 0)
     return out;
+  warn_modal_sparams(ports);
 
   // One loaded matrix for all ports; port i only changes the RHS. The
   // factored system has the Dirichlet rows and columns removed (they are
@@ -604,6 +678,7 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
                            const std::vector<WavePort> &ports) {
   const int num_ports = static_cast<int>(ports.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
+  warn_modal_sparams(ports);
 
   // Build map of slave to master edges for solution recovery
   std::unordered_map<int, std::pair<int, std::complex<double>>> slave_to_master;

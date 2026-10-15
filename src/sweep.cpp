@@ -261,6 +261,7 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
   if (num_ports == 0 || frequencies.empty()) {
     return result;
   }
+  warn_modal_sparams(ports);
 
   // Check if we can use K/M separation (no PML, no dispersive materials)
   bool has_pml = !p.pml_regions.empty() || !p.pml_tensor_regions.empty();
@@ -288,12 +289,15 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
     }
 
     // Frequency-independent part of the j k0 terms: the gap-port load
-    // (eta0 / Z0) v v^H (derivation in assemble_maxwell.cpp) plus the ABC
-    // surface mass matrix.
+    // (eta0 / Z0) v v^H of the lumped ports (derivation in
+    // assemble_maxwell.cpp) plus the ABC surface mass matrix. Modal ports
+    // add the frequency-independent 1.0.0 load w w^H / Z0 directly.
     SpMatC loss = port_load_matrix(ports, bc, m_size);
     if (p.use_abc)
       loss += abc_surface_matrix(mesh, p, bc);
     const SpMatC loss_free = dofs.restrict_matrix(loss);
+    const SpMatC modal_load_free =
+        dofs.restrict_matrix(modal_port_load_matrix(ports, bc, m_size));
 
     // Symbolic analysis on the first frequency, reused for the rest.
     std::unique_ptr<DirectLU> lu;
@@ -305,8 +309,9 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
       double omega = 2.0 * M_PI * freq;
       double k0 = omega / c0;
 
-      // A = K - k0^2 M + j k0 (L_port + ABC), free edges only
-      SpMatC A = km.combine(omega) + std::complex<double>(0.0, k0) * loss_free;
+      // A = K - k0^2 M + j k0 (L_port + ABC) + Y_modal, free edges only
+      SpMatC A = km.combine(omega) + std::complex<double>(0.0, k0) * loss_free +
+                 modal_load_free;
       A.makeCompressed();
 
       // One matrix for all ports; port `active` only changes the RHS.

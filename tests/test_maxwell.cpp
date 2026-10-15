@@ -17,8 +17,9 @@ void test_symmetry() {
   CHECK(A.isApprox(A.adjoint(), 1e-9));
 }
 
-// Gap-port source and load (derivation in src/assemble_maxwell.cpp). The
-// port's weights are its voltage functional v (here v = 1 on one edge).
+// Gap-port source and load (derivation in src/assemble_maxwell.cpp) for a
+// Lumped port. The port's weights are its voltage functional v (here v = 1
+// on one edge).
 // With omega = 1 rad/s, k0 eta0 = omega mu0 = 4 pi 1e-7 exactly, so
 //   source  b = j k0 eta0 (2 / sqrt(Z0)) v = j 3.5543e-7  (Z0 = 50 ohm),
 //   load    A += j k0 eta0 / Z0 v v^H        = j 2.5133e-8 on the diagonal.
@@ -34,6 +35,7 @@ void test_wave_port_excitation() {
   port1.edges = {10};
   port1.weights = Eigen::VectorXcd::Ones(1);
   port1.mode.Z0 = 50.0;
+  port1.kind = PortKind::Lumped;
 
   WavePort port2 = port1;
   port2.edges[0] = 20;
@@ -73,6 +75,48 @@ void test_wave_port_excitation() {
   CHECK(changed == 2);
 }
 
+// A Modal port (the default kind; build_wave_port and the other wave-port
+// builders) keeps the 1.0.0 terms: source b = 2 w / sqrt(Z0) = 0.28284 and
+// load A += w w^H / Z0 = 0.02 on the diagonal, both real and without the
+// j k0 eta0 factor of the gap port.
+void test_modal_port_terms() {
+  Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");
+  BC bc = build_edge_pec(mesh, 1);
+  MaxwellParams p;
+  p.omega = 2 * M_PI * 1e9;
+
+  WavePort port1;
+  port1.edges = {10};
+  port1.weights = Eigen::VectorXcd::Ones(1);
+  port1.mode.Z0 = 50.0;
+  CHECK(port1.kind == PortKind::Modal);
+  WavePort port2 = port1;
+  port2.edges[0] = 20;
+  CHECK(!bc.dirichlet_edges.count(port1.edges[0]));
+  CHECK(!bc.dirichlet_edges.count(port2.edges[0]));
+
+  std::vector<WavePort> ports{port1, port2};
+  auto asmbl = assemble_maxwell(mesh, p, bc, ports, 0);
+  auto bare = assemble_maxwell(mesh, p, bc, {}, -1);
+
+  const std::complex<double> b_ref = 2.0 / std::sqrt(50.0);
+  const std::complex<double> y_ref = 1.0 / 50.0;
+  CHECK(std::abs(asmbl.b(port1.edges[0]) - b_ref) < 1e-12);
+  CHECK(std::abs(asmbl.b(port2.edges[0])) == 0.0);
+  CHECK(std::abs(asmbl.b.norm() - std::abs(b_ref)) < 1e-12);
+  for (int e : {port1.edges[0], port2.edges[0]}) {
+    const std::complex<double> dy = asmbl.A.coeff(e, e) - bare.A.coeff(e, e);
+    CHECK(std::abs(dy - y_ref) < 1e-12);
+  }
+  const SpMatC diff = asmbl.A - bare.A;
+  int changed = 0;
+  for (int col = 0; col < diff.outerSize(); ++col)
+    for (SpMatC::InnerIterator it(diff, col); it; ++it)
+      if (std::abs(it.value()) > 0.0)
+        ++changed;
+  CHECK(changed == 2);
+}
+
 void test_sparam_calculation() {
   Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");
   BC bc = build_edge_pec(mesh, 1);
@@ -83,6 +127,7 @@ void test_sparam_calculation() {
   port1.edges = {10};
   port1.weights = Eigen::VectorXcd::Ones(1);
   port1.mode.Z0 = 50.0;
+  port1.kind = PortKind::Lumped;
 
   WavePort port2 = port1;
   port2.edges[0] = 20;
@@ -113,31 +158,41 @@ void test_mixed_bc() {
   CHECK(mixed_bc.dirichlet_edges.size() > 0);
 }
 
+// A lossy dielectric (eps_r = 1 - 0.1 j) adds +j 0.1 k0^2 M to A, which is
+// anti-Hermitian, so A is no longer Hermitian. At 10 GHz, k0^2 = 4.4e4
+// m^-2. Until 2026-10 the test used omega = 1 rad/s, where 0.1 k0^2 is
+// 1.1e-18 and the term vanished below the 1e-9 isApprox tolerance.
 void test_lossy_material() {
   Mesh mesh = load_gmsh_v2("examples/cube_cavity.msh");
   BC bc = build_edge_pec(mesh, 1);
   MaxwellParams p;
-  p.omega = 1.0;
+  p.omega = 2 * M_PI * 10e9;
+
+  MaxwellParams lossless = p;
+  lossless.eps_r = {1.0, 0.0};
   p.eps_r = {1.0, -0.1}; // Lossy dielectric
 
-  auto asmbl = assemble_maxwell(mesh, p, bc, {}, -1);
-  Eigen::MatrixXcd A = Eigen::MatrixXcd(asmbl.A);
-  // With loss, the matrix should no longer be Hermitian
+  const Eigen::MatrixXcd A0 =
+      Eigen::MatrixXcd(assemble_maxwell(mesh, lossless, bc, {}, -1).A);
+  const Eigen::MatrixXcd A =
+      Eigen::MatrixXcd(assemble_maxwell(mesh, p, bc, {}, -1).A);
+  // The lossless matrix is Hermitian; the lossy one is not.
+  CHECK(A0.isApprox(A0.adjoint(), 1e-9));
   CHECK(!A.isApprox(A.adjoint(), 1e-9));
+  // The difference is the loss term alone: purely imaginary, with
+  // Im(A - A0) = 0.1 k0^2 M >= 0 on the diagonal (zero on PEC rows).
+  const Eigen::MatrixXcd dA = A - A0;
+  CHECK(dA.real().cwiseAbs().maxCoeff() < 1e-9 * A0.cwiseAbs().maxCoeff());
+  CHECK(dA.imag().diagonal().minCoeff() >= 0.0);
+  CHECK(dA.imag().diagonal().maxCoeff() > 0.0);
 }
 
-// With no argument, runs every check except test_lossy_material. With the
-// argument "lossy_material", runs only that check: it is registered as its
-// own ctest entry (label known_issue) because it fails for a reason unrelated
-// to the lumped port (omega = 1 rad/s makes the loss term ~1e-17).
-int main(int argc, char **argv) {
-  if (argc > 1 && std::string(argv[1]) == "lossy_material") {
-    test_lossy_material();
-    return edgefem_test::exit_code();
-  }
+int main() {
   test_symmetry();
   test_wave_port_excitation();
+  test_modal_port_terms();
   test_sparam_calculation();
   test_mixed_bc();
+  test_lossy_material();
   return edgefem_test::exit_code();
 }

@@ -7,13 +7,14 @@
 //   - "2D port mode + eigenmode" (calculate_sparams_eigenmode, the wave-port
 //     path) must meet the full target. Modal ports are verified through
 //     this eigenmode path, not through calculate_sparams.
-//   - Every calculate_sparams variant must be passive,
-//     |S11|^2 + |S21|^2 <= 1.01. The guide is lossless and the port loads
-//     are passive, so no weight scaling or port-ABC choice can make a
-//     physical port formulation return more power than it receives. The
-//     full target stays a printed diagnostic for these variants: the
-//     lumped-port path defines its load through a gap width that a modal
-//     port does not have.
+//   - Every calculate_sparams variant must satisfy
+//     |S11|^2 + |S21|^2 <= 1.01. These ports are modal, so
+//     calculate_sparams uses the 1.0.0 modal port terms (not validated;
+//     see test_modal_port_1p0). Passivity is not guaranteed by those terms:
+//     with unscaled analytic TE10 weights and no port ABC they give
+//     |S11| = 1.63 at 10 GHz (test_frequency_sweep). For the 17 variants
+//     here it holds at 10 GHz, with sums of 0.992 to 1.001 on 2026-10-15.
+//     The full target stays a printed diagnostic for these variants.
 
 #include "edgefem/maxwell.hpp"
 #include "edgefem/solver.hpp"

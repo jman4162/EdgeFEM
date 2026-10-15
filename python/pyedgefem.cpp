@@ -61,6 +61,22 @@ py::array_t<std::int64_t> element_nodes(const Mesh &m,
                        });
 }
 
+// RuntimeWarning (each call; Python's filters decide what is shown) when an
+// S-parameter function gets a Modal port. Not used by
+// calculate_sparams_eigenmode.
+void warn_modal_ports_py(const std::vector<WavePort> &ports) {
+  if (!has_modal_ports(ports))
+    return;
+  if (PyErr_WarnEx(PyExc_RuntimeWarning,
+                   "S-parameters computed with modal or Floquet ports (any "
+                   "port not built by build_lumped_port). Modal and Floquet "
+                   "port S-parameters are not validated in this release; "
+                   "they use the 1.0.0 port terms unchanged. "
+                   "calculate_sparams_eigenmode is the validated modal path.",
+                   1) < 0)
+    throw py::error_already_set();
+}
+
 } // namespace
 
 PYBIND11_MODULE(pyedgefem, m) {
@@ -501,12 +517,23 @@ PYBIND11_MODULE(pyedgefem, m) {
           py::return_value_policy::reference_internal)
       .def_readonly("volume_tri_indices", &PortSurfaceMesh::volume_tri_indices);
 
+  py::enum_<PortKind>(m, "PortKind",
+                      "Which port terms the S-parameter functions build.")
+      .value("Modal", PortKind::Modal,
+             "Modal or Floquet port (build_wave_port and the other wave-port "
+             "builders): 1.0.0 port terms, S-parameters not validated.")
+      .value("Lumped", PortKind::Lumped,
+             "Gap port from build_lumped_port: load j k0 eta0 / Z0 v v^H.");
+
   py::class_<WavePort>(m, "WavePort", "Wave port definition with modal data.")
       .def(py::init<>())
       .def_readwrite("surface_tag", &WavePort::surface_tag)
       .def_readwrite("mode", &WavePort::mode)
       .def_readwrite("edges", &WavePort::edges)
-      .def_readwrite("weights", &WavePort::weights);
+      .def_readwrite("weights", &WavePort::weights)
+      .def_readwrite("kind", &WavePort::kind,
+                     "PortKind: Lumped from build_lumped_port, Modal "
+                     "(default) from every other builder.");
 
   m.def("extract_surface_mesh", &extract_surface_mesh,
         "Extract a surface mesh for a port.", py::arg("mesh"),
@@ -656,12 +683,14 @@ PYBIND11_MODULE(pyedgefem, m) {
       [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
          const std::vector<WavePort> &ports,
          const SolveOptions &opts) -> Eigen::MatrixXcd {
+        warn_modal_ports_py(ports);
         return calculate_sparams(mesh, p, bc, ports, opts);
       },
-      "N-port S-matrix with gap (lumped) ports: load j k0 eta0 / Z0 v v^H "
-      "per port, one factorization, one solve per port. Port weights are the "
-      "voltage functional v (build_lumped_port sets them); no normalization "
-      "is needed.",
+      "N-port S-matrix, one factorization, one solve per port. Lumped ports "
+      "(build_lumped_port) get the gap-port load j k0 eta0 / Z0 v v^H; their "
+      "weights are the voltage functional v and need no normalization. "
+      "Modal ports (every other builder) get the 1.0.0 port terms; their "
+      "S-parameters are not validated and a RuntimeWarning is emitted.",
       py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
       py::arg("solver_options") = SolveOptions());
 
@@ -669,6 +698,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       "calculate_sparams_with_fields",
       [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
          const std::vector<WavePort> &ports, const SolveOptions &opts) {
+        warn_modal_ports_py(ports);
         SParamSolution sol =
             calculate_sparams_with_fields(mesh, p, bc, ports, opts);
         return py::make_tuple(sol.S, sol.x);
@@ -735,6 +765,7 @@ PYBIND11_MODULE(pyedgefem, m) {
          const std::vector<double> &frequencies, const SolveOptions &opts,
          const std::vector<std::size_t> &keep_indices,
          bool keep_min_reflection) {
+        warn_modal_ports_py(ports);
         SweepFieldRequest keep;
         keep.indices = keep_indices;
         keep.min_reflection = keep_min_reflection;
@@ -947,9 +978,19 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("ports") = std::vector<WavePort>(),
         py::arg("active_port_idx") = -1);
 
-  m.def("calculate_sparams_periodic", &calculate_sparams_periodic,
-        "Calculate S-parameters with periodic BC.", py::arg("mesh"),
-        py::arg("params"), py::arg("bc"), py::arg("pbc"), py::arg("ports"));
+  m.def(
+      "calculate_sparams_periodic",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const PeriodicBC &pbc,
+         const std::vector<WavePort> &ports) -> Eigen::MatrixXcd {
+        warn_modal_ports_py(ports);
+        return calculate_sparams_periodic(mesh, p, bc, pbc, ports);
+      },
+      "Calculate S-parameters with periodic BC. Floquet ports from "
+      "build_wave_port are Modal: 1.0.0 port terms, S-parameters not "
+      "validated (RuntimeWarning).",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("pbc"),
+      py::arg("ports"));
 
   // Active impedance
   py::class_<ActiveImpedanceResult>(m, "ActiveImpedanceResult",

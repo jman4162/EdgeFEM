@@ -18,14 +18,31 @@ struct PortSurfaceMesh {
 
 PortSurfaceMesh extract_surface_mesh(const Mesh &volume_mesh, int surface_tag);
 
+/// Which port terms assemble_maxwell, calculate_sparams(_with_fields),
+/// frequency_sweep and calculate_sparams_periodic build for a port.
+enum class PortKind {
+  /// Modal or Floquet port (build_wave_port, build_wave_port_2d,
+  /// build_wave_port_from_eigenvector, or a WavePort filled by hand). Gets
+  /// the 1.0.0 terms: load w w^H / Z0, source 2 w / sqrt(Z0), and
+  /// S(j, i) = V_j / sqrt(Z0_i) - delta_ij. These S-parameters are not
+  /// validated; calculate_sparams_eigenmode is the validated modal path.
+  Modal,
+  /// Gap port from build_lumped_port: load j k0 eta0 / Z0 v v^H, source
+  /// j k0 eta0 (2 / sqrt(Z0)) v, S(j, i) = V_j / sqrt(Z0_j) - delta_ij.
+  Lumped,
+};
+
 struct WavePort {
   int surface_tag = 0;
   PortMode mode;
   std::vector<int> edges; // global edge indices participating in the port
-  // Per-edge weights. For calculate_sparams and frequency_sweep they are the
-  // port voltage functional, V = sum_k conj(weights_k) x(edges_k); for
-  // calculate_sparams_eigenmode they are the modal field (rescaled there).
+  // Per-edge weights. For a Lumped port they are the port voltage
+  // functional, V = sum_k conj(weights_k) x(edges_k); for a Modal port they
+  // are the projected modal field (calculate_sparams_eigenmode rescales
+  // them).
   Eigen::VectorXcd weights;
+  // build_lumped_port sets Lumped; every other builder leaves Modal.
+  PortKind kind = PortKind::Modal;
 };
 
 WavePort build_wave_port(const Mesh &volume_mesh,

@@ -174,19 +174,30 @@ MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
                                           int active_port_idx = -1);
 
 // ---------------------------------------------------------------------------
-// Gap-port (lumped) network terms used by assemble_maxwell, calculate_sparams
-// and frequency_sweep. The derivation is in src/assemble_maxwell.cpp. Each
-// port's `weights` are its voltage functional: V = sum_k conj(weights_k) *
-// x(edges_k) in volts (build_lumped_port sets weights = w / W, with w the
-// surface-integral weights and W the strip width). Dirichlet (PEC) edges are
-// skipped in all of these functions.
+// Port network terms used by assemble_maxwell, calculate_sparams,
+// frequency_sweep and calculate_sparams_periodic. The derivation is in
+// src/assemble_maxwell.cpp. The terms depend on WavePort::kind:
+//   Lumped (build_lumped_port): gap port. `weights` are the voltage
+//     functional, V = sum_k conj(weights_k) x(edges_k) in volts
+//     (build_lumped_port sets weights = w / W, with w the surface-integral
+//     weights and W the strip width).
+//   Modal (every other builder): the 1.0.0 terms, kept unchanged and not
+//     validated. calculate_sparams_eigenmode is the validated modal path.
+// Dirichlet (PEC) edges are skipped in all of these functions.
 // ---------------------------------------------------------------------------
 
-/// Frequency-independent port load L = sum_p (eta0 / Z0_p) v_p v_p^H over
-/// ports with a nonzero Z0 and one weight per edge. The system matrix gets
-/// j k0 L, the load of a resistor Z0_p across each port gap.
+/// Frequency-independent gap-port load L = sum_p (eta0 / Z0_p) v_p v_p^H
+/// over the Lumped ports with a nonzero Z0 and one weight per edge. The
+/// system matrix gets j k0 L, the load of a resistor Z0_p across each port
+/// gap. Modal ports are left out (see modal_port_load_matrix).
 SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
                         int num_edges);
+
+/// The 1.0.0 modal port load Y = sum_p w_p w_p^H / Z0_p over the Modal
+/// ports with a nonzero Z0 and one weight per edge. Added to the system
+/// matrix as is (no j k0 factor).
+SpMatC modal_port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
+                              int num_edges);
 
 /// Frequency-independent part of the first-order ABC: the surface mass
 /// matrix int_S N_i . N_j dS over the ABC triangles (p.abc_surface_tags, or
@@ -195,9 +206,10 @@ SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
 SpMatC abc_surface_matrix(const Mesh &mesh, const MaxwellParams &p,
                           const BC &bc);
 
-/// Right-hand side for a unit incident power wave (a = 1) at `port`: a
-/// Norton source of current 2 / sqrt(Z0) across the gap,
-/// b = j k0 eta0 (2 / sqrt(Z0)) v.
+/// Right-hand side for an excitation of `port`. Lumped: a unit incident
+/// power wave (a = 1), a Norton source of current 2 / sqrt(Z0) across the
+/// gap, b = j k0 eta0 (2 / sqrt(Z0)) v. Modal: the 1.0.0 source
+/// b = 2 w / sqrt(Z0) (k0 unused).
 VecC port_excitation(const WavePort &port, const BC &bc, int num_edges,
                      double k0);
 
@@ -205,17 +217,29 @@ VecC port_excitation(const WavePort &port, const BC &bc, int num_edges,
 std::complex<double> port_voltage(const WavePort &port, const BC &bc,
                                   const VecC &x);
 
-/// S-parameter column for an excitation of port `active` with a = 1:
-/// S(j, active) = V_j / sqrt(Z0_j) - delta(j, active).
+/// S-parameter column for an excitation of port `active`. Lumped active
+/// port (a = 1): S(j, active) = V_j / sqrt(Z0_j) - delta(j, active), NaN for
+/// a port without a load. Modal active port (1.0.0):
+/// S(j, active) = V_j / sqrt(Z0_active) - delta(j, active).
 void fill_sparam_column(Eigen::MatrixXcd &S, int active,
                         const std::vector<WavePort> &ports, const BC &bc,
                         const VecC &x);
 
-/// N-port S-matrix with gap (lumped) ports: the loaded system is assembled
-/// and factored once (direct solver) and solved for one right-hand side per
-/// port. The factored system holds only the non-Dirichlet edges (FreeDofs);
-/// a failed solve gives a NaN column. Ports with modal weights also give a
-/// passive S here, but modal ports are verified through
+/// True when any port has kind PortKind::Modal.
+bool has_modal_ports(const std::vector<WavePort> &ports);
+
+/// Prints a warning to stderr, once per process, when `ports` holds a Modal
+/// port: modal and Floquet port S-parameters are not validated in this
+/// release. calculate_sparams(_with_fields), frequency_sweep and
+/// calculate_sparams_periodic call it; calculate_sparams_eigenmode does not.
+void warn_modal_sparams(const std::vector<WavePort> &ports);
+
+/// N-port S-matrix: the loaded system is assembled and factored once
+/// (direct solver) and solved for one right-hand side per port. The
+/// factored system holds only the non-Dirichlet edges (FreeDofs); a failed
+/// solve gives a NaN column. Lumped ports get the gap-port terms; Modal
+/// ports get the 1.0.0 terms, whose S-parameters are not validated (one-time
+/// stderr warning). Modal ports are verified only through
 /// calculate_sparams_eigenmode.
 Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
                                    const BC &bc,
@@ -237,16 +261,20 @@ calculate_sparams_with_fields(const Mesh &mesh, const MaxwellParams &p,
                               const BC &bc, const std::vector<WavePort> &ports,
                               const SolveOptions &opts = SolveOptions());
 
-/// Deprecated: returns the ports unchanged and prints a one-time warning to
-/// stderr. The gap-port formulation needs no weight normalization; the
-/// former scaling (w^H A^-1 w = Z0) is what made a lossless port look
-/// matched. Kept for one release so callers do not break.
+/// Deprecated: returns the ports unchanged, Lumped and Modal alike, and
+/// prints a one-time warning to stderr. The gap-port formulation needs no
+/// weight normalization; the former scaling (w^H A^-1 w = Z0) is what made a
+/// lossless port look matched. In 1.0.0 it rescaled the weights of any port
+/// in place. Kept for one release so callers do not break.
 void normalize_port_weights(const Mesh &mesh, const MaxwellParams &p,
                             const BC &bc, std::vector<WavePort> &ports,
                             const SolveOptions &opts = SolveOptions());
 
-/// Calculate S-parameters with periodic boundary conditions.
-/// Useful for unit cell simulations under Floquet excitation.
+/// Calculate S-parameters with periodic boundary conditions, for unit cell
+/// simulations under Floquet excitation. Port terms as in
+/// calculate_sparams. Floquet ports built with build_wave_port are Modal:
+/// their S-parameters use the 1.0.0 terms and are not validated (one-time
+/// stderr warning).
 Eigen::MatrixXcd calculate_sparams_periodic(const Mesh &mesh,
                                             const MaxwellParams &p,
                                             const BC &bc, const PeriodicBC &pbc,

@@ -44,6 +44,7 @@ Issues = "https://github.com/jman4162/EdgeFEM/issues"
 [tool.pytest.ini_options]
 markers = [
     "slow: known-answer full-wave runs that take minutes and several GB of memory; deselected by default, run with `pytest -m slow`",
+    "known_issue: known-answer tests that fail on an open defect; each is also xfail(strict=True), so a fix shows up as an XPASS failure",
 ]
 addopts = "-m 'not slow'"
 
