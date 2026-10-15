@@ -4,6 +4,13 @@
 
 ### Added
 
+- **openEMS cross-check and patch convergence study.**
+  `tools/openems_patch_crosscheck.py` builds the probe-fed patch of
+  `StackedPatchDesign` (post, ground hole, gap port, finite ground) in
+  openEMS and runs it in the `antenna-cad-openems` Docker image;
+  `docs/validation/patch_2p45ghz.md` has the method and numbers. 2.45 GHz
+  FR-4 patch: EdgeFEM 2.3768 GHz (density 12), openEMS 2.389 GHz, cavity
+  model 2.4669 GHz.
 - **Optional SuiteSparse UMFPACK backend for direct solves.** CMake option
   `EDGEFEM_USE_SUITESPARSE` (default OFF). With `-DEDGEFEM_USE_SUITESPARSE=ON`
   the build links UMFPACK found by `cmake/FindUMFPACK.cmake`

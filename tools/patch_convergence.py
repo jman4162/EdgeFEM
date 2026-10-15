@@ -132,6 +132,11 @@ def run_one(case_name, density, patch_factor, air_box_height=None):
     ff, zf, sf = patch.frequency_sweep(*case["fine"])
     out["t_fine_s"] = time.perf_counter() - t0
 
+    # A failed solve gives S11 = NaN (and Z = 1e6 from the design class).
+    out["failed_points"] = int(np.isnan(np.asarray(sw)).sum()
+                               + np.isnan(np.asarray(sf)).sum())
+    if out["failed_points"]:
+        return out
     mag_db = 20 * np.log10(np.abs(np.asarray(sf)) + 1e-30)
     i = int(np.argmin(mag_db))
     f_par, db_par = _parabolic_min(np.asarray(ff), mag_db, i)
@@ -218,6 +223,12 @@ def main():
             if args.out:
                 with open(args.out, "a") as fh:
                     fh.write(json.dumps(res) + "\n")
+            if res["failed_points"]:
+                print(f"{res['case']} d={density:g} "
+                      f"factor={res['patch_factor']:g} edges={res['edges']}: "
+                      f"{res['failed_points']} solves failed (no field)",
+                      flush=True)
+                continue
             w = res["wide"]
             print(f"{res['case']} d={density:g} factor={res['patch_factor']:g}"
                   f" tets={res['tets']} edges={res['edges']}"

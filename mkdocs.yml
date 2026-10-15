@@ -39,7 +39,9 @@ nav:
     - Core Functions: api/core.md
     - Design Classes: api/designs.md
     - Plotting: api/plots.md
-  - Validation: validation.md
+  - Validation:
+    - Report: validation.md
+    - Patch 2.45 GHz cross-check: validation/patch_2p45ghz.md
 
 markdown_extensions:
   - pymdownx.highlight:

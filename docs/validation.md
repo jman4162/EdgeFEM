@@ -115,6 +115,13 @@ R + T = 1. **It does not compare an FEM solve against Fresnel** — that
 requires Floquet ports, which are not implemented.
 `examples/validation_fresnel.py` plots the analytical curves.
 
+## Probe-fed patch (2.45 GHz FR-4)
+
+Mesh convergence and an openEMS cross-check of the patch in the
+known-answer test: [validation/patch_2p45ghz.md](validation/patch_2p45ghz.md).
+At density 12 EdgeFEM puts f_res at 2.3768 GHz, openEMS at 2.389 GHz
+(-0.51%), the cavity model at 2.4669 GHz.
+
 ## What is NOT validated
 
 - Radiation patterns against an analytical antenna (dipole/aperture); NTF
