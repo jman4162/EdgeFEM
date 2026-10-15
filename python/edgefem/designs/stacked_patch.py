@@ -1,7 +1,8 @@
 """
-Stacked Patch Antenna with Cavity Feed Design Class
+Stacked Patch Antenna Design Class
 
-Multi-layer stacked patch antenna with cavity-backed probe feed.
+Multi-layer stacked patch antenna with a probe feed and a lumped port in
+the probe gap at the ground plane.
 Uses full-wave FEM simulation via lumped port excitation and
 Stratton-Chu near-to-far field transformation for radiation patterns.
 """
@@ -9,6 +10,7 @@ Stratton-Chu near-to-far field transformation for radiation patterns.
 import subprocess
 import tempfile
 import os
+import warnings
 from typing import Optional, Tuple, List, Dict
 import numpy as np
 
@@ -33,56 +35,88 @@ class _AperturePattern:
 
 class StackedPatchDesign:
     """
-    Multi-layer stacked patch antenna with cavity-backed probe feed.
+    Multi-layer stacked patch antenna with a probe feed.
 
     The antenna consists of one or more stacked patches on dielectric
-    substrates above a ground plane, fed by a coaxial probe through
-    a cavity below the ground plane. Full-wave FEM simulation provides
+    substrates above a ground plane. A probe runs from the ground plane
+    to the first patch; a lumped port bridges the gap between the probe
+    and the ground plane. Full-wave FEM simulation provides
     S-parameters, input impedance, and radiation patterns.
 
     Geometry (bottom to top):
-        - Cavity volume below ground plane with probe
-        - Ground plane (PEC) with hole for probe
-        - Substrate layers with patch conductors
-        - Air box with ABC outer boundary
-        - Huygens surface for NTF
+        - Ground plane (PEC) at z = 0, the bottom of the domain, with a
+          square hole around the probe. The port strip spans the hole
+          from the probe to the ground on the +x side; the rest of the
+          hole is left without a boundary condition.
+        - Probe: a square PEC post from z = 0 to the first patch, cut out
+          of the mesh. Its side is probe_radius / 0.59, the thin-wire
+          equivalent radius of a square (Balanis, Antenna Theory,
+          equivalent-radius table), so the post has the inductance of a
+          round probe of probe_radius. It is square so that the port
+          strip touches the probe along a straight edge and stays a
+          rectangle (the lumped port's strip width W = area / gap length
+          is exact only for rectangles).
+        - One box per substrate layer (tags 110, 111, ...), the full
+          ground-plane area each.
+        - Patch conductors (PEC) inside the patch footprints.
+        - Air box with ABC on its top and sides, at least lambda/2 above
+          the top metal at the lowest frequency given to generate_mesh().
+        - Huygens surface for NTF, halfway up the air box.
+
+    There is no cavity below the ground plane. A coax-fed model with the
+    coax below the ground needs a wave port on the coax cross-section,
+    not a lumped strip.
+    TODO(coax feed): build it with a wave port; see the EdgeFEM
+    investigation of 2026-10-12, sections A3 and E.2.
 
     Example:
         design = StackedPatchDesign(
             patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
             substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4, 'tan_d': 0.02}],
-            cavity_size=40e-3,
-            cavity_depth=5e-3,
+            probe_radius=0.65e-3,
+            probe_offset=(0.0, -6e-3),
         )
-        design.generate_mesh(density=12)
+        design.generate_mesh(density=12, design_freq=2.4e9, f_min=2.2e9)
         S11, solution = design.simulate(2.4e9)
         pattern = design.radiation_pattern(2.4e9)
     """
 
     # Physical tag scheme
     _TAG_GROUND = 1
-    _TAG_CAVITY_WALLS = 2
-    _TAG_CAVITY_BOTTOM = 3
     _TAG_PROBE = 4
     _TAG_PORT = 5
     _TAG_PATCH_BASE = 10      # 10, 11, 12, ...
     _TAG_ABC = 50
     _TAG_HUYGENS = 60
-    _TAG_CAVITY_VOL = 100
     _TAG_SUBSTRATE_BASE = 110  # 110, 111, ...
     _TAG_AIR = 150
+
+    # Thin-wire equivalent radius of a square cross-section, per unit side.
+    _SQUARE_EQUIV_RADIUS = 0.59
+    # Default hole/probe radius ratio: a 50 ohm air coax, ln(b/a) = 50/60.
+    _DEFAULT_HOLE_RATIO = float(np.exp(50.0 / 60.0))
+    # Default air box height above the top metal, in wavelengths at f_min.
+    _AIR_BOX_WAVELENGTHS = 0.5
+    # Mesh size field (see _set_mesh_size). Near the patches the size is
+    # _PATCH_SIZE_X_DENSITY * (thinnest substrate thickness) / density:
+    # h/2 at density 12.
+    _PATCH_SIZE_X_DENSITY = 6.0
+    _PATCH_SIZE_SLOPE = 0.5
+    _PROBE_SIZE_SLOPE = 0.5
 
     def __init__(
         self,
         patches: List[Dict],
         substrates: List[Dict],
-        cavity_size: float,
-        cavity_depth: float,
+        cavity_size: Optional[float] = None,
+        cavity_depth: Optional[float] = None,
         probe_radius: float = 0.5e-3,
         probe_offset: Tuple[float, float] = (0.0, 0.0),
         z0: float = 50.0,
         ground_plane_size: Optional[float] = None,
         air_box_height: Optional[float] = None,
+        *,
+        probe_hole_radius: Optional[float] = None,
     ):
         """
         Initialize stacked patch design.
@@ -92,30 +126,59 @@ class StackedPatchDesign:
                      'width' (m), 'length' (m), 'height' (m above ground)
             substrates: List of substrate dicts, each with keys:
                        'thickness' (m), 'eps_r', 'tan_d' (optional, default 0)
-            cavity_size: Lateral dimension of cavity (m)
-            cavity_depth: Depth of cavity below ground plane (m)
-            probe_radius: Radius of probe feed (m)
+            cavity_size: Deprecated and ignored (the model has no cavity).
+            cavity_depth: Deprecated and ignored (the model has no cavity).
+            probe_radius: Radius of the probe feed (m). The probe is a
+                square post with this equivalent radius.
             probe_offset: (x, y) offset of probe from center (m)
             z0: Reference impedance (ohms)
             ground_plane_size: Ground plane size. If None, 3x largest patch.
-            air_box_height: Air box height above top patch. If None, lambda/4.
+            air_box_height: Air box height above the top metal (m). If
+                None, lambda/2 at the f_min given to generate_mesh().
+            probe_hole_radius: Equivalent radius of the ground-plane hole
+                around the probe (m). If None, 2.30 x probe_radius (the
+                outer/inner ratio of a 50 ohm air coax).
         """
         if len(patches) == 0:
             raise ValueError("At least one patch is required")
         if len(substrates) == 0:
             raise ValueError("At least one substrate is required")
+        if cavity_size is not None or cavity_depth is not None:
+            warnings.warn(
+                "StackedPatchDesign: cavity_size and cavity_depth are "
+                "deprecated and ignored. The model has no cavity below the "
+                "ground plane: the domain starts at z = 0 and the lumped "
+                "port sits in the probe gap at the ground plane.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        if probe_radius <= 0:
+            raise ValueError("probe_radius must be positive")
+        if probe_hole_radius is None:
+            probe_hole_radius = self._DEFAULT_HOLE_RATIO * probe_radius
+        if probe_hole_radius <= probe_radius:
+            raise ValueError(
+                f"probe_hole_radius ({probe_hole_radius}) must exceed "
+                f"probe_radius ({probe_radius})"
+            )
 
         self.patches = patches
         self.substrates = substrates
         self.cavity_size = cavity_size
         self.cavity_depth = cavity_depth
         self.probe_radius = probe_radius
+        self.probe_hole_radius = probe_hole_radius
         self.probe_offset = probe_offset
         self.z0 = z0
 
         max_patch = max(max(p['width'], p['length']) for p in patches)
         self.ground_plane_size = ground_plane_size or 3.0 * max_patch
-        self._air_box_height = air_box_height
+        self._air_box_height_arg = air_box_height
+        # Set by generate_mesh(): the air box height used for the current
+        # mesh, and the lowest frequency at which it is >= lambda/2.
+        self._air_box_height = None
+        self._air_box_f_min = None
+        self._air_box_warned = False
 
         self._mesh = None
         self._mesh_path = None
@@ -127,11 +190,22 @@ class StackedPatchDesign:
     def mesh(self):
         return self._mesh
 
+    @property
+    def air_box_height(self) -> Optional[float]:
+        """Air box height above the top metal in the current mesh (m)."""
+        return self._air_box_height
+
+    def _probe_half_widths(self) -> Tuple[float, float]:
+        """Half-sides (m) of the square probe and of the square hole."""
+        k = 2.0 * self._SQUARE_EQUIV_RADIUS
+        return self.probe_radius / k, self.probe_hole_radius / k
+
     def generate_mesh(
         self,
         density: float = 12.0,
         output_path: Optional[str] = None,
         design_freq: Optional[float] = None,
+        f_min: Optional[float] = None,
     ) -> None:
         """
         Generate FEM mesh for the stacked patch antenna.
@@ -144,6 +218,10 @@ class StackedPatchDesign:
             output_path: Path for mesh file. If None, uses temp directory.
             design_freq: Design frequency for mesh sizing (Hz).
                         If None, estimates from first patch dimensions.
+            f_min: Lowest frequency to be simulated on this mesh (Hz).
+                Sets the default air box height to lambda/2 at f_min.
+                If None, design_freq. simulate() and frequency_sweep()
+                warn below the frequency at which the air box is lambda/2.
         """
         try:
             import gmsh
@@ -158,12 +236,19 @@ class StackedPatchDesign:
             L = self.patches[0]['length']
             eps_r = self.substrates[0]['eps_r']
             design_freq = c0 / (2 * L * np.sqrt(eps_r))
+        if f_min is None:
+            f_min = design_freq
 
         wavelength = c0 / design_freq
         lc = wavelength / density
 
-        if self._air_box_height is None:
-            self._air_box_height = wavelength / 4
+        if self._air_box_height_arg is not None:
+            h_air = self._air_box_height_arg
+        else:
+            h_air = self._AIR_BOX_WAVELENGTHS * c0 / f_min
+        self._air_box_height = h_air
+        self._air_box_f_min = self._AIR_BOX_WAVELENGTHS * c0 / h_air
+        self._air_box_warned = False
 
         if output_path is None:
             fd, msh_path = tempfile.mkstemp(suffix=".msh")
@@ -173,7 +258,7 @@ class StackedPatchDesign:
         else:
             msh_path = output_path + ".msh"
 
-        self._build_gmsh_geometry(gmsh, lc, msh_path)
+        self._build_gmsh_geometry(gmsh, lc, msh_path, density=density)
 
         self._mesh = em.load_gmsh(msh_path)
         self._mesh_path = msh_path
@@ -181,290 +266,269 @@ class StackedPatchDesign:
         self._ports = None
         self._last_solutions = {}
 
-    def _build_gmsh_geometry(self, gmsh, lc: float, msh_path: str):
+    def _check_air_box(self, freq: float) -> None:
+        """Warn once per mesh when the air box is below lambda/2 at freq."""
+        if self._air_box_f_min is None or self._air_box_warned:
+            return
+        if freq < self._air_box_f_min * (1.0 - 1e-9):
+            c0 = 299792458.0
+            warnings.warn(
+                f"StackedPatchDesign: the air box is "
+                f"{self._air_box_height * 1e3:.1f} mm above the top metal, "
+                f"less than lambda/2 = {0.5 * c0 / freq * 1e3:.1f} mm at "
+                f"{freq / 1e9:.4g} GHz; pass f_min={freq:.4g} to "
+                f"generate_mesh() (or a larger air_box_height) to size it "
+                f"for this frequency",
+                stacklevel=3,
+            )
+            self._air_box_warned = True
+
+    def _build_gmsh_geometry(self, gmsh, lc: float, msh_path: str,
+                             density: float = 12.0):
         """Build antenna geometry using Gmsh Python API with OCC kernel."""
         gp = self.ground_plane_size
-        cd = self.cavity_depth
         h_air = self._air_box_height
-
-        # Probe inner conductor half-width (the actual probe)
-        pr = max(self.probe_radius, lc / 8, 0.5e-3)
-        # Probe hole half-width (outer conductor / ground plane hole)
-        # Must be larger than pr to create a coaxial gap
-        pw = max(2.5 * pr, lc / 4, 2e-3)
+        a, b = self._probe_half_widths()
         cx = gp / 2 + self.probe_offset[0]
         cy = gp / 2 + self.probe_offset[1]
 
-        z_bot = -cd
         z_levels = [0.0]
         for s in self.substrates:
             z_levels.append(z_levels[-1] + s['thickness'])
-        z_top = z_levels[-1] + h_air
-        z_huygens = z_levels[-1] + h_air * 0.5  # Midpoint of air box
+        z_metal = max(z_levels[-1], max(p['height'] for p in self.patches))
+        z_top = z_metal + h_air
+        z_huygens = z_metal + h_air * 0.5  # Midpoint of air box
+        z_probe = self.patches[0]['height']
+
+        # The probe must end inside the first patch footprint, and the hole
+        # must lie inside the ground plane.
+        p0 = self.patches[0]
+        if (abs(self.probe_offset[0]) + a > p0['width'] / 2
+                or abs(self.probe_offset[1]) + a > p0['length'] / 2):
+            raise ValueError(
+                "probe (half-side {:.3g} m at offset {}) does not fit inside "
+                "the first patch".format(a, self.probe_offset))
+        if min(cx, cy) - b <= 0 or max(cx, cy) + b >= gp:
+            raise ValueError(
+                "probe hole (half-side {:.3g} m at offset {}) does not fit "
+                "inside the ground plane".format(b, self.probe_offset))
+
+        min_t = min(s['thickness'] for s in self.substrates)
+        tol = 1e-3 * min(a, min_t)
 
         gmsh.initialize()
-        gmsh.option.setNumber("General.Verbosity", 1)
-        gmsh.model.add("stacked_patch")
+        try:
+            gmsh.option.setNumber("General.Verbosity", 1)
+            gmsh.model.add("stacked_patch")
+            occ = gmsh.model.occ
 
-        occ = gmsh.model.occ
+            # Volumes: one box per substrate layer and the air box above,
+            # with the probe post removed from all of them.
+            boxes = []
+            for i, s in enumerate(self.substrates):
+                boxes.append((3, occ.addBox(0, 0, z_levels[i], gp, gp,
+                                            s['thickness'])))
+            boxes.append((3, occ.addBox(0, 0, z_levels[-1], gp, gp,
+                                        z_top - z_levels[-1])))
+            probe_box = occ.addBox(cx - a, cy - a, 0, 2 * a, 2 * a, z_probe)
+            vols, _ = occ.cut(boxes, [(3, probe_box)])
 
-        # Main box spanning full domain
-        occ.addBox(0, 0, z_bot, gp, gp, z_top - z_bot)
+            # z = 0: the hole around the probe (a square ring) and the port
+            # strip in it, from the probe face at x = cx + a to the hole
+            # edge at x = cx + b. E points along +x across the strip.
+            hole = occ.addRectangle(cx - b, cy - b, 0, 2 * b, 2 * b)
+            probe_foot = occ.addRectangle(cx - a, cy - a, 0, 2 * a, 2 * a)
+            ring, _ = occ.cut([(2, hole)], [(2, probe_foot)])
+            port = occ.addRectangle(cx + a, cy - a, 0, b - a, 2 * a)
 
-        # Ground plane at z=0 (will be split by probe hole via fragment)
-        sf_gnd = occ.addRectangle(0, 0, 0, gp, gp)
-        # Probe hole outline at z=0 — larger than probe to create coaxial gap
-        sf_probe_hole = occ.addRectangle(cx - pw, cy - pw, 0, 2 * pw, 2 * pw)
+            tools = list(ring) + [(2, port)]
+            for patch in self.patches:
+                tools.append((2, occ.addRectangle(
+                    gp / 2 - patch['width'] / 2, gp / 2 - patch['length'] / 2,
+                    patch['height'], patch['width'], patch['length'])))
 
-        # Port: horizontal surface at z=0 in the gap between probe and ground.
-        # This represents the coaxial cross-section.
-        # E-field direction is x (radial, from inner to outer conductor).
-        # Port strip: from probe edge (cx+pr) to hole edge (cx+pw), at z=0
-        sf_port = occ.addRectangle(cx + pr, cy - pr, 0, pw - pr, 2 * pr)
+            # Huygens surface for near-to-far field transformation, inset
+            # from the domain boundary to avoid ABC-contaminated fields
+            h_inset = gp * 0.1
+            tools.append((2, occ.addRectangle(
+                h_inset, h_inset, z_huygens,
+                gp - 2 * h_inset, gp - 2 * h_inset)))
 
-        # Probe conductor: thin PEC box from cavity bottom to first patch
-        z_patch0 = self.patches[0]['height']
-        probe_box = occ.addBox(
-            cx - pr, cy - pr, z_bot, 2 * pr, 2 * pr, z_patch0 - z_bot
-        )
+            occ.fragment(vols, tools)
+            occ.synchronize()
 
-        embed_list = [
-            (2, sf_gnd), (2, sf_probe_hole), (2, sf_port),
-            (3, probe_box),
-        ]
-        for pi, patch in enumerate(self.patches):
-            z_patch = patch['height']
-            pw_half = patch['width'] / 2
-            pl_half = patch['length'] / 2
-            sf = occ.addRectangle(
-                gp / 2 - pw_half, gp / 2 - pl_half, z_patch,
-                patch['width'], patch['length']
-            )
-            embed_list.append((2, sf))
+            def inside(bb, x0, y0, x1, y1):
+                return (bb[0] > x0 - tol and bb[1] > y0 - tol
+                        and bb[3] < x1 + tol and bb[4] < y1 + tol)
 
-        # Huygens surface for near-to-far field transformation
-        # Inset from domain boundary to avoid ABC-contaminated fields
-        h_inset = gp * 0.1
-        sf_huygens = occ.addRectangle(
-            h_inset, h_inset, z_huygens,
-            gp - 2 * h_inset, gp - 2 * h_inset
-        )
-        embed_list.append((2, sf_huygens))
-
-        occ.synchronize()
-        occ.fragment([(3, 1)], embed_list)
-        occ.synchronize()
-
-        # Classify surfaces by bounding box position
-        vols = [tag for _, tag in gmsh.model.getEntities(3)]
-        tol = 1e-4
-
-        gnd_surfs = []
-        port_surfs = []
-        probe_surfs = []
-        patch_surfs = []
-        bot_surfs = []
-        top_surfs = []
-        side_surfs = []
-        cavity_wall_surfs = []
-        huygens_surfs = []
-
-        for _, tag in gmsh.model.getEntities(2):
-            bb = gmsh.model.getBoundingBox(2, tag)
-            zc = (bb[2] + bb[5]) / 2
-            ze = bb[5] - bb[2]
-            xe = bb[3] - bb[0]
-            ye = bb[4] - bb[1]
-            xc = (bb[0] + bb[3]) / 2
-            yc = (bb[1] + bb[4]) / 2
-
-            if ze < tol:  # Flat in z
-                if abs(zc) < tol:
-                    # At z=0: distinguish ground, port, and probe hole
-                    near_probe = (abs(xc - cx) < pw * 2 and
-                                  abs(yc - cy) < pw * 2)
-                    is_small = (xe < pw * 4 and ye < pw * 4)
-                    # Port surface: strip between probe (pr) and hole (pw)
-                    # centered on x > cx (right side of probe)
-                    is_port = (is_small and near_probe and
-                               bb[0] > cx + pr - tol and
-                               xe < (pw - pr) * 2 + tol)
-                    if is_port:
-                        port_surfs.append(tag)
-                    elif is_small and near_probe:
-                        # Other small surfaces at z=0 near probe = probe hole
-                        # Not PEC (it's the gap)
-                        pass
+            gnd_surfs, port_surfs, probe_surfs = [], [], []
+            abc_surfs, huygens_surfs = [], []
+            patch_surfs = {pi: [] for pi in range(len(self.patches))}
+            for _, tag in gmsh.model.getEntities(2):
+                bb = gmsh.model.getBoundingBox(2, tag)
+                xe, ye, ze = bb[3] - bb[0], bb[4] - bb[1], bb[5] - bb[2]
+                zc = (bb[2] + bb[5]) / 2
+                if ze < tol:  # horizontal
+                    if abs(zc) < tol:
+                        if inside(bb, cx + a, cy - a, cx + b, cy + a):
+                            port_surfs.append(tag)
+                        elif inside(bb, cx - b, cy - b, cx + b, cy + b):
+                            pass  # rest of the probe hole: no BC
+                        else:
+                            gnd_surfs.append(tag)
+                    elif abs(zc - z_top) < tol:
+                        abc_surfs.append(tag)
+                    elif abs(zc - z_huygens) < tol:
+                        huygens_surfs.append(tag)
                     else:
-                        gnd_surfs.append(tag)  # Large = ground plane
-                elif abs(zc - z_bot) < tol:
-                    bot_surfs.append(tag)
-                elif abs(zc - z_top) < tol:
-                    top_surfs.append(tag)
-                elif abs(zc - z_huygens) < tol:
-                    huygens_surfs.append(tag)
+                        # Patch PEC only inside each patch footprint; the
+                        # rest of a substrate interface carries no BC.
+                        for pi, patch in enumerate(self.patches):
+                            if abs(zc - patch['height']) < tol and inside(
+                                    bb,
+                                    gp / 2 - patch['width'] / 2,
+                                    gp / 2 - patch['length'] / 2,
+                                    gp / 2 + patch['width'] / 2,
+                                    gp / 2 + patch['length'] / 2):
+                                patch_surfs[pi].append(tag)
+                                break
+                elif xe < tol or ye < tol:  # vertical
+                    on_side = (
+                        (xe < tol and (abs(bb[0]) < tol
+                                       or abs(bb[0] - gp) < tol))
+                        or (ye < tol and (abs(bb[1]) < tol
+                                          or abs(bb[1] - gp) < tol)))
+                    if on_side:
+                        abc_surfs.append(tag)
+                    elif inside(bb, cx - a, cy - a, cx + a, cy + a):
+                        probe_surfs.append(tag)
+                    else:
+                        raise RuntimeError(
+                            f"unclassified vertical surface {tag}, bbox {bb}")
                 else:
-                    for pi, patch in enumerate(self.patches):
-                        if abs(zc - patch['height']) < tol:
-                            patch_surfs.append((pi, tag))
-                            break
-            elif ye < tol:  # Flat in y — vertical surface
-                near_probe = (abs(yc - cy) < pr * 2 + tol)
-                is_small = (xe < pr * 4 and near_probe)
-                if is_small:
-                    probe_surfs.append(tag)
-                else:
-                    side_surfs.append(tag)
-            elif xe < tol:  # Flat in x — vertical surface
-                near_probe = (abs(xc - cx) < pr * 2 + tol)
-                is_small = (ye < pr * 4 and near_probe)
-                if is_small:
-                    probe_surfs.append(tag)
-                else:
-                    side_surfs.append(tag)
+                    raise RuntimeError(
+                        f"unclassified surface {tag}, bbox {bb}")
 
-        # Physical groups
-        if gnd_surfs:
-            gmsh.model.addPhysicalGroup(2, gnd_surfs, self._TAG_GROUND)
-        if bot_surfs:
-            gmsh.model.addPhysicalGroup(2, bot_surfs, self._TAG_CAVITY_BOTTOM)
-        if port_surfs:
-            gmsh.model.addPhysicalGroup(2, port_surfs, self._TAG_PORT)
-        if probe_surfs:
-            gmsh.model.addPhysicalGroup(2, probe_surfs, self._TAG_PROBE)
-        # Group patch surfaces by patch index (fragment may split one patch
-        # rectangle into multiple surfaces)
-        patch_by_index = {}
-        for pi, sf in patch_surfs:
-            patch_by_index.setdefault(pi, []).append(sf)
-        for pi, sfs in patch_by_index.items():
-            gmsh.model.addPhysicalGroup(2, sfs, self._TAG_PATCH_BASE + pi)
+            port_area = sum(occ.getMass(2, t) for t in port_surfs)
+            if abs(port_area - (b - a) * 2 * a) > 1e-6 * (b - a) * 2 * a:
+                raise RuntimeError(
+                    f"port strip area {port_area:.6g} m^2, expected "
+                    f"{(b - a) * 2 * a:.6g} m^2 (rectangle (b-a) x 2a)")
 
-        # Cavity walls: outer side surfaces below ground plane
-        for tag in side_surfs:
-            bb = gmsh.model.getBoundingBox(2, tag)
-            if bb[2] < -tol:  # Bottom edge below ground
-                cavity_wall_surfs.append(tag)
-        if cavity_wall_surfs:
-            gmsh.model.addPhysicalGroup(2, cavity_wall_surfs, self._TAG_CAVITY_WALLS)
+            groups = [
+                (gnd_surfs, self._TAG_GROUND, "ground"),
+                (port_surfs, self._TAG_PORT, "port"),
+                (probe_surfs, self._TAG_PROBE, "probe"),
+                (abc_surfs, self._TAG_ABC, "ABC"),
+                (huygens_surfs, self._TAG_HUYGENS, "Huygens"),
+            ]
+            for pi, sfs in patch_surfs.items():
+                groups.append((sfs, self._TAG_PATCH_BASE + pi, f"patch {pi}"))
+            for sfs, ptag, name in groups:
+                if not sfs:
+                    raise RuntimeError(f"no surfaces found for the {name}")
+                gmsh.model.addPhysicalGroup(2, sfs, ptag)
 
-        # ABC = top + sides (above ground only)
-        abc_list = list(top_surfs)
-        for tag in side_surfs:
-            if tag in cavity_wall_surfs:
-                continue
-            bb = gmsh.model.getBoundingBox(2, tag)
-            zc = (bb[2] + bb[5]) / 2
-            if zc > -tol:  # Above ground
-                abc_list.append(tag)
-        if abc_list:
-            gmsh.model.addPhysicalGroup(2, abc_list, self._TAG_ABC)
-        if huygens_surfs:
-            gmsh.model.addPhysicalGroup(2, huygens_surfs, self._TAG_HUYGENS)
-
-        # Classify volumes by z-position into cavity, substrate, and air
-        cavity_vols = []
-        substrate_vols = {si: [] for si in range(len(self.substrates))}
-        air_vols = []
-
-        for vtag in vols:
-            bb = gmsh.model.getBoundingBox(3, vtag)
-            z_center = (bb[2] + bb[5]) / 2
-            z_min = bb[2]
-            z_max = bb[5]
-
-            if z_max < tol:
-                # Entirely below ground plane → cavity
-                cavity_vols.append(vtag)
-            elif z_min < -tol:
-                # Straddles ground plane — treat as cavity
-                cavity_vols.append(vtag)
-            else:
-                # Above ground plane: check if in substrate or air
-                assigned = False
-                cum_z = 0.0
-                for si, sub in enumerate(self.substrates):
-                    sub_top = cum_z + sub['thickness']
-                    if z_center < sub_top + tol:
+            # Volumes: substrate layer by the z-centroid, air above.
+            substrate_vols = {si: [] for si in range(len(self.substrates))}
+            air_vols = []
+            for _, vtag in gmsh.model.getEntities(3):
+                zc = occ.getCenterOfMass(3, vtag)[2]
+                for si in range(len(self.substrates)):
+                    if z_levels[si] < zc < z_levels[si + 1]:
                         substrate_vols[si].append(vtag)
-                        assigned = True
                         break
-                    cum_z = sub_top
-                if not assigned:
+                else:
                     air_vols.append(vtag)
-
-        if cavity_vols:
-            gmsh.model.addPhysicalGroup(3, cavity_vols, self._TAG_CAVITY_VOL)
-        for si, sv in substrate_vols.items():
-            if sv:
-                gmsh.model.addPhysicalGroup(3, sv, self._TAG_SUBSTRATE_BASE + si)
-        if air_vols:
+            for si, sv in substrate_vols.items():
+                if not sv:
+                    raise RuntimeError(f"no volume found for substrate {si}")
+                gmsh.model.addPhysicalGroup(
+                    3, sv, self._TAG_SUBSTRATE_BASE + si)
             gmsh.model.addPhysicalGroup(3, air_vols, self._TAG_AIR)
 
-        # Mesh sizing: ensure at least 3 elements through the thinnest
-        # substrate layer for proper field resolution
-        min_sub_t = min(s['thickness'] for s in self.substrates)
-        sub_mesh_size = min_sub_t / 3.0
-        # Coaxial gap size needs at least 2-3 elements
-        gap_size = pw - pr
-        gap_mesh_size = gap_size / 3.0
-        global_min = min(pr / 2, sub_mesh_size, gap_mesh_size)
-        gmsh.option.setNumber("Mesh.MeshSizeMin", global_min)
+            self._set_mesh_size(gmsh, lc, density, a, b, z_probe, min_t,
+                                [t for sfs in patch_surfs.values()
+                                 for t in sfs])
+
+            gmsh.model.mesh.generate(3)
+            gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+            gmsh.write(msh_path)
+        finally:
+            gmsh.finalize()
+
+    def _set_mesh_size(self, gmsh, lc, density, a, b, z_probe, min_t,
+                       patch_tags):
+        """Background size field: probe gap, patches, lc elsewhere.
+
+        - Probe: size min(a, b - a) / 3 (3 elements across the narrower of
+          the probe half-side and the gap) within the hole, growing with
+          slope 0.5 away from the probe and hole edges.
+        - Patches: size s = 6 min_t / density (h/2 at density 12) inside
+          the patch footprint from the ground plane to the highest patch,
+          and within min_t of the patch outlines, growing with slope 0.5.
+          f_res of the 2.45 GHz FR-4 patch rises as s shrinks (2.300,
+          2.350, 2.375 GHz at perimeter sizes h, h/2, 0.35 h, density 12),
+          so s sets the accuracy near the substrate; the global density
+          (lc) does not (density 16 gave the same 2.300 GHz as 12).
+        """
+        gp = self.ground_plane_size
+        cx = gp / 2 + self.probe_offset[0]
+        cy = gp / 2 + self.probe_offset[1]
+        tol = 1e-3 * min(a, min_t)
+
+        probe_size = min(a, b - a) / 3.0
+        probe_curves = [
+            t for _, t in gmsh.model.getEntitiesInBoundingBox(
+                cx - b - tol, cy - b - tol, -tol,
+                cx + b + tol, cy + b + tol, z_probe + tol, 1)]
+        patch_size = min(lc, self._PATCH_SIZE_X_DENSITY * min_t / density)
+        patch_curves = [
+            t for _, t in gmsh.model.getBoundary(
+                [(2, t) for t in patch_tags], combined=True, oriented=False)]
+
+        gmsh.option.setNumber("Mesh.MeshSizeMin", min(probe_size, patch_size))
         gmsh.option.setNumber("Mesh.MeshSizeMax", lc)
         gmsh.option.setNumber("Mesh.Algorithm3D", 1)
 
-        # Local refinement: probe region AND substrate region
-        probe_pts = [
-            occ.addPoint(cx - pw, cy - pw, 0),
-            occ.addPoint(cx + pw, cy - pw, 0),
-            occ.addPoint(cx + pw, cy + pw, 0),
-            occ.addPoint(cx - pw, cy + pw, 0),
-        ]
-        # Substrate region refinement points (patch corners at substrate top)
-        sub_pts = []
-        for patch in self.patches:
-            z_p = patch['height']
-            pw_h = patch['width'] / 2
-            pl_h = patch['length'] / 2
-            sub_pts.extend([
-                occ.addPoint(gp/2 - pw_h, gp/2 - pl_h, z_p),
-                occ.addPoint(gp/2 + pw_h, gp/2 - pl_h, z_p),
-                occ.addPoint(gp/2 + pw_h, gp/2 + pl_h, z_p),
-                occ.addPoint(gp/2 - pw_h, gp/2 + pl_h, z_p),
-                occ.addPoint(gp/2, gp/2, z_p),  # center
-            ])
-        occ.synchronize()
+        field = gmsh.model.mesh.field
+        field.add("Distance", 1)
+        field.setNumbers(1, "CurvesList", probe_curves)
+        field.setNumber(1, "Sampling", 20)
+        field.add("Threshold", 2)
+        field.setNumber(2, "InField", 1)
+        field.setNumber(2, "SizeMin", probe_size)
+        field.setNumber(2, "SizeMax", lc)
+        field.setNumber(2, "DistMin", b - a)
+        field.setNumber(2, "DistMax",
+                        (b - a) + (lc - probe_size) / self._PROBE_SIZE_SLOPE)
 
-        # Field 1: probe refinement
-        gmsh.model.mesh.field.add("Distance", 1)
-        gmsh.model.mesh.field.setNumbers(1, "PointsList", probe_pts)
-        gmsh.model.mesh.field.add("Threshold", 2)
-        gmsh.model.mesh.field.setNumber(2, "InField", 1)
-        gmsh.model.mesh.field.setNumber(2, "SizeMin", pw / 2)
-        gmsh.model.mesh.field.setNumber(2, "SizeMax", lc)
-        gmsh.model.mesh.field.setNumber(2, "DistMin", pw)
-        gmsh.model.mesh.field.setNumber(2, "DistMax", 4 * pw)
+        field.add("Distance", 3)
+        field.setNumbers(3, "CurvesList", patch_curves)
+        field.setNumber(3, "Sampling", 200)
+        field.add("Threshold", 4)
+        field.setNumber(4, "InField", 3)
+        field.setNumber(4, "SizeMin", patch_size)
+        field.setNumber(4, "SizeMax", lc)
+        field.setNumber(4, "DistMin", min_t)
+        field.setNumber(4, "DistMax",
+                        min_t + (lc - patch_size) / self._PATCH_SIZE_SLOPE)
 
-        # Field 3: substrate/patch refinement
-        gmsh.model.mesh.field.add("Distance", 3)
-        gmsh.model.mesh.field.setNumbers(3, "PointsList", sub_pts)
-        gmsh.model.mesh.field.add("Threshold", 4)
-        gmsh.model.mesh.field.setNumber(4, "InField", 3)
-        gmsh.model.mesh.field.setNumber(4, "SizeMin", sub_mesh_size)
-        gmsh.model.mesh.field.setNumber(4, "SizeMax", lc)
-        gmsh.model.mesh.field.setNumber(4, "DistMin", min_sub_t)
-        gmsh.model.mesh.field.setNumber(4, "DistMax", max(patch['width'], patch['length']))
+        x0 = min(gp / 2 - p['width'] / 2 for p in self.patches)
+        y0 = min(gp / 2 - p['length'] / 2 for p in self.patches)
+        field.add("Box", 6)
+        field.setNumber(6, "VIn", patch_size)
+        field.setNumber(6, "VOut", lc)
+        field.setNumber(6, "XMin", x0)
+        field.setNumber(6, "XMax", gp - x0)
+        field.setNumber(6, "YMin", y0)
+        field.setNumber(6, "YMax", gp - y0)
+        field.setNumber(6, "ZMin", 0.0)
+        field.setNumber(6, "ZMax", max(p['height'] for p in self.patches))
 
-        # Combine refinement fields
-        gmsh.model.mesh.field.add("Min", 5)
-        gmsh.model.mesh.field.setNumbers(5, "FieldsList", [2, 4])
-        gmsh.model.mesh.field.setAsBackgroundMesh(5)
-
-        gmsh.model.mesh.generate(3)
-
-        gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
-        gmsh.write(msh_path)
-        gmsh.finalize()
+        field.add("Min", 5)
+        field.setNumbers(5, "FieldsList", [2, 4, 6])
+        field.setAsBackgroundMesh(5)
 
     def _setup_simulation(self, freq: float):
         """Set up boundary conditions and ports."""
@@ -473,12 +537,7 @@ class StackedPatchDesign:
 
         # Build PEC BC for all conducting surfaces
         bc = em.BC()
-        pec_tags = [
-            self._TAG_GROUND,
-            self._TAG_CAVITY_WALLS,
-            self._TAG_CAVITY_BOTTOM,
-            self._TAG_PROBE,
-        ]
+        pec_tags = [self._TAG_GROUND, self._TAG_PROBE]
         # Add patch PEC tags
         for pi in range(len(self.patches)):
             pec_tags.append(self._TAG_PATCH_BASE + pi)
@@ -490,8 +549,8 @@ class StackedPatchDesign:
 
         self._bc = bc
 
-        # Build lumped port — E-field in x-direction (radial, from probe
-        # inner conductor to ground outer conductor in coaxial gap)
+        # Lumped port on the strip from the probe face to the hole edge at
+        # z = 0; E along x, across the gap
         config = em.LumpedPortConfig()
         config.surface_tag = self._TAG_PORT
         config.z0 = self.z0
@@ -515,6 +574,7 @@ class StackedPatchDesign:
             Tuple of (S11, solution_vector)
         """
         self._setup_simulation(freq)
+        self._check_air_box(freq)
         omega = 2 * np.pi * freq
 
         params = em.MaxwellParams()
@@ -668,6 +728,7 @@ class StackedPatchDesign:
         # Set up BC and ports (frequency-independent for the lumped port)
         f_mid = (f_start + f_stop) / 2.0
         self._setup_simulation(f_mid)
+        self._check_air_box(float(freqs.min()))
 
         params = em.MaxwellParams()
         params.omega = 2 * np.pi * f_mid  # overwritten per frequency by the sweep
@@ -918,6 +979,6 @@ class StackedPatchDesign:
         return (
             f"StackedPatchDesign({n_patches} patch{'es' if n_patches > 1 else ''}, "
             f"{n_subs} substrate{'s' if n_subs > 1 else ''}, "
-            f"cavity={self.cavity_size*1000:.1f}mm, "
+            f"probe r={self.probe_radius*1000:.2f}mm, "
             f"z0={self.z0:.0f}ohm)"
         )

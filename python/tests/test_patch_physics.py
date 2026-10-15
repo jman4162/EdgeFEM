@@ -12,6 +12,9 @@ probe through a PEC cavity. The earlier patch tests only checked
   non-physical port term (S11 pinned at -1). Since the gap-port fix the
   designs no longer call normalize_port_weights.
 - test_*_substrate_volume*: the substrate tag must fill the substrate.
+- test_probe_follows_probe_radius, test_domain_starts_at_ground_*,
+  test_air_box_*, test_cavity_arguments_are_deprecated: feed and domain
+  geometry (probe from probe_radius, no cavity, air box lambda/2).
 - test_patch_known_answer_resonance (slow): resonance against the
   cavity model.
 """
@@ -76,8 +79,6 @@ def _fr4_stacked_design():
             'eps_r': p['substrate_eps_r'],
             'tan_d': p['substrate_tan_d'],
         }],
-        cavity_size=max(p['patch_width'], p['patch_length']) + 10e-3,
-        cavity_depth=5e-3,
         probe_radius=0.5e-3,
         probe_offset=(0.0, FR4_PROBE_Y_OFFSET),
     )
@@ -164,9 +165,8 @@ def test_stacked_patch_s11_is_not_a_short_sweep(tmp_path):
 #
 # The substrate under the ground plane footprint must be meshed and tagged
 # as substrate: total tet volume per substrate tag = ground area x layer
-# thickness. A probe cut out of the layer removes at most 0.3% here (the
-# 5 mm square probe that 2c4d96d builds at density 6; 0.01% for a 0.5 mm
-# radius probe), inside the 1% tolerance. On 2c4d96d the single
+# thickness. The probe post cut out of the layer removes 0.006% here
+# (0.85 mm square, 1.6 mm tall), inside the 1% tolerance. On 2c4d96d the single
 # patch's substrate tag holds only the 67 tets inside the probe
 # (investigation A3) and the second layer of the dual stack has no tets.
 
@@ -207,8 +207,6 @@ def test_stacked_patch_substrate_volumes(tmp_path):
             {'width': 32e-3, 'length': 27e-3, 'height': 4.8e-3},
         ],
         substrates=substrates,
-        cavity_size=35e-3,
-        cavity_depth=5e-3,
     )
     design.generate_mesh(density=6, design_freq=2.4e9,
                          output_path=str(tmp_path / "stacked.msh"))
@@ -219,16 +217,98 @@ def test_stacked_patch_substrate_volumes(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Feed and domain geometry
+# ---------------------------------------------------------------------------
+#
+# The probe is a square post whose thin-wire equivalent radius (0.59 x
+# side) equals probe_radius, at every mesh density; on 2c4d96d its size
+# came from the mesh size (a 5.1 mm square at density 6, 2.5 mm at 12).
+# The port strip spans the hole from the probe face to the ground on the
+# +x side: (b - a) x 2a, with a, b the half-sides of probe and hole.
+
+def _surface_area_by_tag(mesh):
+    """Total triangle area (m^2) per surface physical tag."""
+    nodes = mesh.nodes
+    node_index = mesh.nodeIndex
+    tris = mesh.tris
+    xyz = np.array([n.xyz for n in nodes], dtype=float)
+    conn = np.array([[node_index[c] for c in t.conn[:3]] for t in tris])
+    phys = np.array([t.phys for t in tris])
+    q0, q1, q2 = (xyz[conn[:, k]] for k in range(3))
+    area = np.linalg.norm(np.cross(q1 - q0, q2 - q0), axis=1) / 2.0
+    return {int(tag): float(area[phys == tag].sum()) for tag in np.unique(phys)}
+
+
+# The last case puts the probe 0.6 mm from the patch edge, so the hole
+# (half-side 0.98 mm) crosses the edge.
+NEAR_EDGE_Y_OFFSET = -FR4_PATCH['patch_length'] / 2 + 0.6e-3
+
+
+@pytest.mark.parametrize("probe_radius, density, y_offset", [
+    (0.5e-3, 6, FR4_PROBE_Y_OFFSET), (0.5e-3, 9, FR4_PROBE_Y_OFFSET),
+    (0.8e-3, 6, FR4_PROBE_Y_OFFSET), (0.5e-3, 6, NEAR_EDGE_Y_OFFSET)])
+def test_probe_follows_probe_radius(tmp_path, probe_radius, density,
+                                    y_offset):
+    patch = PatchAntennaDesign(**FR4_PATCH)
+    patch.set_probe_feed(y_offset=y_offset, probe_radius=probe_radius)
+    patch.generate_mesh(density=density, design_freq=FR4_DESIGN_FREQ,
+                        output_path=str(tmp_path / "patch.msh"))
+    areas = _surface_area_by_tag(patch.mesh)
+    side = probe_radius / 0.59
+    hole_side = side * math.exp(50.0 / 60.0)
+    h = FR4_PATCH['substrate_height']
+    S = StackedPatchDesign
+    assert areas[S._TAG_PROBE] == pytest.approx(4 * side * h, rel=1e-6)
+    assert areas[S._TAG_PORT] == pytest.approx(
+        (hole_side - side) / 2 * side, rel=1e-6)
+    gp = patch.ground_plane_size
+    assert areas[S._TAG_GROUND] == pytest.approx(gp ** 2 - hole_side ** 2,
+                                                 rel=1e-6)
+    assert areas[S._TAG_PATCH_BASE] == pytest.approx(
+        FR4_PATCH['patch_width'] * FR4_PATCH['patch_length'], rel=1e-6)
+
+
+def test_domain_starts_at_ground_and_air_box_is_half_wavelength(tmp_path):
+    # No cavity: no node below the ground plane. The air box reaches
+    # lambda/2 at f_min above the patch.
+    f_min = 2.0e9
+    patch = _fr4_patch()
+    patch.generate_mesh(density=6, design_freq=FR4_DESIGN_FREQ, f_min=f_min,
+                        output_path=str(tmp_path / "patch.msh"))
+    z = np.array([n.xyz[2] for n in patch.mesh.nodes])
+    assert z.min() == pytest.approx(0.0, abs=1e-12)
+    expected_top = FR4_PATCH['substrate_height'] + 0.5 * C0 / f_min
+    assert z.max() == pytest.approx(expected_top, rel=1e-9)
+
+
+def test_air_box_below_half_wavelength_warns(tmp_path):
+    patch = _fr4_patch()
+    patch.generate_mesh(density=4, design_freq=FR4_DESIGN_FREQ,
+                        output_path=str(tmp_path / "patch.msh"))
+    with pytest.warns(UserWarning, match="lambda/2"):
+        patch.simulate(0.9 * FR4_DESIGN_FREQ)
+
+
+def test_cavity_arguments_are_deprecated():
+    with pytest.warns(DeprecationWarning, match="cavity_size"):
+        StackedPatchDesign(
+            patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
+            substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4}],
+            cavity_size=35e-3, cavity_depth=5e-3)
+
+
+# ---------------------------------------------------------------------------
 # Known answer: resonance of the 2.45 GHz FR-4 patch
 # ---------------------------------------------------------------------------
 #
 # Mesh density 12, as in examples/run_patch_fullwave.py. The sweep runs
-# 2.25 to 2.70 GHz in 25 MHz steps (19 points). The cavity-model resonance
+# 2.25 to 2.70 GHz in 25 MHz steps (19 points); the air box is lambda/2
+# at 2.25 GHz (f_min). The cavity-model resonance
 # is 2.467 GHz, so the +/-5% band (2.344 to 2.590 GHz) lies inside the
 # sweep, and a minimum at either end of the sweep cannot pass.
-# Cost: one LU per point at density 12 (about 35 s and 6 GB each on an
-# idle machine), so this runs for minutes. Deselected by default; run with
-# `pytest -m slow`.
+# Cost: one LU per point on a 117k-edge mesh (about 2 min per point and
+# 8.3 GB peak; 39 min for the sweep on a shared machine). Deselected by
+# default; run with `pytest -m slow`.
 
 KNOWN_ANSWER_DENSITY = 12
 KNOWN_ANSWER_SWEEP = (2.25e9, 2.70e9, 19)
@@ -246,7 +326,7 @@ def test_patch_known_answer_resonance(tmp_path):
 
     patch = _fr4_patch()
     patch.generate_mesh(density=KNOWN_ANSWER_DENSITY,
-                        design_freq=FR4_DESIGN_FREQ,
+                        design_freq=FR4_DESIGN_FREQ, f_min=f_lo,
                         output_path=str(tmp_path / "patch_known_answer.msh"))
     freqs, _, s11 = patch.frequency_sweep(f_lo, f_hi, n)
 
@@ -255,6 +335,8 @@ def test_patch_known_answer_resonance(tmp_path):
     f_res = float(freqs[i_min])
     table = ", ".join(f"{f / 1e9:.3f}:{d:.2f}" for f, d in zip(freqs, mag_db))
     detail = (f"cavity model {f_cav / 1e9:.4f} GHz; |S11| dB by GHz: {table}")
+    print(f"f_res {f_res / 1e9:.4f} GHz, min |S11| {mag_db[i_min]:.2f} dB, "
+          f"{100 * (f_res - f_cav) / f_cav:+.2f}% from the {detail}")
 
     assert 0 < i_min < n - 1, (
         f"|S11| minimum at the sweep edge ({f_res / 1e9:.3f} GHz); {detail}")

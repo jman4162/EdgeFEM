@@ -34,14 +34,12 @@ gmsh_required = pytest.mark.skipif(not HAS_GMSH, reason="Gmsh not available")
 
 @gmsh_required
 class TestSinglePatch:
-    """Tests for single-patch cavity-fed antenna."""
+    """Tests for a single probe-fed patch."""
 
     def setup_method(self):
         self.design = StackedPatchDesign(
             patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
             substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4, 'tan_d': 0.02}],
-            cavity_size=35e-3,
-            cavity_depth=5e-3,
             probe_radius=0.65e-3,
         )
 
@@ -94,8 +92,6 @@ class TestDualPatch:
                 {'thickness': 1.6e-3, 'eps_r': 4.4, 'tan_d': 0.02},
                 {'thickness': 3.2e-3, 'eps_r': 1.05},
             ],
-            cavity_size=35e-3,
-            cavity_depth=5e-3,
         )
 
     def test_mesh_generation(self):
@@ -121,8 +117,6 @@ class TestRadiationPattern:
         design = StackedPatchDesign(
             patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
             substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4}],
-            cavity_size=35e-3,
-            cavity_depth=5e-3,
         )
         design.generate_mesh(density=8)
         pattern = design.radiation_pattern(2.4e9, n_theta=37, n_phi=19)
@@ -146,8 +140,6 @@ class TestRadiationPattern:
         design = StackedPatchDesign(
             patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
             substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4}],
-            cavity_size=35e-3,
-            cavity_depth=5e-3,
         )
         design.generate_mesh(density=8)
         D = design.directivity(2.4e9)
@@ -163,8 +155,6 @@ def test_repr():
     design = StackedPatchDesign(
         patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
         substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4}],
-        cavity_size=35e-3,
-        cavity_depth=5e-3,
     )
     s = repr(design)
     assert "StackedPatchDesign" in s

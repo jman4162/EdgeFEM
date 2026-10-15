@@ -100,7 +100,8 @@ class PatchAntennaDesign:
             substrate_eps_r: Substrate relative permittivity (default: 4.4 for FR-4)
             substrate_tan_d: Substrate loss tangent (default: 0.02)
             ground_plane_size: Ground plane edge length. If None, uses 3× patch size.
-            air_box_height: Height of air box above substrate. If None, uses lambda/4 at design freq.
+            air_box_height: Height of the air box above the patch. If None,
+                lambda/2 at the f_min given to generate_mesh().
         """
         self.patch_length = patch_length
         self.patch_width = patch_width
@@ -231,8 +232,6 @@ class PatchAntennaDesign:
                     'eps_r': self.substrate_eps_r,
                     'tan_d': self.substrate_tan_d,
                 }],
-                cavity_size=max(self.patch_width, self.patch_length) + 10e-3,
-                cavity_depth=5e-3,
                 probe_radius=probe_radius,
                 probe_offset=probe_offset,
                 z0=50.0,
@@ -270,6 +269,7 @@ class PatchAntennaDesign:
         density: float = 12.0,
         output_path: Optional[str] = None,
         design_freq: Optional[float] = None,
+        f_min: Optional[float] = None,
         **kwargs,
     ) -> None:
         """
@@ -283,6 +283,9 @@ class PatchAntennaDesign:
             output_path: Path for mesh file. If None, uses temp directory.
             design_freq: Design frequency for mesh sizing. If None, uses
                         estimated resonant frequency.
+            f_min: Lowest frequency to be simulated (Hz); the air box is
+                lambda/2 at f_min unless air_box_height was given. If
+                None, design_freq.
 
         Raises:
             RuntimeError: If Gmsh is not available or mesh generation fails
@@ -291,6 +294,7 @@ class PatchAntennaDesign:
         backend.generate_mesh(
             density=density, output_path=output_path,
             design_freq=design_freq or self._estimated_fr,
+            f_min=f_min,
         )
         self._mesh = backend.mesh
         self._mesh_path = backend._mesh_path

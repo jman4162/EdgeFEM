@@ -76,8 +76,6 @@ class TestStackedPatchValidation:
         self.design = StackedPatchDesign(
             patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
             substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4, 'tan_d': 0.02}],
-            cavity_size=35e-3,
-            cavity_depth=5e-3,
             probe_radius=0.65e-3,
         )
         self.design.generate_mesh(density=8)
@@ -311,8 +309,6 @@ class TestMeshConvergence:
         design = StackedPatchDesign(
             patches=[{'width': 30e-3, 'length': 25e-3, 'height': 1.6e-3}],
             substrates=[{'thickness': 1.6e-3, 'eps_r': 4.4}],
-            cavity_size=35e-3,
-            cavity_depth=5e-3,
             probe_radius=0.65e-3,
         )
         result = design.convergence_check(
