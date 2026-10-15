@@ -13,7 +13,7 @@ jobs:
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main" | sudo tee /etc/apt/sources.list.d/llvm.list
-          sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-format-19 clang-tidy-19 libeigen3-dev gmsh
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-format-19 clang-tidy-19 libeigen3-dev libsuitesparse-dev gmsh
           sudo ln -sf /usr/bin/clang-format-19 /usr/bin/clang-format
           sudo ln -sf /usr/bin/clang-tidy-19 /usr/bin/clang-tidy
           python -m pip install --upgrade pip
@@ -23,7 +23,14 @@ jobs:
         id: pybind11_dir
         run: echo "dir=$(python3 -c 'import pybind11; print(pybind11.get_cmake_dir())')" >> $GITHUB_ENV
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_PYTHON=ON -Dpybind11_DIR=${{ env.dir }}
+        # CI builds with SuiteSparse UMFPACK (EDGEFEM_USE_SUITESPARSE=ON).
+        # UMFPACK is GPL-2.0-or-later, but CI only runs the code and
+        # distributes nothing, so that does not apply here; wheels.yml
+        # builds without it. With Eigen SparseLU the fast Python suite took
+        # 22 min and peaked at 10.8 GB; with UMFPACK it takes 2 min.
+        # test_direct_solvers_backends still checks SparseLU against
+        # UMFPACK to 1e-9.
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_PYTHON=ON -DEDGEFEM_USE_SUITESPARSE=ON -Dpybind11_DIR=${{ env.dir }}
       - name: Build
         run: cmake --build build -j
       - name: Static analysis
@@ -33,10 +40,8 @@ jobs:
         # build (see tests/CMakeLists.txt); everything else must pass.
         run: ctest --test-dir build -LE known_issue -j --output-on-failure
       - name: Python integration tests
-        # The build has no SuiteSparse (EDGEFEM_USE_SUITESPARSE defaults to
-        # OFF), so direct solves use Eigen SparseLU. The slow known-answer
-        # patch test (`-m slow`) is deselected by addopts in pyproject.toml
-        # and does not run here.
+        # The slow known-answer patch test (`-m slow`) is deselected by
+        # addopts in pyproject.toml and does not run here.
         env:
           PYTHONPATH: build/python:python
         run: pytest python/tests/ -v --tb=short
