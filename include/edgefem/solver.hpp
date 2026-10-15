@@ -84,6 +84,12 @@ std::vector<SolveResult>
 solve_linear_multi(const SpMatC &A, const std::vector<VecC> &rhs,
                    const SolveOptions &opt = SolveOptions());
 
+/// Warn on stderr when a solve failed: "WARNING: Solver did not converge
+/// in <context> (method=..., iters=..., residual=..., error: ...)".
+/// Returns res.converged.
+bool check_solver_convergence(const SolveResult &res,
+                              const std::string &context);
+
 /// True when EdgeFEM was built with SuiteSparse UMFPACK
 /// (-DEDGEFEM_USE_SUITESPARSE=ON; the default build is without it).
 bool umfpack_available();

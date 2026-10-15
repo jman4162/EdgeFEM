@@ -310,6 +310,13 @@ void run_failures() {
                 << r.error_message << "'" << std::endl;
       CHECK(!r.converged);
       CHECK(r.x.size() == 0);
+      // The message carries the backend's own status.
+      if (r.method == "UMFPACK")
+        CHECK(r.error_message.find(
+                  "status 1 (UMFPACK_WARNING_singular_matrix)") !=
+              std::string::npos);
+      else
+        CHECK(r.error_message.find("SparseLU factorization failed: ") == 0);
     }
   }
 }

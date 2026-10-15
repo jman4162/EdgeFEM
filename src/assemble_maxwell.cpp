@@ -20,25 +20,6 @@
 namespace edgefem {
 
 namespace {
-/// Check solver convergence and warn to stderr if it failed.
-/// Returns true if converged, false otherwise.
-bool check_solver_convergence(const SolveResult &res,
-                              const std::string &context) {
-  if (!res.converged) {
-    std::cerr << "WARNING: Solver did not converge in " << context
-              << " (method=" << res.method << ", iters=" << res.iters
-              << ", residual=" << res.residual;
-    if (!res.error_message.empty()) {
-      std::cerr << ", error: " << res.error_message;
-    }
-    std::cerr << "). S-parameters may be unreliable." << std::endl;
-    return false;
-  }
-  return true;
-}
-} // namespace
-
-namespace {
 constexpr double c0 = 299792458.0;        // speed of light in vacuum (m/s)
 constexpr double mu0 = 4.0 * M_PI * 1e-7; // permeability of free space (H/m)
 constexpr double eps0 =

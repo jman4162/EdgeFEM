@@ -8,6 +8,7 @@
 #include <atomic>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 
@@ -33,6 +34,21 @@ DirectBackend resolve(DirectBackend backend) {
 }
 } // namespace
 
+bool check_solver_convergence(const SolveResult &res,
+                              const std::string &context) {
+  if (!res.converged) {
+    std::cerr << "WARNING: Solver did not converge in " << context
+              << " (method=" << res.method << ", iters=" << res.iters
+              << ", residual=" << res.residual;
+    if (!res.error_message.empty()) {
+      std::cerr << ", error: " << res.error_message;
+    }
+    std::cerr << "). S-parameters may be unreliable." << std::endl;
+    return false;
+  }
+  return true;
+}
+
 bool umfpack_available() { return kHaveUmfPack; }
 
 std::uint64_t direct_factorization_count() {
@@ -40,6 +56,73 @@ std::uint64_t direct_factorization_count() {
 }
 
 // ---- DirectLU --------------------------------------------------------------
+
+#ifdef EDGEFEM_HAVE_UMFPACK
+namespace {
+// Index type of the matrix handed to UMFPACK. 64-bit selects the
+// umfpack_zl_* interface. With 32-bit indices (umfpack_zi_*) the 2.45 GHz
+// FR-4 patch at 456k edges failed with UMFPACK_ERROR_out_of_memory in
+// about 10 s: its symbolic estimate (76 GB, an upper bound) exceeds what
+// 32-bit indices address. With 64-bit indices it factors in 20 s and
+// 6.4 GB; smaller runs take 1.4 to 2.2 GB more peak memory.
+using UmfIndex = SuiteSparse_long;
+using UmfMatrix =
+    Eigen::SparseMatrix<std::complex<double>, Eigen::ColMajor, UmfIndex>;
+
+// UmfPackLU with read access to the UMFPACK status code and Info array of
+// the last analysis or factorization (protected members in Eigen).
+class UmfPackLUStatus : public Eigen::UmfPackLU<UmfMatrix> {
+public:
+  int status() const { return static_cast<int>(this->m_fact_errorCode); }
+  double info_entry(int i) const { return this->m_umfpackInfo(i); }
+};
+
+const char *umfpack_status_name(int status) {
+  switch (status) {
+  case UMFPACK_OK:
+    return "UMFPACK_OK";
+  case UMFPACK_WARNING_singular_matrix:
+    return "UMFPACK_WARNING_singular_matrix";
+  case UMFPACK_ERROR_out_of_memory:
+    return "UMFPACK_ERROR_out_of_memory";
+  case UMFPACK_ERROR_invalid_Numeric_object:
+    return "UMFPACK_ERROR_invalid_Numeric_object";
+  case UMFPACK_ERROR_invalid_Symbolic_object:
+    return "UMFPACK_ERROR_invalid_Symbolic_object";
+  case UMFPACK_ERROR_argument_missing:
+    return "UMFPACK_ERROR_argument_missing";
+  case UMFPACK_ERROR_n_nonpositive:
+    return "UMFPACK_ERROR_n_nonpositive";
+  case UMFPACK_ERROR_invalid_matrix:
+    return "UMFPACK_ERROR_invalid_matrix";
+  case UMFPACK_ERROR_different_pattern:
+    return "UMFPACK_ERROR_different_pattern";
+  case UMFPACK_ERROR_ordering_failed:
+    return "UMFPACK_ERROR_ordering_failed";
+  case UMFPACK_ERROR_internal_error:
+    return "UMFPACK_ERROR_internal_error";
+  default:
+    return "unknown UMFPACK status";
+  }
+}
+
+// "status -1 (UMFPACK_ERROR_out_of_memory); symbolic estimates: numeric
+// object 18.2 GB, peak 25.0 GB"
+std::string umfpack_failure_detail(const UmfPackLUStatus &lu) {
+  std::ostringstream os;
+  os << "status " << lu.status() << " (" << umfpack_status_name(lu.status())
+     << ")";
+  const double unit = lu.info_entry(UMFPACK_SIZE_OF_UNIT);
+  const double numeric = lu.info_entry(UMFPACK_NUMERIC_SIZE_ESTIMATE);
+  const double peak = lu.info_entry(UMFPACK_PEAK_MEMORY_ESTIMATE);
+  if (unit > 0.0 && numeric > 0.0 && peak > 0.0)
+    os << "; symbolic estimates: numeric object " << std::fixed
+       << std::setprecision(1) << numeric * unit / 1e9 << " GB, peak "
+       << peak * unit / 1e9 << " GB";
+  return os.str();
+}
+} // namespace
+#endif
 
 struct DirectLU::Impl {
   DirectBackend backend;
@@ -52,9 +135,11 @@ struct DirectLU::Impl {
 #ifdef EDGEFEM_HAVE_UMFPACK
   // UmfPackLU keeps a reference to the matrix it factored and reads it again
   // in solve() (iterative refinement), so it factors this copy.
-  SpMatC umf_matrix;
-  Eigen::UmfPackLU<SpMatC> umfpack;
+  UmfMatrix umf_matrix;
+  UmfPackLUStatus umfpack;
 #endif
+  // Why the last analysis or factorization failed; empty if it did not.
+  std::string failure;
 };
 
 DirectLU::DirectLU(DirectBackend backend) : impl_(std::make_unique<Impl>()) {
@@ -87,11 +172,16 @@ void DirectLU::analyze_pattern(const SpMatC &A) {
       impl_->umfpack.analyzePattern(impl_->umf_matrix);
     }
     impl_->analyzed = impl_->umfpack.info() == Eigen::Success;
+    impl_->failure = impl_->analyzed
+                         ? std::string()
+                         : "UMFPACK symbolic analysis failed, " +
+                               umfpack_failure_detail(impl_->umfpack);
     return;
   }
 #endif
   impl_->sparse_lu.analyzePattern(A);
   impl_->analyzed = true;
+  impl_->failure.clear();
 }
 
 bool DirectLU::factorize(const SpMatC &A) {
@@ -107,11 +197,18 @@ bool DirectLU::factorize(const SpMatC &A) {
     impl_->umf_matrix.makeCompressed();
     impl_->umfpack.factorize(impl_->umf_matrix);
     impl_->factored = impl_->umfpack.info() == Eigen::Success;
+    impl_->failure = impl_->factored
+                         ? std::string()
+                         : "UMFPACK factorization failed, " +
+                               umfpack_failure_detail(impl_->umfpack);
     return impl_->factored;
   }
 #endif
   impl_->sparse_lu.factorize(A);
   impl_->factored = impl_->sparse_lu.info() == Eigen::Success;
+  impl_->failure = impl_->factored ? std::string()
+                                   : "SparseLU factorization failed: " +
+                                         impl_->sparse_lu.lastErrorMessage();
   return impl_->factored;
 }
 
@@ -145,7 +242,9 @@ DirectLU::factorize_and_solve(const SpMatC &A, const std::vector<VecC> &rhs) {
     SolveResult res;
     res.method = method();
     if (!factored) {
-      res.error_message = method() + " factorization failed";
+      res.error_message = impl_->failure.empty()
+                              ? method() + " factorization failed"
+                              : impl_->failure;
     } else if (!solve(b, res.x)) {
       res.error_message = method() + " solve failed";
     } else {

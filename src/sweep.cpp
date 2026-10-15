@@ -325,7 +325,10 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
       Eigen::MatrixXcd S(num_ports, num_ports);
       std::vector<VecC> xs(sols.size());
       for (int active = 0; active < num_ports; ++active) {
-        if (!sols[active].converged) {
+        if (!check_solver_convergence(
+                sols[active], "frequency_sweep (f = " + std::to_string(freq) +
+                                  " Hz, active port " + std::to_string(active) +
+                                  ")")) {
           for (int j = 0; j < num_ports; ++j) {
             S(j, active) =
                 std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
