@@ -210,6 +210,20 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
                                    const std::vector<WavePort> &ports,
                                    const SolveOptions &opts = SolveOptions());
 
+/// S-matrix and the field solutions it was computed from.
+struct SParamSolution {
+  Eigen::MatrixXcd S;
+  std::vector<VecC> x; // x[k]: solution with port k excited (a_k = 1); empty
+                       // if that solve failed
+};
+
+/// calculate_sparams() that also returns the field solutions, so a caller
+/// that needs both the S-matrix and the fields factors the system once.
+SParamSolution
+calculate_sparams_with_fields(const Mesh &mesh, const MaxwellParams &p,
+                              const BC &bc, const std::vector<WavePort> &ports,
+                              const SolveOptions &opts = SolveOptions());
+
 /// Deprecated: returns the ports unchanged and prints a one-time warning to
 /// stderr. The gap-port formulation needs no weight normalization; the
 /// former scaling (w^H A^-1 w = Z0) is what made a lossless port look

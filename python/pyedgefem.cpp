@@ -35,6 +35,34 @@ using namespace edgefem;
 PYBIND11_MAKE_OPAQUE(SpMatC);
 PYBIND11_MAKE_OPAQUE(VecC);
 
+namespace {
+
+// (elements.size(), ncols) int64 array with entry (i, k) = value(elements[i], k).
+template <typename F>
+py::array_t<std::int64_t> element_array(const std::vector<Element> &elements,
+                                        int ncols, F value) {
+  py::array_t<std::int64_t> out(
+      {static_cast<py::ssize_t>(elements.size()),
+       static_cast<py::ssize_t>(ncols)});
+  auto r = out.mutable_unchecked<2>();
+  for (size_t i = 0; i < elements.size(); ++i)
+    for (int k = 0; k < ncols; ++k)
+      r(i, k) = value(elements[i], k);
+  return out;
+}
+
+// Element vertices as row indices into Mesh::nodes (conn holds node ids).
+py::array_t<std::int64_t> element_nodes(const Mesh &m,
+                                        const std::vector<Element> &elements,
+                                        int nverts) {
+  return element_array(elements, nverts,
+                       [&m](const Element &e, int k) -> std::int64_t {
+                         return m.nodeIndex.at(e.conn[k]);
+                       });
+}
+
+} // namespace
+
 PYBIND11_MODULE(pyedgefem, m) {
   m.doc() = "Python bindings for the EdgeFEM 3D FEM solver.";
 
@@ -66,6 +94,69 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readonly("tris", &Mesh::tris, "List of triangles.")
       .def_readonly("edges", &Mesh::edges, "List of edges.")
       .def_readonly("nodeIndex", &Mesh::nodeIndex, "Map from node ID to index.")
+      // The list attributes above build a Python object per element on
+      // every access. These return numpy copies, built once per call.
+      .def(
+          "node_coords",
+          [](const Mesh &m) {
+            py::array_t<double> out(
+                {static_cast<py::ssize_t>(m.nodes.size()), py::ssize_t{3}});
+            auto r = out.mutable_unchecked<2>();
+            for (size_t i = 0; i < m.nodes.size(); ++i)
+              for (int k = 0; k < 3; ++k)
+                r(i, k) = m.nodes[i].xyz[k];
+            return out;
+          },
+          "Node positions, shape (num_nodes, 3), row i = nodes[i].xyz.")
+      .def(
+          "tet_nodes",
+          [](const Mesh &m) { return element_nodes(m, m.tets, 4); },
+          "Tet vertices as row indices into node_coords(), shape "
+          "(num_tets, 4).")
+      .def(
+          "tet_edges",
+          [](const Mesh &m) {
+            return element_array(m.tets, 6,
+                                 [](const Element &e, int k) -> std::int64_t {
+                                   return e.edges[k];
+                                 });
+          },
+          "Global edge index of each tet edge, shape (num_tets, 6).")
+      .def(
+          "tet_edge_orient",
+          [](const Mesh &m) {
+            return element_array(m.tets, 6,
+                                 [](const Element &e, int k) -> std::int64_t {
+                                   return e.edge_orient[k];
+                                 });
+          },
+          "Orientation (+1/-1) of each tet edge against the global edge, "
+          "shape (num_tets, 6).")
+      .def(
+          "tet_phys",
+          [](const Mesh &m) {
+            return element_array(m.tets, 1,
+                                 [](const Element &e, int) -> std::int64_t {
+                                   return e.phys;
+                                 })
+                .attr("reshape")(-1);
+          },
+          "Physical tag of each tet, shape (num_tets,).")
+      .def(
+          "tri_nodes",
+          [](const Mesh &m) { return element_nodes(m, m.tris, 3); },
+          "Triangle vertices as row indices into node_coords(), shape "
+          "(num_tris, 3).")
+      .def(
+          "tri_phys",
+          [](const Mesh &m) {
+            return element_array(m.tris, 1,
+                                 [](const Element &e, int) -> std::int64_t {
+                                   return e.phys;
+                                 })
+                .attr("reshape")(-1);
+          },
+          "Physical tag of each triangle, shape (num_tris,).")
       .def("num_nodes", [](const Mesh &m) { return m.nodes.size(); })
       .def("num_tets", [](const Mesh &m) { return m.tets.size(); })
       .def("num_tris", [](const Mesh &m) { return m.tris.size(); })
@@ -536,6 +627,11 @@ PYBIND11_MODULE(pyedgefem, m) {
   m.def("solve_linear", &solve_linear, "Solves a complex linear system Ax=b.",
         py::arg("A"), py::arg("b"), py::arg("options") = SolveOptions());
 
+  m.def("_sparse_lu_factorization_count", &sparse_lu_factorization_count,
+        "Test diagnostic: SparseLU numeric factorizations run in this "
+        "process so far (never reset). Tests take the difference across a "
+        "call to count what it costs.");
+
   m.def("assemble_maxwell", &assemble_maxwell,
         "Assembles the 3D Maxwell system.", py::arg("mesh"), py::arg("params"),
         py::arg("bc"), py::arg("ports") = std::vector<WavePort>(),
@@ -552,6 +648,20 @@ PYBIND11_MODULE(pyedgefem, m) {
       "per port, one factorization, one solve per port. Port weights are the "
       "voltage functional v (build_lumped_port sets them); no normalization "
       "is needed.",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("solver_options") = SolveOptions());
+
+  m.def(
+      "calculate_sparams_with_fields",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, const SolveOptions &opts) {
+        SParamSolution sol =
+            calculate_sparams_with_fields(mesh, p, bc, ports, opts);
+        return py::make_tuple(sol.S, sol.x);
+      },
+      "calculate_sparams() that also returns the field solutions: "
+      "(S, [x_0, ..., x_{N-1}]) with x_k the solution for port k excited. "
+      "One factorization for both.",
       py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
       py::arg("solver_options") = SolveOptions());
 
@@ -583,19 +693,45 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
 
   // Frequency sweep
+  py::class_<SweepField>(m, "SweepField",
+                         "Field solutions kept at one sweep frequency.")
+      .def_readonly("index", &SweepField::index,
+                    "Position in SweepResult.frequencies.")
+      .def_readonly("x", &SweepField::x,
+                    "x[k]: solution (VecC) with port k excited; empty if "
+                    "that solve failed.");
+
   py::class_<SweepResult>(m, "SweepResult",
                           "Result of an S-parameter frequency sweep.")
       .def_readonly("frequencies", &SweepResult::frequencies,
                     "Frequency points in Hz.")
       .def_readonly("S_matrices", &SweepResult::S_matrices,
-                    "S-matrix at each frequency point.");
+                    "S-matrix at each frequency point.")
+      .def_readonly("fields", &SweepResult::fields,
+                    "Kept field solutions (SweepField), ascending index.");
 
-  m.def("frequency_sweep", &frequency_sweep,
-        "Perform S-parameter frequency sweep with matrix reuse.\n"
-        "Pre-assembles K and M once, combines A = K - k₀²M at each frequency.\n"
-        "For direct solver, reuses symbolic factorization across frequencies.",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
-        py::arg("frequencies"), py::arg("solver_options") = SolveOptions());
+  m.def(
+      "frequency_sweep",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports,
+         const std::vector<double> &frequencies, const SolveOptions &opts,
+         const std::vector<std::size_t> &keep_indices,
+         bool keep_min_reflection) {
+        SweepFieldRequest keep;
+        keep.indices = keep_indices;
+        keep.min_reflection = keep_min_reflection;
+        return frequency_sweep(mesh, p, bc, ports, frequencies, opts, keep);
+      },
+      "Perform S-parameter frequency sweep with matrix reuse.\n"
+      "Pre-assembles K and M once, combines A = K - k₀²M at each frequency.\n"
+      "For direct solver, reuses symbolic factorization across frequencies.\n"
+      "keep_indices: frequency positions whose field solutions are returned\n"
+      "in SweepResult.fields; keep_min_reflection: also return the fields at\n"
+      "the smallest |S11|. Kept fields cost no extra solve.",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("frequencies"), py::arg("solver_options") = SolveOptions(),
+      py::arg("keep_indices") = std::vector<std::size_t>(),
+      py::arg("keep_min_reflection") = false);
 
   m.def("assemble_maxwell_km", &assemble_maxwell_km,
         "Assemble stiffness (K) and mass (M) matrices separately.\n"

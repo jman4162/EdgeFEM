@@ -11,6 +11,7 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "edgefem/solver.hpp"
@@ -465,15 +466,16 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   return asmbl;
 }
 
-Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
-                                   const BC &bc,
-                                   const std::vector<WavePort> &ports,
-                                   const SolveOptions &opts) {
+SParamSolution
+calculate_sparams_with_fields(const Mesh &mesh, const MaxwellParams &p,
+                              const BC &bc, const std::vector<WavePort> &ports,
+                              const SolveOptions &opts) {
   const int num_ports = static_cast<int>(ports.size());
   const int m = static_cast<int>(mesh.edges.size());
-  Eigen::MatrixXcd S(num_ports, num_ports);
+  SParamSolution out;
+  out.S.resize(num_ports, num_ports);
   if (num_ports == 0)
-    return S;
+    return out;
 
   // One loaded matrix for all ports; port i only changes the RHS.
   const auto asmbl = assemble_maxwell(mesh, p, bc, ports, -1);
@@ -482,22 +484,31 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
   rhs.reserve(ports.size());
   for (const auto &port : ports)
     rhs.push_back(port_excitation(port, bc, m, k0));
-  const std::vector<SolveResult> sols = solve_linear_multi(asmbl.A, rhs, opts);
+  std::vector<SolveResult> sols = solve_linear_multi(asmbl.A, rhs, opts);
 
+  out.x.reserve(ports.size());
   for (int i = 0; i < num_ports; ++i) { // active port
     if (!check_solver_convergence(sols[i], "calculate_sparams (active port " +
                                                std::to_string(i) + ")")) {
       // Fill column with NaN to signal bad results
       for (int j = 0; j < num_ports; ++j) {
-        S(j, i) =
+        out.S(j, i) =
             std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
                                  std::numeric_limits<double>::quiet_NaN());
       }
-      continue;
+    } else {
+      fill_sparam_column(out.S, i, ports, bc, sols[i].x);
     }
-    fill_sparam_column(S, i, ports, bc, sols[i].x);
+    out.x.push_back(std::move(sols[i].x));
   }
-  return S;
+  return out;
+}
+
+Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
+                                   const BC &bc,
+                                   const std::vector<WavePort> &ports,
+                                   const SolveOptions &opts) {
+  return calculate_sparams_with_fields(mesh, p, bc, ports, opts).S;
 }
 
 void normalize_port_weights(const Mesh & /*mesh*/, const MaxwellParams & /*p*/,

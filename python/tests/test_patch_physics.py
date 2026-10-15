@@ -86,13 +86,9 @@ def _fr4_stacked_design():
 
 def _tet_volume_by_tag(mesh):
     """Total tetrahedron volume (m^3) per volume physical tag."""
-    # Each attribute access copies the whole vector; read each once.
-    nodes = mesh.nodes
-    node_index = mesh.nodeIndex
-    tets = mesh.tets
-    xyz = np.array([n.xyz for n in nodes], dtype=float)
-    conn = np.array([[node_index[c] for c in t.conn[:4]] for t in tets])
-    phys = np.array([t.phys for t in tets])
+    xyz = mesh.node_coords()
+    conn = mesh.tet_nodes()
+    phys = mesh.tet_phys()
     p0, p1, p2, p3 = (xyz[conn[:, k]] for k in range(4))
     vol = np.abs(np.einsum(
         'ij,ij->i', p1 - p0, np.cross(p2 - p0, p3 - p0))) / 6.0
@@ -228,12 +224,9 @@ def test_stacked_patch_substrate_volumes(tmp_path):
 
 def _surface_area_by_tag(mesh):
     """Total triangle area (m^2) per surface physical tag."""
-    nodes = mesh.nodes
-    node_index = mesh.nodeIndex
-    tris = mesh.tris
-    xyz = np.array([n.xyz for n in nodes], dtype=float)
-    conn = np.array([[node_index[c] for c in t.conn[:3]] for t in tris])
-    phys = np.array([t.phys for t in tris])
+    xyz = mesh.node_coords()
+    conn = mesh.tri_nodes()
+    phys = mesh.tri_phys()
     q0, q1, q2 = (xyz[conn[:, k]] for k in range(3))
     area = np.linalg.norm(np.cross(q1 - q0, q2 - q0), axis=1) / 2.0
     return {int(tag): float(area[phys == tag].sum()) for tag in np.unique(phys)}
@@ -275,7 +268,7 @@ def test_domain_starts_at_ground_and_air_box_is_half_wavelength(tmp_path):
     patch = _fr4_patch()
     patch.generate_mesh(density=6, design_freq=FR4_DESIGN_FREQ, f_min=f_min,
                         output_path=str(tmp_path / "patch.msh"))
-    z = np.array([n.xyz[2] for n in patch.mesh.nodes])
+    z = patch.mesh.node_coords()[:, 2]
     assert z.min() == pytest.approx(0.0, abs=1e-12)
     expected_top = FR4_PATCH['substrate_height'] + 0.5 * C0 / f_min
     assert z.max() == pytest.approx(expected_top, rel=1e-9)

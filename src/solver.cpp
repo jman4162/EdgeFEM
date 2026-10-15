@@ -2,10 +2,21 @@
 
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/SparseLU>
+#include <atomic>
 #include <iomanip>
 #include <iostream>
 
 namespace edgefem {
+
+namespace {
+std::atomic<std::uint64_t> g_sparse_lu_factorizations{0};
+} // namespace
+
+std::uint64_t sparse_lu_factorization_count() {
+  return g_sparse_lu_factorizations.load();
+}
+
+void note_sparse_lu_factorization() { ++g_sparse_lu_factorizations; }
 
 // SparseLU direct solve (shared between direct path and fallback)
 static SolveResult solve_direct(const SpMatC &A, const VecC &b, bool verbose) {
@@ -13,6 +24,7 @@ static SolveResult solve_direct(const SpMatC &A, const VecC &b, bool verbose) {
   res.method = "SparseLU";
 
   Eigen::SparseLU<SpMatC> solver;
+  note_sparse_lu_factorization();
   solver.compute(A);
   if (solver.info() != Eigen::Success) {
     res.converged = false;
@@ -204,6 +216,7 @@ std::vector<SolveResult> solve_linear_multi(const SpMatC &A,
   }
 
   Eigen::SparseLU<SpMatC> solver;
+  note_sparse_lu_factorization();
   solver.compute(A);
   const bool factored = (solver.info() == Eigen::Success);
   if (!factored && opt.verbose) {

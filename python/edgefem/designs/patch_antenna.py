@@ -413,6 +413,7 @@ class PatchAntennaDesign:
         n_points: int = 51,
         z0: float = 50.0,
         verbose: bool = False,
+        keep_fields=None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Sweep frequency and compute input impedance and return loss.
@@ -426,13 +427,19 @@ class PatchAntennaDesign:
             n_points: Number of frequency points
             z0: Reference impedance (ohms)
             verbose: Print progress
+            keep_fields: FEM only: field solutions to keep so that
+                radiation_pattern() and directivity() at those frequencies
+                need no solve ("min_s11", frequencies in Hz, or both; see
+                StackedPatchDesign.frequency_sweep). Ignored by the
+                analytical model.
 
         Returns:
             Tuple of (frequencies, Z_in_array, S11_array)
         """
         if self.has_fem:
             return self._fem_backend.frequency_sweep(
-                f_start, f_stop, n_points, verbose=verbose
+                f_start, f_stop, n_points, verbose=verbose,
+                keep_fields=keep_fields,
             )
 
         freqs = np.linspace(f_start, f_stop, n_points)

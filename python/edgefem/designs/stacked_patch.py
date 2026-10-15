@@ -10,8 +10,9 @@ Stratton-Chu near-to-far field transformation for radiation patterns.
 import subprocess
 import tempfile
 import os
+import types
 import warnings
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Sequence, Union
 import numpy as np
 
 import pyedgefem as em
@@ -184,17 +185,22 @@ class StackedPatchDesign:
         self._mesh_path = None
         self._bc = None
         self._ports = None
-        self._last_solutions = {}
-        # Far-field cache: (freq, n_theta, n_phi) -> (solution serial,
-        # pattern). An entry is valid while the solution it was computed
-        # from is still the one stored for freq.
+        # Field solution per frequency. Written only by _store_solution().
+        self._solutions = {}
+        # Far-field cache: (freq, n_theta, n_phi) -> (solution, pattern),
+        # least recently used first. An entry is used only while its
+        # solution is still the one stored for freq.
         self._pattern_cache = {}
-        self._solution_serial = {}
-        self._serial_counter = 0
 
     @property
     def mesh(self):
         return self._mesh
+
+    @property
+    def _last_solutions(self):
+        """Read-only view of the stored field solutions, keyed by frequency
+        (Hz). Use _store_solution() to add or replace one."""
+        return types.MappingProxyType(self._solutions)
 
     @property
     def air_box_height(self) -> Optional[float]:
@@ -270,16 +276,19 @@ class StackedPatchDesign:
         self._mesh_path = msh_path
         self._bc = None
         self._ports = None
-        self._last_solutions = {}
-        self._solution_serial = {}
+        self._solutions = {}
         self._clear_pattern_cache()
 
+    # Patterns kept in the far-field cache. A 91 x 73 pattern holds about
+    # 210 kB of arrays.
+    _PATTERN_CACHE_MAX = 8
+
     def _store_solution(self, freq: float, solution) -> None:
-        """Record the field solution for freq. A new solution gets a new
-        serial number, which makes any cached pattern for freq stale."""
-        self._serial_counter += 1
-        self._last_solutions[freq] = solution
-        self._solution_serial[freq] = self._serial_counter
+        """Record the field solution for freq and drop the cached patterns
+        computed from the solution it replaces."""
+        self._solutions[freq] = solution
+        for key in [k for k in self._pattern_cache if k[0] == freq]:
+            del self._pattern_cache[key]
 
     def _clear_pattern_cache(self) -> None:
         self._pattern_cache = {}
@@ -581,9 +590,10 @@ class StackedPatchDesign:
         """
         Run full-wave FEM simulation at given frequency.
 
-        Uses calculate_sparams() with the gap-port formulation of the C++
-        core (load j k0 eta0 / Z0 on the port strip); the lumped port needs
-        no weight normalization.
+        Uses calculate_sparams_with_fields() with the gap-port formulation
+        of the C++ core (load j k0 eta0 / Z0 on the port strip); the lumped
+        port needs no weight normalization. S11 and the field come from one
+        factorization.
 
         Args:
             freq: Frequency in Hz
@@ -608,11 +618,12 @@ class StackedPatchDesign:
         opts = em.SolveOptions()
         opts.use_direct = True
 
-        # Use standard S-parameter extraction (same path as waveguide design)
-        S = em.calculate_sparams(
+        # S-parameters and the port-0 field from one factorization
+        S, fields = em.calculate_sparams_with_fields(
             self._mesh, params, self._bc, self._ports, opts
         )
         S11 = S[0, 0]
+        solution = fields[0]
 
         # Passivity diagnostic (warn but don't clamp)
         if abs(S11) > 1.01:
@@ -623,15 +634,8 @@ class StackedPatchDesign:
                 file=sys.stderr,
             )
 
-        # Also solve for the full field solution for post-processing
-        # (radiation patterns, field export, etc.)
-        assembly = em.assemble_maxwell(
-            self._mesh, params, self._bc, self._ports, 0
-        )
-        result = em.solve_linear(assembly.A, assembly.b, opts)
-        self._store_solution(freq, result.x)
-
-        return S11, result.x
+        self._store_solution(freq, solution)
+        return S11, solution
 
     def input_impedance(self, freq: float) -> complex:
         """
@@ -728,6 +732,8 @@ class StackedPatchDesign:
         f_stop: float,
         n_points: int = 21,
         verbose: bool = False,
+        keep_fields: Union[None, str, float,
+                           Sequence[Union[float, str]]] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Sweep frequency and compute S11 and input impedance.
@@ -737,11 +743,24 @@ class StackedPatchDesign:
             f_stop: Stop frequency (Hz)
             n_points: Number of frequency points
             verbose: Print progress
+            keep_fields: Field solutions to keep for radiation_pattern(),
+                directivity(), near_field() and export_fields_vtk(), which
+                then need no solve at those frequencies. None (default)
+                keeps none. "min_s11" keeps the field at the smallest
+                |S11| (the first on a tie, which is where np.argmin of the
+                returned |S11| lands); the sweep holds only the best field
+                so far. A frequency or a sequence of frequencies (Hz)
+                keeps those; each must be within 1e-9 relative of a sweep
+                frequency. The sequence may also contain "min_s11". A kept
+                field is stored under the sweep frequency from the returned
+                array, so look it up with that value. It replaces any field
+                already stored at that frequency.
 
         Returns:
             Tuple of (frequencies, Z_in_array, S11_array)
         """
         freqs = np.linspace(f_start, f_stop, n_points)
+        keep_indices, keep_min = self._keep_request(freqs, keep_fields)
 
         # Set up BC and ports (frequency-independent for the lumped port)
         f_mid = (f_start + f_stop) / 2.0
@@ -768,8 +787,12 @@ class StackedPatchDesign:
         # Use efficient frequency sweep (K/M separation + symbolic reuse)
         sweep_result = em.frequency_sweep(
             self._mesh, params, self._bc, self._ports,
-            freqs.tolist(), opts
+            freqs.tolist(), opts, keep_indices, keep_min
         )
+        for kept in sweep_result.fields:
+            x = kept.x[0]
+            if len(x) > 0:  # empty when the solve at that frequency failed
+                self._store_solution(float(freqs[kept.index]), x)
 
         Z_list = []
         S11_list = []
@@ -784,6 +807,30 @@ class StackedPatchDesign:
             Z_list.append(Z_in)
 
         return freqs, np.array(Z_list), np.array(S11_list)
+
+    @staticmethod
+    def _keep_request(freqs: np.ndarray, keep_fields) -> Tuple[List[int], bool]:
+        """Translate frequency_sweep()'s keep_fields into sweep indices and
+        the min-|S11| flag. Raises ValueError before any solve."""
+        if keep_fields is None:
+            return [], False
+        items = [keep_fields] if np.ndim(keep_fields) == 0 else keep_fields
+        indices, keep_min = [], False
+        for item in items:
+            if isinstance(item, str):
+                if item != "min_s11":
+                    raise ValueError(
+                        f"keep_fields: unknown option {item!r}; use "
+                        f"'min_s11' or frequencies in Hz")
+                keep_min = True
+                continue
+            f = float(item)
+            i = int(np.argmin(np.abs(freqs - f)))
+            if abs(freqs[i] - f) > 1e-9 * abs(f):
+                raise ValueError(
+                    f"keep_fields: {f:.6g} Hz is not a sweep frequency")
+            indices.append(i)
+        return indices, keep_min
 
     # Far-field evaluation works on blocks of directions so the
     # directions x faces phase matrix stays small. Per matrix entry a block
@@ -803,7 +850,8 @@ class StackedPatchDesign:
 
         The pattern is cached per (freq, n_theta, n_phi) and reused until
         the field solution at freq is replaced or generate_mesh() is
-        called. Each call returns its own copy of the arrays.
+        called; the cache holds the _PATTERN_CACHE_MAX most recently used
+        patterns. Each call returns its own copy of the arrays.
 
         Args:
             freq: Frequency in Hz
@@ -813,18 +861,20 @@ class StackedPatchDesign:
         Returns:
             Pattern object with theta_grid, phi_grid, E_theta, E_phi
         """
-        if freq not in self._last_solutions:
+        if freq not in self._solutions:
             self.simulate(freq)
 
         key = (freq, n_theta, n_phi)
-        serial = self._solution_serial.get(freq)
-        cached = self._pattern_cache.get(key)
-        if cached is not None and cached[0] == serial:
+        solution = self._solutions[freq]
+        cached = self._pattern_cache.pop(key, None)
+        if cached is not None and cached[0] is solution:
+            self._pattern_cache[key] = cached  # now most recently used
             return self._copy_pattern(cached[1])
 
         pattern = self._evaluate_pattern(freq, n_theta, n_phi)
-        if serial is not None:  # None: solution set without _store_solution
-            self._pattern_cache[key] = (serial, pattern)
+        self._pattern_cache[key] = (solution, pattern)
+        while len(self._pattern_cache) > self._PATTERN_CACHE_MAX:
+            del self._pattern_cache[next(iter(self._pattern_cache))]
         return self._copy_pattern(pattern)
 
     @staticmethod
@@ -837,7 +887,7 @@ class StackedPatchDesign:
     def _evaluate_pattern(self, freq: float, n_theta: int, n_phi: int):
         """Stratton-Chu sum over the Huygens faces for an n_theta x n_phi
         grid, vectorized over directions and faces in blocks."""
-        solution = self._last_solutions[freq]
+        solution = self._solutions[freq]
         omega = 2 * np.pi * freq
         c0 = 299792458.0
         k0 = omega / c0
@@ -981,27 +1031,39 @@ class StackedPatchDesign:
         Returns:
             Nx3 complex array of E-field values
         """
-        if freq not in self._last_solutions:
+        if freq not in self._solutions:
             self.simulate(freq)
 
-        solution = self._last_solutions[freq]
+        solution = self._solutions[freq]
+        points = np.asarray(points, dtype=float).reshape(-1, 3)
         E_out = np.zeros((len(points), 3), dtype=complex)
 
-        # Simple brute-force: for each point, find containing tet
-        for pi, point in enumerate(points):
-            for tet in self._mesh.tets:
-                verts = []
-                for i in range(4):
-                    idx = self._mesh.nodeIndex[tet.conn[i]]
-                    verts.append(self._mesh.nodes[idx].xyz)
+        # Mesh arrays, read once (the list attributes copy on every access)
+        mesh = self._mesh
+        xyz = mesh.node_coords()
+        tet_verts = xyz[mesh.tet_nodes()]                    # (tets, 4, 3)
+        tet_edges = mesh.tet_edges()
+        tet_orient = mesh.tet_edge_orient()
 
+        # Barycentric coordinates of each point in every tet, in numpy, pick
+        # the candidates; the first candidate in mesh order that passes the
+        # C++ test (all coordinates >= -1e-10) holds the point, as in the
+        # former tet-by-tet search. The numpy prefilter is looser (-1e-6) so
+        # round-off cannot drop the tet the C++ test would accept.
+        T = np.stack([tet_verts[:, k] - tet_verts[:, 3] for k in range(3)],
+                     axis=2)                                  # (tets, 3, 3)
+        T_inv = np.linalg.pinv(T)   # pinv: a flat tet does not raise
+        for pi, point in enumerate(points):
+            lam012 = np.einsum('tij,tj->ti', T_inv, point - tet_verts[:, 3])
+            lam_min = np.minimum(lam012.min(axis=1),
+                                 1.0 - lam012.sum(axis=1))
+            for t in np.flatnonzero(lam_min >= -1e-6):
+                verts = [tet_verts[t, k] for k in range(4)]
                 lam = em.compute_barycentric(verts, point)
-                if all(l >= -1e-10 for l in lam):
-                    edge_dofs = np.array([solution[tet.edges[e]] for e in range(6)])
-                    E = em.evaluate_edge_field(
-                        verts, list(tet.edge_orient), edge_dofs, point
-                    )
-                    E_out[pi] = E
+                if all(v >= -1e-10 for v in lam):
+                    edge_dofs = solution[tet_edges[t].tolist()]
+                    E_out[pi] = em.evaluate_edge_field(
+                        verts, tet_orient[t].tolist(), edge_dofs, point)
                     break
 
         return E_out
@@ -1014,9 +1076,9 @@ class StackedPatchDesign:
             freq: Frequency in Hz
             path: Output file path (.vtu)
         """
-        if freq not in self._last_solutions:
+        if freq not in self._solutions:
             self.simulate(freq)
-        em.export_fields_vtk(self._mesh, self._last_solutions[freq], path)
+        em.export_fields_vtk(self._mesh, self._solutions[freq], path)
 
     def export_touchstone(
         self, path: str, freqs: np.ndarray, S11_array: np.ndarray

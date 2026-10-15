@@ -287,11 +287,26 @@ freqs, Z_in, S11 = patch.frequency_sweep(
     f_stop: float,
     n_points: int = 51,
     z0: float = 50.0,
-    verbose: bool = False
+    verbose: bool = False,
+    keep_fields=None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
 ```
 
-Sweep frequency and compute impedance and return loss.
+Sweep frequency and compute impedance and return loss. With a FEM mesh,
+`keep_fields` keeps field solutions from the sweep's own factorizations so
+that `radiation_pattern()` and `directivity()` at those frequencies run no
+solve: `"min_s11"` keeps the field at the smallest |S11| (the frequency
+`freqs[np.argmin(np.abs(S11))]`), a list of frequencies in Hz keeps those
+(each within 1e-9 relative of a sweep point), and a list may hold both.
+Look a kept field up with the value from the returned `freqs`:
+
+```python
+freqs, _, S11 = patch.frequency_sweep(9e9, 11e9, n_points=11,
+                                      keep_fields="min_s11")
+f_res = float(freqs[np.argmin(np.abs(S11))])
+pattern = patch.radiation_pattern(f_res)   # no solve
+D = patch.directivity(f_res)               # no solve
+```
 
 #### radiation_pattern
 
@@ -305,7 +320,9 @@ pattern = patch.radiation_pattern(
 
 Compute 3D far-field radiation pattern. With a FEM mesh the pattern is
 cached per (freq, n_theta, n_phi) until the field solution at `freq` is
-replaced or the mesh is regenerated.
+replaced or the mesh is regenerated; the cache holds the 8 most recently
+used patterns. Without a stored field at `freq` the call runs `simulate(freq)`
+(one factorization).
 
 #### directivity
 

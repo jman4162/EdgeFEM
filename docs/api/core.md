@@ -208,6 +208,19 @@ S = em.calculate_sparams(
 
 Compute S-parameters using standard port extraction. Use `calculate_sparams_eigenmode` for higher accuracy.
 
+```python
+S, fields = em.calculate_sparams_with_fields(mesh, params, bc, ports, opts)
+```
+
+Same S-matrix, plus `fields[k]` (a `VecC`), the solution with port k
+excited. One factorization serves both.
+
+`em.frequency_sweep(..., keep_indices=[...], keep_min_reflection=False)`
+returns field solutions in `SweepResult.fields` (`SweepField` with `index`
+and `x`, one `VecC` per port) at the listed frequency positions and, with
+`keep_min_reflection`, at the smallest |S11|. They come from the sweep's own
+factorizations.
+
 ---
 
 ### calculate_sparams_periodic

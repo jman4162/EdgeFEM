@@ -291,6 +291,7 @@ P = (1/2)·Re∫∫ E×H* · dS = 1
 - Use `SurfaceIntegral` weight mode (default) for mesh-convergent weights
 - Use `convergence_check()` on design classes to verify mesh adequacy
 - Passivity violations (|S11| > 1) on coarse meshes are expected; refine mesh rather than clamping
+- Get fields and S-parameters from one factorization: `calculate_sparams_with_fields()`, or `frequency_sweep(..., keep_fields=...)` in the design classes (C++: `SweepFieldRequest`). Count factorizations in tests with `em._sparse_lu_factorization_count()` (difference across the call)
 
 ### Waveguide Port/Eigenmode Path (Fixed Mar 2026)
 

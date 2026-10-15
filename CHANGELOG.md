@@ -2,8 +2,38 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`frequency_sweep(..., keep_fields=...)`** on `StackedPatchDesign` and
+  `PatchAntennaDesign` keeps field solutions from the sweep's own
+  factorizations: `"min_s11"` (the field at the smallest |S11|; the sweep
+  holds only the best so far), a list of sweep frequencies in Hz, or both.
+  `radiation_pattern()`, `directivity()`, `near_field()` and
+  `export_fields_vtk()` at a kept frequency then run no solve. Default:
+  nothing kept, as before. The C++ `frequency_sweep` takes a
+  `SweepFieldRequest` and returns `SweepResult::fields`; Python:
+  `keep_indices`, `keep_min_reflection`.
+- **`calculate_sparams_with_fields`** (C++ and Python): the S-matrix and the
+  per-port field solutions from one factorization.
+- **`Mesh.node_coords()`, `tet_nodes()`, `tet_edges()`, `tet_edge_orient()`,
+  `tet_phys()`, `tri_nodes()`, `tri_phys()`**: numpy copies of the mesh,
+  built once per call. The list attributes (`nodes`, `tets`, `tris`) still
+  build a Python object per element on every access.
+
 ### Changed
 
+- **`StackedPatchDesign.simulate()` factors the system once** (was twice:
+  `calculate_sparams` and a second solve for the field). At 10 GHz on the
+  RO4350B patch at density 6 (25,260 tets) `simulate()` takes 10.4 s
+  instead of 22.4 s; the field equals the former one to 1e-10 relative.
+- **`near_field()`** locates points with numpy barycentric coordinates over
+  all tets and confirms the first candidate with the C++ test, instead of
+  copying the node list four times per tet visited. Results are unchanged.
+- **Pattern cache bounds.** Storing a new field at a frequency drops that
+  frequency's cached patterns, the cache holds at most 8 patterns (least
+  recently used dropped first), and a cached pattern is used only while
+  the field it came from is still the stored one. `_last_solutions` is a
+  read-only view; `_store_solution()` is the only write path.
 - **`StackedPatchDesign.radiation_pattern` is vectorized and cached.** The
   Stratton-Chu sum over Huygens faces runs as blocked numpy matrix products
   instead of a Python loop over directions and faces (results agree with the

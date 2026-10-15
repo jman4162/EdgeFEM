@@ -5,8 +5,14 @@
 #include <Eigen/Dense>
 #include <Eigen/SparseLU>
 #include <chrono>
+#include <cmath>
 #include <iostream>
+#include <map>
+#include <set>
+#include <stdexcept>
+#include <string>
 #include <unordered_set>
+#include <utility>
 
 namespace edgefem {
 
@@ -171,13 +177,77 @@ KMMatrices assemble_maxwell_km(const Mesh &mesh, const MaxwellParams &p,
   return km;
 }
 
+namespace {
+
+// Collects the field solutions a SweepFieldRequest asks for while the sweep
+// runs. For min_reflection only the best fields so far are held.
+class FieldKeeper {
+public:
+  FieldKeeper(const SweepFieldRequest &req, std::size_t num_freqs)
+      : min_reflection_(req.min_reflection) {
+    for (std::size_t i : req.indices) {
+      if (i >= num_freqs)
+        throw std::invalid_argument(
+            "frequency_sweep: kept field index " + std::to_string(i) +
+            " is out of range for " + std::to_string(num_freqs) +
+            " frequencies");
+      indices_.insert(i);
+    }
+  }
+
+  // Offer the solutions at frequency index fi; S is its S-matrix. Takes
+  // the vectors from sols only when they are kept.
+  void offer(std::size_t fi, const Eigen::MatrixXcd &S,
+             std::vector<VecC> &sols) {
+    const bool listed = indices_.count(fi) > 0;
+    bool best = false;
+    if (min_reflection_ && S.size() > 0) {
+      const double r = std::abs(S(0, 0));
+      if (!std::isnan(r) && (!have_best_ || r < best_r_)) {
+        best = true;
+        have_best_ = true;
+        best_r_ = r;
+        best_index_ = fi;
+        best_x_.clear(); // the previous best is no longer needed
+      }
+    }
+    if (listed)
+      kept_[fi] = std::move(sols);
+    else if (best)
+      best_x_ = std::move(sols);
+  }
+
+  std::vector<SweepField> take() {
+    if (have_best_ && !kept_.count(best_index_))
+      kept_[best_index_] = std::move(best_x_);
+    std::vector<SweepField> out;
+    out.reserve(kept_.size());
+    for (auto &kv : kept_)
+      out.push_back(SweepField{kv.first, std::move(kv.second)});
+    return out;
+  }
+
+private:
+  bool min_reflection_;
+  std::set<std::size_t> indices_;
+  std::map<std::size_t, std::vector<VecC>> kept_;
+  bool have_best_ = false;
+  double best_r_ = 0.0;
+  std::size_t best_index_ = 0;
+  std::vector<VecC> best_x_;
+};
+
+} // namespace
+
 SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
                             const BC &bc, const std::vector<WavePort> &ports,
                             const std::vector<double> &frequencies,
-                            const SolveOptions &opts) {
+                            const SolveOptions &opts,
+                            const SweepFieldRequest &keep) {
   SweepResult result;
   result.frequencies = frequencies;
   result.S_matrices.reserve(frequencies.size());
+  FieldKeeper keeper(keep, frequencies.size());
 
   const int num_ports = static_cast<int>(ports.size());
   if (num_ports == 0 || frequencies.empty()) {
@@ -253,6 +323,7 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
           lu_solver.analyzePattern(A);
           symbolic_done = true;
         }
+        note_sparse_lu_factorization();
         lu_solver.factorize(A);
         const bool factored = (lu_solver.info() == Eigen::Success);
         for (const VecC &b_rhs : rhs) {
@@ -288,6 +359,11 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
         fill_sparam_column(S, active, ports, bc, sols[active].x);
       }
 
+      std::vector<VecC> xs;
+      xs.reserve(sols.size());
+      for (auto &sol : sols)
+        xs.push_back(std::move(sol.x));
+      keeper.offer(fi, S, xs);
       result.S_matrices.push_back(S);
     }
   } else {
@@ -303,11 +379,14 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
       MaxwellParams p_freq = p;
       p_freq.omega = 2.0 * M_PI * frequencies[fi];
 
-      Eigen::MatrixXcd S = calculate_sparams(mesh, p_freq, bc, ports, opts);
-      result.S_matrices.push_back(S);
+      SParamSolution sol =
+          calculate_sparams_with_fields(mesh, p_freq, bc, ports, opts);
+      keeper.offer(fi, sol.S, sol.x);
+      result.S_matrices.push_back(sol.S);
     }
   }
 
+  result.fields = keeper.take();
   return result;
 }
 

@@ -241,6 +241,39 @@ class TestPatternCache:
         design.radiation_pattern(FREQ, n_theta=19, n_phi=13)
         assert len(calls) == 2
 
+    def test_sweep_resolve_invalidates(self, design, monkeypatch):
+        """A sweep that keeps the field at a frequency with a cached pattern
+        replaces that field, so the pattern is recomputed from the new one."""
+        calls = self._count_extractions(monkeypatch)
+        design.radiation_pattern(FREQ, n_theta=19, n_phi=13)
+        old_solution = design._last_solutions[FREQ]
+        design.frequency_sweep(FREQ, FREQ, n_points=1, keep_fields=[FREQ])
+        assert design._last_solutions[FREQ] is not old_solution
+        design.radiation_pattern(FREQ, n_theta=19, n_phi=13)
+        assert len(calls) == 2
+        assert calls[1][1] is design._last_solutions[FREQ]
+
+    def test_solutions_are_read_only(self, design):
+        """_store_solution() is the only way to replace a field, so no write
+        can bypass the pattern invalidation."""
+        with pytest.raises(TypeError):
+            design._last_solutions[FREQ] = design._last_solutions[FREQ]
+
+    def test_new_solution_drops_its_patterns(self, design):
+        """Replacing the field at a frequency frees its cached patterns."""
+        design.radiation_pattern(FREQ, n_theta=19, n_phi=13)
+        design.radiation_pattern(FREQ, n_theta=5, n_phi=7)
+        assert len(design._pattern_cache) == 2
+        design._store_solution(FREQ, design._last_solutions[FREQ])
+        assert design._pattern_cache == {}
+
+    def test_cache_holds_at_most_the_cap(self, design, monkeypatch):
+        """The cache keeps the most recent _PATTERN_CACHE_MAX patterns."""
+        monkeypatch.setattr(design, "_PATTERN_CACHE_MAX", 2)
+        for n_phi in (3, 5, 7):
+            design.radiation_pattern(FREQ, n_theta=3, n_phi=n_phi)
+        assert list(design._pattern_cache) == [(FREQ, 3, 5), (FREQ, 3, 7)]
+
     def test_new_mesh_invalidates(self, design):
         """generate_mesh() drops cached patterns along with the solutions.
         Uses a throwaway design so the module's solved design is untouched."""

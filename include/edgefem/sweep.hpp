@@ -1,6 +1,7 @@
 #pragma once
 
 #include <complex>
+#include <cstddef>
 #include <vector>
 
 #include "edgefem/fem.hpp"
@@ -46,10 +47,28 @@ struct KMMatrices {
 KMMatrices assemble_maxwell_km(const Mesh &mesh, const MaxwellParams &p,
                                const BC &bc);
 
+/// Field solutions to keep from a frequency sweep. By default none are kept.
+struct SweepFieldRequest {
+  /// Positions in the frequency list whose fields are kept.
+  std::vector<std::size_t> indices;
+  /// Also keep the fields at the frequency with the smallest |S(0,0)| (the
+  /// first one on a tie; frequencies with a failed solve are skipped). The
+  /// sweep holds only the best fields found so far, so this costs at most
+  /// one extra set of field vectors.
+  bool min_reflection = false;
+};
+
+/// Field solutions kept at one sweep frequency.
+struct SweepField {
+  std::size_t index = 0; // position in SweepResult::frequencies
+  std::vector<VecC> x;   // x[k]: solution with port k excited (a_k = 1)
+};
+
 /// Result of a frequency sweep.
 struct SweepResult {
   std::vector<double> frequencies;          // Hz
   std::vector<Eigen::MatrixXcd> S_matrices; // S-matrix at each frequency
+  std::vector<SweepField> fields;           // kept fields, ascending index
 };
 
 /// Perform an S-parameter frequency sweep with matrix reuse.
@@ -68,10 +87,14 @@ struct SweepResult {
 /// @param ports Wave/lumped port definitions
 /// @param frequencies Vector of frequencies in Hz
 /// @param opts Solver options
-/// @return SweepResult with S-matrix at each frequency
+/// @param keep Field solutions to return (none by default). Kept fields come
+///        from the same factorization as the S-matrix: no extra solve.
+/// @return SweepResult with S-matrix at each frequency and the kept fields
+/// @throws std::invalid_argument if a kept index is out of range
 SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
                             const BC &bc, const std::vector<WavePort> &ports,
                             const std::vector<double> &frequencies,
-                            const SolveOptions &opts = SolveOptions());
+                            const SolveOptions &opts = SolveOptions(),
+                            const SweepFieldRequest &keep = SweepFieldRequest());
 
 } // namespace edgefem

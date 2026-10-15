@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -69,5 +70,13 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
 std::vector<SolveResult>
 solve_linear_multi(const SpMatC &A, const std::vector<VecC> &rhs,
                    const SolveOptions &opt = SolveOptions());
+
+/// Number of SparseLU numeric factorizations run in this process (solver.cpp
+/// and the frequency sweep). A diagnostic for tests that check how many
+/// factorizations an operation costs; it is not reset automatically.
+std::uint64_t sparse_lu_factorization_count();
+
+/// Called by every code path that runs a SparseLU numeric factorization.
+void note_sparse_lu_factorization();
 
 } // namespace edgefem
