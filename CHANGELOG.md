@@ -4,16 +4,25 @@
 
 ### Added
 
-- **SuiteSparse UMFPACK backend for direct solves.** CMake option
-  `EDGEFEM_USE_SUITESPARSE` (default ON) uses UMFPACK when
-  `cmake/FindUMFPACK.cmake` finds it (`brew install suite-sparse`;
-  Debian/Ubuntu `libsuitesparse-dev`) and Eigen SparseLU otherwise.
-  `SolveOptions.direct_backend` (`DirectBackend.Default`, `SparseLU`,
-  `UmfPack`) picks one per solve; `umfpack_available()` reports the build.
-  UMFPACK runs with its METIS_GUARD ordering. `DirectLU` (C++) is the
-  factorization behind `solve_linear`, `solve_linear_multi`,
-  `calculate_sparams*` and `frequency_sweep`. UMFPACK is GPL-2.0-or-later:
-  a binary linked with it is distributed under the GPL.
+- **Optional SuiteSparse UMFPACK backend for direct solves.** CMake option
+  `EDGEFEM_USE_SUITESPARSE` (default OFF). With `-DEDGEFEM_USE_SUITESPARSE=ON`
+  the build links UMFPACK found by `cmake/FindUMFPACK.cmake`
+  (`brew install suite-sparse`; Debian/Ubuntu `libsuitesparse-dev`) and
+  configure fails if it is missing. `SolveOptions.direct_backend`
+  (`DirectBackend.Default`, `SparseLU`, `UmfPack`) picks one per solve;
+  `umfpack_available()` reports the build. UMFPACK runs with its
+  METIS_GUARD ordering. `DirectLU` (C++) is the factorization behind
+  `solve_linear`, `solve_linear_multi`, `calculate_sparams*` and
+  `frequency_sweep`.
+
+  Licensing: UMFPACK is licensed GPL-2.0-or-later. An ON build links
+  `libumfpack` (and through it CHOLMOD, AMD, the other SuiteSparse
+  libraries and libomp), so a distributed binary or wheel from an ON build
+  contains or depends on GPL-licensed code and carries the GPL's
+  conditions; EdgeFEM's own source stays MIT. The default (OFF) build links
+  no SuiteSparse library and uses Eigen SparseLU. On the 10 GHz patch,
+  SparseLU factors in 2.2 s (density 6) and 22 s (density 12), UMFPACK in
+  0.19 s and 0.73 s.
 - **`SweepResult.min_reflection_index`** (C++ `std::optional`, Python `None`
   or int): with `keep_min_reflection`, the frequency whose fields were kept.
   `StackedPatchDesign.frequency_sweep()` and `PatchAntennaDesign`'s FEM sweep

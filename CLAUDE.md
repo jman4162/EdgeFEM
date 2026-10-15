@@ -160,7 +160,7 @@ Python CLIs under `tools/` (see AGENTS.md):
 | `EDGEFEM_BUILD_SCALAR` | ON | Scalar Helmholtz path |
 | `EDGEFEM_BUILD_VECTOR` | ON | Maxwell vector path |
 | `EDGEFEM_PYTHON` | OFF | pybind11 Python bindings |
-| `EDGEFEM_USE_SUITESPARSE` | ON | Direct solves use SuiteSparse UMFPACK when `cmake/FindUMFPACK.cmake` finds it (`brew install suite-sparse`); otherwise Eigen SparseLU (COLAMD). `-DCMAKE_DISABLE_FIND_PACKAGE_UMFPACK=ON` configures as if it were absent |
+| `EDGEFEM_USE_SUITESPARSE` | OFF | OFF: direct solves use Eigen SparseLU (COLAMD). ON: link SuiteSparse UMFPACK (GPL-2.0-or-later) found by `cmake/FindUMFPACK.cmake` (`brew install suite-sparse`); configure fails if it is missing. Binaries from an ON build carry the GPL's conditions |
 
 ## Code Conventions
 

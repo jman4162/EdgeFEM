@@ -28,7 +28,7 @@ DirectBackend resolve(DirectBackend backend) {
   if (backend == DirectBackend::UmfPack && !kHaveUmfPack)
     throw std::invalid_argument(
         "DirectBackend::UmfPack: EdgeFEM was built without SuiteSparse "
-        "UMFPACK (CMake option EDGEFEM_USE_SUITESPARSE)");
+        "UMFPACK (configure with -DEDGEFEM_USE_SUITESPARSE=ON)");
   return backend;
 }
 } // namespace

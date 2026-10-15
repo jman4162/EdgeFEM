@@ -14,8 +14,8 @@
 # Result variables: UMFPACK_FOUND, UMFPACK_INCLUDE_DIR, UMFPACK_LIBRARY,
 # UMFPACK_VERSION. Imported target: UMFPACK::UMFPACK.
 #
-# Set CMAKE_DISABLE_FIND_PACKAGE_UMFPACK=ON to configure as if UMFPACK
-# were not installed.
+# The top-level CMakeLists.txt calls this module only when
+# EDGEFEM_USE_SUITESPARSE=ON.
 
 find_path(UMFPACK_INCLUDE_DIR umfpack.h PATH_SUFFIXES suitesparse)
 find_library(UMFPACK_LIBRARY NAMES umfpack)

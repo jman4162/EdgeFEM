@@ -85,7 +85,7 @@ solve_linear_multi(const SpMatC &A, const std::vector<VecC> &rhs,
                    const SolveOptions &opt = SolveOptions());
 
 /// True when EdgeFEM was built with SuiteSparse UMFPACK
-/// (CMake option EDGEFEM_USE_SUITESPARSE and UMFPACK found).
+/// (-DEDGEFEM_USE_SUITESPARSE=ON; the default build is without it).
 bool umfpack_available();
 
 /// Number of sparse LU numeric factorizations (any backend) run in this

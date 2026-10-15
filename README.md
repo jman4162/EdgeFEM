@@ -225,6 +225,18 @@ cmake -S . -B build -G Ninja \
 | `EDGEFEM_BUILD_SCALAR` | ON | Scalar Helmholtz solver |
 | `EDGEFEM_BUILD_VECTOR` | ON | Maxwell vector solver |
 | `EDGEFEM_PYTHON` | OFF | Python bindings (pybind11) |
+| `EDGEFEM_USE_SUITESPARSE` | OFF | Direct solves with SuiteSparse UMFPACK instead of Eigen SparseLU |
+
+By default the direct solver is Eigen SparseLU and the build links no
+SuiteSparse library. `-DEDGEFEM_USE_SUITESPARSE=ON` links SuiteSparse
+UMFPACK (`brew install suite-sparse`, or `libsuitesparse-dev` on
+Debian/Ubuntu; configure stops if it is not found), which factored the
+10 GHz patch example about 12x (density 6) and 30x (density 12) faster
+in our tests. UMFPACK is licensed GPL-2.0-or-later: a binary or wheel
+built with the option on links GPL code (UMFPACK and the SuiteSparse
+libraries it depends on), so distributing it carries the GPL's
+conditions. EdgeFEM's source remains MIT-licensed, and binaries from the
+default build contain no SuiteSparse code.
 
 ## Run Tests
 

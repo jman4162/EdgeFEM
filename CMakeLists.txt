@@ -16,23 +16,30 @@ option(EDGEFEM_BUILD_VECTOR "Build vector Maxwell path" ON)
 option(EDGEFEM_PYTHON "Build Python bindings" OFF)
 option(EDGEFEM_BUILD_DEBUG_TOOLS "Build one-off diagnostic executables in tests/" OFF)
 option(EDGEFEM_USE_SUITESPARSE
-       "Use SuiteSparse UMFPACK for direct solves when it is found" ON)
+       "Use SuiteSparse UMFPACK (GPL-2.0-or-later) for direct solves" OFF)
 
-# UMFPACK is optional: without it the direct solves use Eigen SparseLU.
+# Direct solves use Eigen SparseLU unless EDGEFEM_USE_SUITESPARSE=ON.
+# UMFPACK is GPL-2.0-or-later, so it is linked only on request, never
+# because it happens to be installed; a request without UMFPACK is an
+# error rather than a silent fallback.
 set(EDGEFEM_HAVE_UMFPACK OFF)
 if (EDGEFEM_USE_SUITESPARSE)
-  find_package(UMFPACK MODULE QUIET)
-  if (UMFPACK_FOUND)
-    set(EDGEFEM_HAVE_UMFPACK ON)
-    message(STATUS "EdgeFEM: direct solves use SuiteSparse UMFPACK "
-                   "${UMFPACK_VERSION}")
-  else()
-    message(STATUS "EdgeFEM: SuiteSparse UMFPACK not found; direct solves "
-                   "use Eigen SparseLU")
+  find_package(UMFPACK MODULE)
+  if (NOT UMFPACK_FOUND)
+    message(FATAL_ERROR
+      "EDGEFEM_USE_SUITESPARSE=ON but SuiteSparse UMFPACK was not found "
+      "(looked for umfpack.h, also under include/suitesparse, and "
+      "libumfpack). Install it (macOS: brew install suite-sparse; "
+      "Debian/Ubuntu: apt install libsuitesparse-dev), point "
+      "CMAKE_PREFIX_PATH at it, or configure with "
+      "-DEDGEFEM_USE_SUITESPARSE=OFF to use Eigen SparseLU.")
   endif()
+  set(EDGEFEM_HAVE_UMFPACK ON)
+  message(STATUS "EdgeFEM: direct solves use SuiteSparse UMFPACK "
+                 "${UMFPACK_VERSION} (GPL-2.0-or-later)")
 else()
-  message(STATUS "EdgeFEM: EDGEFEM_USE_SUITESPARSE=OFF; direct solves use "
-                 "Eigen SparseLU")
+  message(STATUS "EdgeFEM: direct solves use Eigen SparseLU "
+                 "(EDGEFEM_USE_SUITESPARSE=OFF)")
 endif()
 
 # When building via scikit-build-core, SKBUILD is defined
