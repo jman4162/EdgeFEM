@@ -18,6 +18,7 @@ add_library(edgefem
   post/ntf.cpp
   post/huygens_surface.cpp
   sweep.cpp
+  free_dofs.cpp
   mor/vector_fit.cpp
   materials/dispersive.cpp
 )
@@ -39,6 +40,14 @@ endif()
 target_include_directories(edgefem PUBLIC ${PROJECT_SOURCE_DIR}/include)
 
 target_link_libraries(edgefem PUBLIC Eigen3::Eigen)
+
+# UMFPACK stays out of the public headers (only solver.cpp includes it),
+# so it is a private dependency; CMake still passes the library on to
+# targets that link the static edgefem.
+if (EDGEFEM_HAVE_UMFPACK)
+  target_link_libraries(edgefem PRIVATE UMFPACK::UMFPACK)
+  target_compile_definitions(edgefem PRIVATE EDGEFEM_HAVE_UMFPACK=1)
+endif()
 
 if (EDGEFEM_BUILD_SCALAR)
   add_executable(edgefem_scalar_demo main_scalar_demo.cpp)

@@ -1,4 +1,5 @@
 #include "edgefem/edge_basis.hpp"
+#include "edgefem/free_dofs.hpp"
 #include "edgefem/maxwell.hpp"
 
 #include <Eigen/SparseCore>
@@ -477,29 +478,36 @@ calculate_sparams_with_fields(const Mesh &mesh, const MaxwellParams &p,
   if (num_ports == 0)
     return out;
 
-  // One loaded matrix for all ports; port i only changes the RHS.
+  // One loaded matrix for all ports; port i only changes the RHS. The
+  // factored system has the Dirichlet rows and columns removed (they are
+  // identity rows in asmbl.A with zero RHS, so the free-edge solution is
+  // the same); solutions are expanded back to one entry per edge.
   const auto asmbl = assemble_maxwell(mesh, p, bc, ports, -1);
+  const FreeDofs dofs(m, bc);
   const double k0 = p.omega / c0;
   std::vector<VecC> rhs;
   rhs.reserve(ports.size());
   for (const auto &port : ports)
-    rhs.push_back(port_excitation(port, bc, m, k0));
-  std::vector<SolveResult> sols = solve_linear_multi(asmbl.A, rhs, opts);
+    rhs.push_back(dofs.restrict_vector(port_excitation(port, bc, m, k0)));
+  std::vector<SolveResult> sols =
+      solve_linear_multi(dofs.restrict_matrix(asmbl.A), rhs, opts);
 
   out.x.reserve(ports.size());
   for (int i = 0; i < num_ports; ++i) { // active port
     if (!check_solver_convergence(sols[i], "calculate_sparams (active port " +
                                                std::to_string(i) + ")")) {
-      // Fill column with NaN to signal bad results
+      // Fill column with NaN to signal bad results; no field.
       for (int j = 0; j < num_ports; ++j) {
         out.S(j, i) =
             std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
                                  std::numeric_limits<double>::quiet_NaN());
       }
-    } else {
-      fill_sparam_column(out.S, i, ports, bc, sols[i].x);
+      out.x.emplace_back();
+      continue;
     }
-    out.x.push_back(std::move(sols[i].x));
+    VecC x = dofs.expand(sols[i].x);
+    fill_sparam_column(out.S, i, ports, bc, x);
+    out.x.push_back(std::move(x));
   }
   return out;
 }

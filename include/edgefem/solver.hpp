@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -15,10 +16,21 @@ namespace edgefem {
 using SolverProgressCallback =
     std::function<void(int iteration, double residual)>;
 
+/// Sparse LU used for direct solves (SolveOptions::use_direct and the
+/// iterative solvers' fallback).
+enum class DirectBackend {
+  Default,  ///< UmfPack when EdgeFEM was built with SuiteSparse, else SparseLU
+  SparseLU, ///< Eigen SparseLU
+  UmfPack,  ///< SuiteSparse UMFPACK; std::invalid_argument without SuiteSparse
+};
+
 struct SolveOptions {
   bool use_bicgstab = true;
   bool use_direct =
-      false; // Use SparseLU direct solver (more robust, uses more memory)
+      false; // Use a sparse direct LU (more robust, uses more memory)
+
+  /// Which sparse LU a direct solve uses.
+  DirectBackend direct_backend = DirectBackend::Default;
   double tolerance = 1e-10;
   int max_iterations = 10000;
 
@@ -66,17 +78,62 @@ SolveResult solve_linear(const SpMatC &A, const VecC &b,
 
 /// Solve A x_k = b_k for several right-hand sides. With opt.use_direct the
 /// matrix is factored once and every b_k reuses the factorization; the
-/// iterative path calls solve_linear for each b_k.
+/// iterative path calls solve_linear for each b_k. A result whose
+/// factorization failed has converged = false and an empty x.
 std::vector<SolveResult>
 solve_linear_multi(const SpMatC &A, const std::vector<VecC> &rhs,
                    const SolveOptions &opt = SolveOptions());
 
-/// Number of SparseLU numeric factorizations run in this process (solver.cpp
-/// and the frequency sweep). A diagnostic for tests that check how many
-/// factorizations an operation costs; it is not reset automatically.
-std::uint64_t sparse_lu_factorization_count();
+/// True when EdgeFEM was built with SuiteSparse UMFPACK
+/// (CMake option EDGEFEM_USE_SUITESPARSE and UMFPACK found).
+bool umfpack_available();
 
-/// Called by every code path that runs a SparseLU numeric factorization.
-void note_sparse_lu_factorization();
+/// Number of sparse LU numeric factorizations (any backend) run in this
+/// process. Every DirectLU::factorize call counts one. A diagnostic for
+/// tests that check how many factorizations an operation costs; it is not
+/// reset.
+std::uint64_t direct_factorization_count();
+
+/// Sparse LU factorization for matrices that share one sparsity pattern:
+/// analyze the pattern once, factor each matrix, then solve any number of
+/// right-hand sides with the last factorization. frequency_sweep uses one
+/// instance for all frequencies.
+///
+/// Backends: UMFPACK (SuiteSparse, when built with it) and Eigen SparseLU
+/// with COLAMD ordering.
+class DirectLU {
+public:
+  /// @throws std::invalid_argument for DirectBackend::UmfPack in a build
+  ///         without SuiteSparse.
+  explicit DirectLU(DirectBackend backend = DirectBackend::Default);
+  ~DirectLU();
+  DirectLU(const DirectLU &) = delete;
+  DirectLU &operator=(const DirectLU &) = delete;
+
+  /// "UMFPACK" or "SparseLU".
+  const std::string &method() const;
+
+  /// Symbolic analysis of A's pattern. Later factorize() calls must pass
+  /// matrices with this pattern; factorize() runs it if it has not run.
+  void analyze_pattern(const SpMatC &A);
+
+  /// Numeric factorization of A. Returns false if it failed (for example
+  /// a singular matrix); solve() then fails until a factorization succeeds.
+  bool factorize(const SpMatC &A);
+
+  /// x = A^-1 b with the last successful factorization. Returns false (and
+  /// leaves x empty) if there is none or the solve failed.
+  bool solve(const VecC &b, VecC &x) const;
+
+  /// factorize(A), then one solve per right-hand side. Each result carries
+  /// method(), the relative residual, and converged = false with an empty
+  /// x if the factorization or that solve failed.
+  std::vector<SolveResult> factorize_and_solve(const SpMatC &A,
+                                               const std::vector<VecC> &rhs);
+
+private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
 
 } // namespace edgefem

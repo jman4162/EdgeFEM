@@ -299,9 +299,10 @@ def test_cavity_arguments_are_deprecated():
 # at 2.25 GHz (f_min). The cavity-model resonance
 # is 2.467 GHz, so the +/-5% band (2.344 to 2.590 GHz) lies inside the
 # sweep, and a minimum at either end of the sweep cannot pass.
-# Cost: one LU per point on a 117k-edge mesh (about 2 min per point and
-# 8.3 GB peak; 39 min for the sweep on a shared machine). Deselected by
-# default; run with `pytest -m slow`.
+# Cost: one LU per point on a 117k-edge mesh. With UMFPACK the test takes
+# 36 s and 6.5 GB peak (process, including meshing); with the SparseLU
+# fallback before PEC elimination it took about 2 min per point, 8.3 GB
+# and 39 min. Deselected by default; run with `pytest -m slow`.
 
 KNOWN_ANSWER_DENSITY = 12
 KNOWN_ANSWER_SWEEP = (2.25e9, 2.70e9, 19)

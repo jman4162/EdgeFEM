@@ -203,8 +203,10 @@ void fill_sparam_column(Eigen::MatrixXcd &S, int active,
 
 /// N-port S-matrix with gap (lumped) ports: the loaded system is assembled
 /// and factored once (direct solver) and solved for one right-hand side per
-/// port. Ports with modal weights also give a passive S here, but modal
-/// ports are verified through calculate_sparams_eigenmode.
+/// port. The factored system holds only the non-Dirichlet edges (FreeDofs);
+/// a failed solve gives a NaN column. Ports with modal weights also give a
+/// passive S here, but modal ports are verified through
+/// calculate_sparams_eigenmode.
 Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
                                    const BC &bc,
                                    const std::vector<WavePort> &ports,
@@ -213,8 +215,9 @@ Eigen::MatrixXcd calculate_sparams(const Mesh &mesh, const MaxwellParams &p,
 /// S-matrix and the field solutions it was computed from.
 struct SParamSolution {
   Eigen::MatrixXcd S;
-  std::vector<VecC> x; // x[k]: solution with port k excited (a_k = 1); empty
-                       // if that solve failed
+  std::vector<VecC> x; // x[k]: solution with port k excited (a_k = 1), one
+                       // entry per mesh edge, zero on Dirichlet edges;
+                       // empty if that solve failed
 };
 
 /// calculate_sparams() that also returns the field solutions, so a caller

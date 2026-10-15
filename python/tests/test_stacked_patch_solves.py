@@ -7,6 +7,7 @@ Also the numpy mesh accessors and near_field().
 Requires Gmsh to be installed and in PATH.
 """
 
+import pickle
 import subprocess
 
 import numpy as np
@@ -37,7 +38,7 @@ F_START, F_STOP, N_POINTS = 2.3e9, 2.5e9, 3
 
 
 def _lu_count():
-    return em._sparse_lu_factorization_count()
+    return em._direct_factorization_count()
 
 
 @pytest.fixture
@@ -95,17 +96,26 @@ class TestSweepKeepsFields:
 
     def test_default_keeps_no_fields(self, design):
         before = _lu_count()
-        design.frequency_sweep(F_START, F_STOP, n_points=2)
+        result = design.frequency_sweep(F_START, F_STOP, n_points=2)
         assert _lu_count() - before == 2
         assert len(design._last_solutions) == 0
+        assert result.min_s11_index is None
+        assert result.min_s11_frequency is None
 
     def test_min_s11_pattern_and_directivity_need_no_solve(self, design):
         before = _lu_count()
-        freqs, _, s11 = design.frequency_sweep(
+        result = design.frequency_sweep(
             F_START, F_STOP, n_points=N_POINTS, keep_fields="min_s11")
+        freqs, _, s11 = result
         assert _lu_count() - before == N_POINTS
         f_res = float(freqs[int(np.argmin(np.abs(s11)))])
         assert list(design._last_solutions) == [f_res]
+        # The sweep reports which frequency it kept.
+        assert result.min_s11_index == int(np.argmin(np.abs(s11)))
+        assert result.min_s11_frequency == f_res
+        copy = pickle.loads(pickle.dumps(result))
+        assert copy.min_s11_frequency == f_res
+        np.testing.assert_array_equal(copy[2], s11)
 
         before = _lu_count()
         pattern = design.radiation_pattern(f_res, n_theta=10, n_phi=13)
@@ -161,6 +171,43 @@ class TestSweepKeepsFields:
         before = _lu_count()
         patch.radiation_pattern(float(freqs[0]), n_theta=4, n_phi=5)
         assert _lu_count() - before == 0
+
+
+@gmsh_required
+class TestDirectBackends:
+
+    def test_umfpack_and_sparselu_agree(self, design):
+        """Both direct backends give the same S11 and field on the patch
+        (Dirichlet edges eliminated in both), or UmfPack is refused in a
+        build without SuiteSparse."""
+        design._setup_simulation(2.4e9)
+        params = em.MaxwellParams()
+        params.omega = 2 * np.pi * 2.4e9
+        params.use_abc = True
+        params.abc_surface_tags = {design._TAG_ABC}
+        sub = design.substrates[0]
+        params.set_eps_r_region(
+            design._TAG_SUBSTRATE_BASE,
+            complex(sub['eps_r'], -sub['eps_r'] * sub['tan_d']))
+
+        def solve(backend):
+            opts = em.SolveOptions()
+            opts.use_direct = True
+            opts.direct_backend = backend
+            S, x = em.calculate_sparams_with_fields(
+                design._mesh, params, design._bc, design._ports, opts)
+            return S, x[0].to_numpy()
+
+        S_lu, x_lu = solve(em.DirectBackend.SparseLU)
+        if not em.umfpack_available():
+            with pytest.raises(ValueError, match="SuiteSparse"):
+                solve(em.DirectBackend.UmfPack)
+            return
+        S_umf, x_umf = solve(em.DirectBackend.UmfPack)
+        assert abs(S_umf[0, 0] - S_lu[0, 0]) / abs(S_lu[0, 0]) < 1e-9
+        assert _max_rel_err(x_umf, x_lu) < 1e-9
+        pec = np.array(sorted(design._bc.dirichlet_edges))
+        assert np.all(x_umf[pec] == 0.0) and np.all(x_lu[pec] == 0.0)
 
 
 @gmsh_required

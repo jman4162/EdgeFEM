@@ -589,12 +589,26 @@ PYBIND11_MODULE(pyedgefem, m) {
 
   // Solver options and results must be registered before functions that use
   // them
+  py::enum_<DirectBackend>(m, "DirectBackend",
+                           "Sparse LU used for direct solves.")
+      .value("Default", DirectBackend::Default,
+             "UmfPack when built with SuiteSparse, else SparseLU.")
+      .value("SparseLU", DirectBackend::SparseLU, "Eigen SparseLU.")
+      .value("UmfPack", DirectBackend::UmfPack,
+             "SuiteSparse UMFPACK; ValueError in a build without it.");
+
+  m.def("umfpack_available", &umfpack_available,
+        "True when EdgeFEM was built with SuiteSparse UMFPACK.");
+
   py::class_<SolveOptions>(m, "SolveOptions", "Options for the linear solver.")
       .def(py::init<>())
       .def_readwrite("use_bicgstab", &SolveOptions::use_bicgstab,
                      "Use BiCGSTAB solver.")
       .def_readwrite("use_direct", &SolveOptions::use_direct,
-                     "Use SparseLU direct solver (more robust).")
+                     "Use a sparse direct LU (more robust, more memory).")
+      .def_readwrite("direct_backend", &SolveOptions::direct_backend,
+                     "DirectBackend for direct solves (default: "
+                     "DirectBackend.Default).")
       .def_readwrite("tolerance", &SolveOptions::tolerance,
                      "Convergence tolerance.")
       .def_readwrite("max_iterations", &SolveOptions::max_iterations,
@@ -607,7 +621,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("ilut_drop_tolerance", &SolveOptions::ilut_drop_tolerance,
                      "ILUT drop tolerance (default: 1e-4).")
       .def_readwrite("auto_fallback", &SolveOptions::auto_fallback,
-                     "Auto-fallback to SparseLU if iterative solver fails "
+                     "Auto-fallback to a direct LU if iterative solver fails "
                      "(default: true).")
       .def_readwrite("verbose", &SolveOptions::verbose,
                      "Print progress to stderr.");
@@ -627,10 +641,10 @@ PYBIND11_MODULE(pyedgefem, m) {
   m.def("solve_linear", &solve_linear, "Solves a complex linear system Ax=b.",
         py::arg("A"), py::arg("b"), py::arg("options") = SolveOptions());
 
-  m.def("_sparse_lu_factorization_count", &sparse_lu_factorization_count,
-        "Test diagnostic: SparseLU numeric factorizations run in this "
-        "process so far (never reset). Tests take the difference across a "
-        "call to count what it costs.");
+  m.def("_direct_factorization_count", &direct_factorization_count,
+        "Test diagnostic: sparse LU numeric factorizations (any backend) "
+        "run in this process so far (never reset). Tests take the "
+        "difference across a call to count what it costs.");
 
   m.def("assemble_maxwell", &assemble_maxwell,
         "Assembles the 3D Maxwell system.", py::arg("mesh"), py::arg("params"),
@@ -708,7 +722,11 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readonly("S_matrices", &SweepResult::S_matrices,
                     "S-matrix at each frequency point.")
       .def_readonly("fields", &SweepResult::fields,
-                    "Kept field solutions (SweepField), ascending index.");
+                    "Kept field solutions (SweepField), ascending index.")
+      .def_readonly("min_reflection_index", &SweepResult::min_reflection_index,
+                    "With keep_min_reflection: position of the frequency "
+                    "with the smallest |S11|, whose fields are kept; None "
+                    "when not requested or no frequency had a finite S11.");
 
   m.def(
       "frequency_sweep",

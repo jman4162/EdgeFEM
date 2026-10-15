@@ -123,7 +123,8 @@ python3 examples/plot_waveguide_sparams.py
 | `maxwell.hpp` | Maxwell curl-curl FEM assembly with PML and ABC |
 | `edge_basis.hpp` | Nédélec (Whitney) edge element basis functions |
 | `ports/wave_port.hpp` | Wave port definitions with 2D eigenmode solver |
-| `solver.hpp` | BiCGSTAB+ILUT solver with auto-fallback to SparseLU |
+| `solver.hpp` | BiCGSTAB+ILUT solver with auto-fallback to a direct LU; `DirectLU` (UMFPACK or SparseLU) |
+| `free_dofs.hpp` | Numbering of non-PEC edges: direct solves drop the Dirichlet rows and columns |
 | `sweep.hpp` | Frequency sweep with K/M separation and factorization reuse |
 | `ports/lumped_port.hpp` | Lumped port with surface-integral weight computation |
 | `io/touchstone.hpp` | S-parameter Touchstone export |
@@ -136,7 +137,7 @@ python3 examples/plot_waveguide_sparams.py
 2. **BC** → `build_edge_pec()` tags PEC edges from physical groups
 3. **Ports** → `build_wave_port_from_eigenvector()` for wave ports, `build_lumped_port()` for antennas
 4. **Assembly** → `assemble_maxwell()` or `assemble_maxwell_km()` (K/M separation for sweeps)
-5. **Solve** → `solve_linear()` via BiCGSTAB+ILUT with auto-fallback to SparseLU
+5. **Solve** → `solve_linear()` via BiCGSTAB+ILUT with auto-fallback to a direct LU; `calculate_sparams*` and `frequency_sweep` factor the system restricted to the non-PEC edges (`FreeDofs`) and expand the fields back to one entry per edge
 6. **Post** → `calculate_sparams_eigenmode()` for wave ports, `calculate_sparams()` for lumped ports
 
 ### Key Types
@@ -159,6 +160,7 @@ Python CLIs under `tools/` (see AGENTS.md):
 | `EDGEFEM_BUILD_SCALAR` | ON | Scalar Helmholtz path |
 | `EDGEFEM_BUILD_VECTOR` | ON | Maxwell vector path |
 | `EDGEFEM_PYTHON` | OFF | pybind11 Python bindings |
+| `EDGEFEM_USE_SUITESPARSE` | ON | Direct solves use SuiteSparse UMFPACK when `cmake/FindUMFPACK.cmake` finds it (`brew install suite-sparse`); otherwise Eigen SparseLU (COLAMD). `-DCMAKE_DISABLE_FIND_PACKAGE_UMFPACK=ON` configures as if it were absent |
 
 ## Code Conventions
 

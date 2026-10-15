@@ -34,6 +34,28 @@ class _AperturePattern:
         return np.sqrt(np.abs(self.E_theta)**2 + np.abs(self.E_phi)**2)
 
 
+class FrequencySweepResult(tuple):
+    """(frequencies, Z_in, S11) from frequency_sweep(), plus the frequency
+    whose field keep_fields="min_s11" kept.
+
+    Unpacks as the three arrays, as before. min_s11_index (position in
+    frequencies) and min_s11_frequency (Hz) are None unless keep_fields
+    asked for "min_s11" and some frequency had a finite S11.
+    """
+
+    def __new__(cls, freqs, z_in, s11, min_s11_index=None):
+        self = super().__new__(cls, (freqs, z_in, s11))
+        self.min_s11_index = (None if min_s11_index is None
+                              else int(min_s11_index))
+        self.min_s11_frequency = (None if min_s11_index is None
+                                  else float(freqs[min_s11_index]))
+        return self
+
+    def __getnewargs__(self):
+        # pickle and copy rebuild through __new__
+        return (*self, self.min_s11_index)
+
+
 class StackedPatchDesign:
     """
     Multi-layer stacked patch antenna with a probe feed.
@@ -282,6 +304,15 @@ class StackedPatchDesign:
     # Patterns kept in the far-field cache. A 91 x 73 pattern holds about
     # 210 kB of arrays.
     _PATTERN_CACHE_MAX = 8
+
+    def _solution_at(self, freq: float):
+        """Field at freq: the stored one, else from simulate(freq)."""
+        if freq not in self._solutions:
+            self.simulate(freq)
+        if freq not in self._solutions:
+            raise RuntimeError(
+                f"the solve at {freq / 1e9:.6g} GHz failed; no field")
+        return self._solutions[freq]
 
     def _store_solution(self, freq: float, solution) -> None:
         """Record the field solution for freq and drop the cached patterns
@@ -599,7 +630,8 @@ class StackedPatchDesign:
             freq: Frequency in Hz
 
         Returns:
-            Tuple of (S11, solution_vector)
+            Tuple of (S11, solution_vector). If the solve failed, S11 is NaN,
+            the solution vector is empty and nothing is stored.
         """
         self._setup_simulation(freq)
         self._check_air_box(freq)
@@ -623,7 +655,7 @@ class StackedPatchDesign:
             self._mesh, params, self._bc, self._ports, opts
         )
         S11 = S[0, 0]
-        solution = fields[0]
+        solution = fields[0]  # empty when the solve failed (S11 is NaN)
 
         # Passivity diagnostic (warn but don't clamp)
         if abs(S11) > 1.01:
@@ -634,7 +666,8 @@ class StackedPatchDesign:
                 file=sys.stderr,
             )
 
-        self._store_solution(freq, solution)
+        if len(solution) > 0:
+            self._store_solution(freq, solution)
         return S11, solution
 
     def input_impedance(self, freq: float) -> complex:
@@ -734,7 +767,7 @@ class StackedPatchDesign:
         verbose: bool = False,
         keep_fields: Union[None, str, float,
                            Sequence[Union[float, str]]] = None,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> FrequencySweepResult:
         """
         Sweep frequency and compute S11 and input impedance.
 
@@ -757,7 +790,10 @@ class StackedPatchDesign:
                 already stored at that frequency.
 
         Returns:
-            Tuple of (frequencies, Z_in_array, S11_array)
+            FrequencySweepResult: unpacks as (frequencies, Z_in_array,
+            S11_array). With "min_s11" in keep_fields, its min_s11_index
+            and min_s11_frequency name the frequency whose field was kept
+            (None otherwise).
         """
         freqs = np.linspace(f_start, f_stop, n_points)
         keep_indices, keep_min = self._keep_request(freqs, keep_fields)
@@ -806,7 +842,9 @@ class StackedPatchDesign:
                 Z_in = complex(1e6, 0)
             Z_list.append(Z_in)
 
-        return freqs, np.array(Z_list), np.array(S11_list)
+        return FrequencySweepResult(freqs, np.array(Z_list),
+                                    np.array(S11_list),
+                                    sweep_result.min_reflection_index)
 
     @staticmethod
     def _keep_request(freqs: np.ndarray, keep_fields) -> Tuple[List[int], bool]:
@@ -861,11 +899,8 @@ class StackedPatchDesign:
         Returns:
             Pattern object with theta_grid, phi_grid, E_theta, E_phi
         """
-        if freq not in self._solutions:
-            self.simulate(freq)
-
         key = (freq, n_theta, n_phi)
-        solution = self._solutions[freq]
+        solution = self._solution_at(freq)
         cached = self._pattern_cache.pop(key, None)
         if cached is not None and cached[0] is solution:
             self._pattern_cache[key] = cached  # now most recently used
@@ -1031,10 +1066,7 @@ class StackedPatchDesign:
         Returns:
             Nx3 complex array of E-field values
         """
-        if freq not in self._solutions:
-            self.simulate(freq)
-
-        solution = self._solutions[freq]
+        solution = self._solution_at(freq)
         points = np.asarray(points, dtype=float).reshape(-1, 3)
         E_out = np.zeros((len(points), 3), dtype=complex)
 
@@ -1076,9 +1108,7 @@ class StackedPatchDesign:
             freq: Frequency in Hz
             path: Output file path (.vtu)
         """
-        if freq not in self._solutions:
-            self.simulate(freq)
-        em.export_fields_vtk(self._mesh, self._solutions[freq], path)
+        em.export_fields_vtk(self._mesh, self._solution_at(freq), path)
 
     def export_touchstone(
         self, path: str, freqs: np.ndarray, S11_array: np.ndarray

@@ -5,6 +5,7 @@
 #                (NDEBUG had compiled the asserts out) for reasons other than
 #                the lumped port or the patch geometry. They stay failing
 #                until fixed; `ctest -LE known_issue` skips them.
+#   solver       direct solver backends and Dirichlet elimination.
 
 add_executable(test_edge_indexing test_edge_indexing.cpp)
 target_link_libraries(test_edge_indexing PRIVATE edgefem)
@@ -164,6 +165,16 @@ target_link_libraries(test_lumped_tem_line PRIVATE edgefem)
 add_test(NAME test_lumped_tem_line COMMAND test_lumped_tem_line)
 set_tests_properties(test_lumped_tem_line PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS lumped)
 
+# Direct solver backends (UMFPACK vs SparseLU), Dirichlet elimination, and
+# the failed-solve contract. The backends test exits 77 (skipped) in a
+# build without SuiteSparse.
+add_executable(test_direct_solvers test_direct_solvers.cpp)
+target_link_libraries(test_direct_solvers PRIVATE edgefem)
+add_test(NAME test_direct_solvers COMMAND test_direct_solvers)
+set_tests_properties(test_direct_solvers PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped;solver")
+add_test(NAME test_direct_solvers_backends COMMAND test_direct_solvers backends)
+set_tests_properties(test_direct_solvers_backends PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped;solver" SKIP_RETURN_CODE 77)
+
 # One-off diagnostic executables from port/solver development. They print
 # results but contain no assertions, so they are NOT registered with CTest;
 # built only on demand for manual investigation.
@@ -210,6 +221,23 @@ if (EDGEFEM_BUILD_DEBUG_TOOLS)
   target_link_libraries(debug_solution_structure PRIVATE edgefem)
   add_executable(debug_3d_vs_2d_pattern debug_3d_vs_2d_pattern.cpp)
   target_link_libraries(debug_3d_vs_2d_pattern PRIVATE edgefem)
+
+  # Factor + solve timings per direct backend and ordering (see the file
+  # header). METIS is optional and only used here.
+  add_executable(bench_direct_lu bench_direct_lu.cpp)
+  target_link_libraries(bench_direct_lu PRIVATE edgefem)
+  if (EDGEFEM_HAVE_UMFPACK)
+    target_link_libraries(bench_direct_lu PRIVATE UMFPACK::UMFPACK)
+    target_compile_definitions(bench_direct_lu PRIVATE EDGEFEM_BENCH_UMFPACK=1)
+  endif()
+  find_path(METIS_INCLUDE_DIR metis.h)
+  find_library(METIS_LIBRARY metis)
+  mark_as_advanced(METIS_INCLUDE_DIR METIS_LIBRARY)
+  if (METIS_INCLUDE_DIR AND METIS_LIBRARY)
+    target_include_directories(bench_direct_lu PRIVATE ${METIS_INCLUDE_DIR})
+    target_link_libraries(bench_direct_lu PRIVATE ${METIS_LIBRARY})
+    target_compile_definitions(bench_direct_lu PRIVATE EDGEFEM_BENCH_METIS=1)
+  endif()
 endif()
 
 if (EDGEFEM_PYTHON)

@@ -2,6 +2,7 @@
 
 #include <complex>
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 #include "edgefem/fem.hpp"
@@ -61,7 +62,8 @@ struct SweepFieldRequest {
 /// Field solutions kept at one sweep frequency.
 struct SweepField {
   std::size_t index = 0; // position in SweepResult::frequencies
-  std::vector<VecC> x;   // x[k]: solution with port k excited (a_k = 1)
+  std::vector<VecC> x;   // x[k]: solution with port k excited (a_k = 1);
+                         // empty if that solve failed
 };
 
 /// Result of a frequency sweep.
@@ -69,17 +71,24 @@ struct SweepResult {
   std::vector<double> frequencies;          // Hz
   std::vector<Eigen::MatrixXcd> S_matrices; // S-matrix at each frequency
   std::vector<SweepField> fields;           // kept fields, ascending index
+  /// With SweepFieldRequest::min_reflection: the position of the frequency
+  /// with the smallest |S(0,0)|, whose fields are in `fields`. Empty when
+  /// not requested or when no frequency had a finite S(0,0).
+  std::optional<std::size_t> min_reflection_index;
 };
 
 /// Perform an S-parameter frequency sweep with matrix reuse.
 ///
-/// Pre-assembles K and M once, then at each frequency:
+/// Pre-assembles K and M once and restricts them to the non-PEC edges
+/// (FreeDofs), then at each frequency:
 /// 1. Combines A = K - k₀²M
 /// 2. Adds port loading and ABC
-/// 3. Solves and extracts S-parameters
+/// 3. Solves and extracts S-parameters from the fields expanded to one
+///    entry per mesh edge
 ///
-/// For SparseLU direct solver, reuses symbolic factorization across
-/// frequencies. For iterative solver, uses previous solution as initial guess.
+/// The direct solver (opts.use_direct, backend opts.direct_backend) analyzes
+/// the sparsity pattern once and factors once per frequency. The iterative
+/// solver starts each frequency from zero.
 ///
 /// @param mesh Volume mesh
 /// @param p Maxwell params (omega is overwritten per frequency)

@@ -15,6 +15,25 @@ option(EDGEFEM_BUILD_SCALAR "Build scalar prototype" ON)
 option(EDGEFEM_BUILD_VECTOR "Build vector Maxwell path" ON)
 option(EDGEFEM_PYTHON "Build Python bindings" OFF)
 option(EDGEFEM_BUILD_DEBUG_TOOLS "Build one-off diagnostic executables in tests/" OFF)
+option(EDGEFEM_USE_SUITESPARSE
+       "Use SuiteSparse UMFPACK for direct solves when it is found" ON)
+
+# UMFPACK is optional: without it the direct solves use Eigen SparseLU.
+set(EDGEFEM_HAVE_UMFPACK OFF)
+if (EDGEFEM_USE_SUITESPARSE)
+  find_package(UMFPACK MODULE QUIET)
+  if (UMFPACK_FOUND)
+    set(EDGEFEM_HAVE_UMFPACK ON)
+    message(STATUS "EdgeFEM: direct solves use SuiteSparse UMFPACK "
+                   "${UMFPACK_VERSION}")
+  else()
+    message(STATUS "EdgeFEM: SuiteSparse UMFPACK not found; direct solves "
+                   "use Eigen SparseLU")
+  endif()
+else()
+  message(STATUS "EdgeFEM: EDGEFEM_USE_SUITESPARSE=OFF; direct solves use "
+                 "Eigen SparseLU")
+endif()
 
 # When building via scikit-build-core, SKBUILD is defined
 if(SKBUILD)
