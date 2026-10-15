@@ -12,7 +12,6 @@
 #include <set>
 #include <stdexcept>
 #include <string>
-#include <unordered_set>
 #include <utility>
 
 namespace edgefem {
@@ -289,29 +288,11 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
     }
 
     // Frequency-independent part of the j k0 terms: the gap-port load
-    // (eta0 / Z0) v v^H (derivation in assemble_maxwell.cpp) plus a unit
-    // diagonal on the ABC edges that are not PEC.
+    // (eta0 / Z0) v v^H (derivation in assemble_maxwell.cpp) plus the ABC
+    // surface mass matrix.
     SpMatC loss = port_load_matrix(ports, bc, m_size);
-    if (p.use_abc) {
-      std::unordered_set<int> abc_edges;
-      for (const auto &tri : mesh.tris) {
-        if (!p.abc_surface_tags.empty() && !p.abc_surface_tags.count(tri.phys))
-          continue;
-        for (int e = 0; e < 3; ++e) {
-          int ge = tri.edges[e];
-          if (!bc.dirichlet_edges.count(ge))
-            abc_edges.insert(ge);
-        }
-      }
-      using T = Eigen::Triplet<std::complex<double>>;
-      std::vector<T> diag;
-      diag.reserve(abc_edges.size());
-      for (int e : abc_edges)
-        diag.emplace_back(e, e, 1.0);
-      SpMatC abc(m_size, m_size);
-      abc.setFromTriplets(diag.begin(), diag.end());
-      loss += abc;
-    }
+    if (p.use_abc)
+      loss += abc_surface_matrix(mesh, p, bc);
     const SpMatC loss_free = dofs.restrict_matrix(loss);
 
     // Symbolic analysis on the first frequency, reused for the rest.

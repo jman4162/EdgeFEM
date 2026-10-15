@@ -42,7 +42,7 @@ set_tests_properties(test_pml PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 add_executable(test_abc test_abc.cpp)
 target_link_libraries(test_abc PRIVATE edgefem)
 add_test(NAME test_abc COMMAND test_abc)
-set_tests_properties(test_abc PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "abc;known_issue")
+set_tests_properties(test_abc PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS abc)
 
 add_executable(test_sweep test_sweep.cpp)
 target_link_libraries(test_sweep PRIVATE edgefem)

@@ -133,6 +133,22 @@ SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
   return L;
 }
 
+SpMatC abc_surface_matrix(const Mesh &mesh, const MaxwellParams &p,
+                          const BC &bc) {
+  const int m = static_cast<int>(mesh.edges.size());
+  if (!p.use_abc)
+    return SpMatC(m, m);
+  // Weak form of n x curl E + j k0 n x n x E = 0 on the boundary:
+  // + j k0 int_S (n x N_i) . (n x N_j) dS = j k0 int_S N_i . N_j dS for
+  // the tangential traces, the triangle Whitney mass matrix. (Before
+  // 2026-10, the code added j k0 to the diagonal of each ABC edge instead.)
+  SpMatC Ms =
+      assemble_surface_mass(mesh, p.abc_surface_tags, bc.dirichlet_edges)
+          .cast<std::complex<double>>();
+  Ms.makeCompressed();
+  return Ms;
+}
+
 VecC port_excitation(const WavePort &port, const BC &bc, int num_edges,
                      double k0) {
   VecC b = VecC::Zero(num_edges);
@@ -360,26 +376,13 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   }
 
   if (p.use_abc) {
-    // Simple first-order absorbing boundary: add jk₀ damping to diagonal
-    // entries of boundary edges not marked as PEC.
-    // With the normalized formulation (K/μ_r - k₀²ε_r M), the ABC coefficient
-    // is jk₀ (wavenumber), NOT jω (angular frequency).
-    std::unordered_set<int> boundary_edges;
-    for (const auto &tri : mesh.tris) {
-      // If abc_surface_tags is specified, only apply ABC to those surfaces
-      if (!p.abc_surface_tags.empty() && !p.abc_surface_tags.count(tri.phys)) {
-        continue;
-      }
-      for (int e = 0; e < 3; ++e) {
-        int ge = tri.edges[e];
-        if (!bc.dirichlet_edges.count(ge))
-          boundary_edges.insert(ge);
-      }
-    }
+    // First-order ABC: j k0 times the boundary surface mass matrix. With the
+    // normalized formulation (K/mu_r - k0^2 eps_r M) the coefficient is
+    // j k0 (wavenumber), not j omega.
     const double k0_abc = p.omega / c0;
-    for (int e : boundary_edges) {
-      asmbl.A.coeffRef(e, e) += std::complex<double>(0.0, k0_abc);
-    }
+    asmbl.A +=
+        std::complex<double>(0.0, k0_abc) * abc_surface_matrix(mesh, p, bc);
+    asmbl.A.makeCompressed();
   }
 
   // Port-specific ABC: Add absorbing boundary conditions on port surfaces

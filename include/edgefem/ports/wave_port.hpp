@@ -103,4 +103,12 @@ Eigen::SparseMatrix<double>
 assemble_port_surface_mass(const Mesh &mesh, int surface_tag,
                            const std::unordered_set<int> &dirichlet_edges);
 
+/// The same surface mass matrix over every triangle whose physical tag is
+/// in `surface_tags`, or over every triangle in mesh.tris when
+/// `surface_tags` is empty. The first-order ABC adds j k0 times it.
+Eigen::SparseMatrix<double>
+assemble_surface_mass(const Mesh &mesh,
+                      const std::unordered_set<int> &surface_tags,
+                      const std::unordered_set<int> &dirichlet_edges);
+
 } // namespace edgefem

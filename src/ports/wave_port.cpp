@@ -548,11 +548,18 @@ WavePort build_wave_port_2d(const Mesh &mesh, int surface_tag,
 Eigen::SparseMatrix<double>
 assemble_port_surface_mass(const Mesh &mesh, int surface_tag,
                            const std::unordered_set<int> &dirichlet_edges) {
+  return assemble_surface_mass(mesh, {surface_tag}, dirichlet_edges);
+}
+
+Eigen::SparseMatrix<double>
+assemble_surface_mass(const Mesh &mesh,
+                      const std::unordered_set<int> &surface_tags,
+                      const std::unordered_set<int> &dirichlet_edges) {
   const int m = static_cast<int>(mesh.edges.size());
   std::vector<Eigen::Triplet<double>> triplets;
 
   for (const auto &tri : mesh.tris) {
-    if (tri.phys != surface_tag)
+    if (!surface_tags.empty() && !surface_tags.count(tri.phys))
       continue;
 
     std::array<Eigen::Vector3d, 3> v;
@@ -561,8 +568,8 @@ assemble_port_surface_mass(const Mesh &mesh, int surface_tag,
       v[k] = mesh.nodes[idx].xyz;
     }
 
-    // Local 3x3 block; local edge ordering (0,1),(0,2),(1,2) matches
-    // Element::edges for Tri3.
+    // Local 3x3 block; local edge ordering (0,1),(1,2),(2,0) matches
+    // build_edges() in mesh_gmsh.cpp for Tri3.
     Eigen::Matrix3d M_local = triangle_whitney_mass_matrix(v);
 
     for (int i = 0; i < 3; ++i) {

@@ -69,7 +69,10 @@ struct MaxwellParams {
   // Optional tensor PML specifications per physical region
   std::unordered_map<int, PMLRegionSpec> pml_tensor_regions;
   bool enforce_pml_heuristics = true;
-  // Enable simple first-order absorbing boundary condition on outer faces
+  // First-order absorbing boundary condition n x curl E + j k0 n x n x E = 0
+  // on outer faces: adds j k0 times the boundary surface mass matrix
+  // (abc_surface_matrix). The coefficient is that of free space (mu_r = 1,
+  // eps_r = 1) on every ABC face.
   bool use_abc = false;
   // Surface tags to apply ABC to. When non-empty, ABC is only applied to
   // triangles matching these physical tags. When empty, ABC applies to ALL
@@ -184,6 +187,13 @@ MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
 /// j k0 L, the load of a resistor Z0_p across each port gap.
 SpMatC port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
                         int num_edges);
+
+/// Frequency-independent part of the first-order ABC: the surface mass
+/// matrix int_S N_i . N_j dS over the ABC triangles (p.abc_surface_tags, or
+/// every triangle in mesh.tris when that set is empty), PEC edges left out.
+/// The system matrix gets j k0 times it. All zero when p.use_abc is false.
+SpMatC abc_surface_matrix(const Mesh &mesh, const MaxwellParams &p,
+                          const BC &bc);
 
 /// Right-hand side for a unit incident power wave (a = 1) at `port`: a
 /// Norton source of current 2 / sqrt(Z0) across the gap,

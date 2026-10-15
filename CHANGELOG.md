@@ -52,6 +52,21 @@
 
 ### Changed
 
+- **First-order ABC uses the boundary surface mass matrix.** `use_abc` now
+  adds j k0 int_S N_i . N_j dS over the ABC triangles (the weak form of
+  n x curl E + j k0 n x n x E = 0) instead of j k0 on the diagonal of each
+  ABC edge, in `assemble_maxwell` and `frequency_sweep` alike.
+  `abc_surface_matrix()` returns the frequency-independent matrix and
+  `assemble_surface_mass()` generalizes `assemble_port_surface_mass()` to a
+  set of tags. `test_abc` checks the assembled term entry by entry and is no
+  longer `known_issue`. On the 2.45 GHz FR-4 patch (density 12, 10 MHz
+  steps) the air-box height mattered less afterwards: with the box lambda/2
+  at 1.8 GHz, f_res 2.3586 -> 2.3600 GHz and min |S11| -15.11 -> -14.53 dB;
+  with a lambda/4 box, 2.3652 -> 2.3621 GHz and -12.70 -> -14.55 dB.
+  Off-resonance Re(Z) was already small after the gap-port and geometry
+  fixes and did not change: 0.49 -> 0.50 ohm at 1.8 GHz, 1.38 -> 1.40 ohm
+  at 3.0 GHz.
+
 - **Direct solves drop the PEC rows and columns.** `calculate_sparams*` and
   `frequency_sweep` factor the system restricted to the non-PEC edges and
   expand each field to one entry per mesh edge (zero on PEC edges); the
