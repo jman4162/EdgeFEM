@@ -281,7 +281,7 @@ If you use EdgeFEM in your research, please cite:
   title        = {{EdgeFEM}: A 3D Finite-Element Electromagnetics Simulator for RF and mmWave},
   year         = {2026},
   month        = feb,
-  version      = {1.0.0},
+  version      = {1.1.0},
   publisher    = {GitHub},
   url          = {https://github.com/jman4162/EdgeFEM},
   license      = {MIT}

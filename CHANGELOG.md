@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## 1.1.0 (2026-10-15)
 
 ### Added
 
@@ -129,10 +129,74 @@
   (frequency, n_theta, n_phi) and dropped when the field solution at that
   frequency is replaced or the mesh is regenerated. `directivity()` takes
   optional `n_theta`/`n_phi` (default 91 x 73, as before) and reuses a
-  cached pattern when the grid matches.
+  cached pattern when the grid matches. 10 GHz RO4350B patch, 46 x 73
+  directions: the Python loop took 14.2 s (90 Huygens faces, density 6) and
+  33.7 s (162 faces, density 12); the vectorized sum takes 0.01 s and 0.02 s,
+  with E_theta and E_phi equal to the loop to about 1e-15 relative to the
+  peak.
 
 ### Fixed
 
+- **The lumped port is a gap port with a physical load and source.**
+  The old port scaled its weights to ||w|| = sqrt(Z0) and added a
+  frequency-independent real load, without the j k0 eta0 factor that
+  relates a gap current to the field equation, so every S11 sat near -1.
+  The port now stores v = w / W (W = strip width),
+  so V = v^H x is the gap voltage; the load is the term
+  j k0 eta0 / Z0 v v^H added to the system matrix; the source is a Norton
+  current 2 / sqrt(Z0) in parallel with Z0 (incident power wave a = 1).
+  S(j, i) = V_j / sqrt(Z0_j) - delta_ij, and all ports share one loaded
+  matrix, so `calculate_sparams` and `frequency_sweep` factor once per
+  frequency (was once per port) and solve the right-hand sides together
+  (`solve_linear_multi`). Derivation: comment block at the top of
+  `src/assemble_maxwell.cpp`. `normalize_port_weights` is a no-op that warns
+  (`DeprecationWarning` in Python); `StackedPatchDesign` no longer calls it.
+
+  Before and after (2 / 5 / 8 GHz unless noted):
+  - Closed lossless box: S11 was -0.9938 / -0.9936 / -0.9933, a short that
+    ignores the box; it is now -0.986+0.168j, -0.910+0.415j, -0.762+0.647j,
+    |S11| = 1, Z = j4.23, j10.87, j18.36 ohm.
+  - TEM line: |S11| was 1.07 / 0.98 / 1.09 and |S21| 0.11 / 0.03 / 0.09; it
+    is now |S11| = 6.1e-5, 4.9e-4, 6.5e-5 and |S21| = 1, with Z11 within
+    2.3e-5, 1.6e-3, 9.1e-3 of -j Zc cot(k0 L).
+  - WR-90 with the gap port: |S11|^2 + |S21|^2 was 12.3 / 5.8 / 2.65 at
+    7 / 8 / 10 GHz; it is 1.0000 from 7 to 100 GHz.
+  - Probe-fed patch (density 6, 2.2 / 2.45 / 2.7 GHz): S11 was -0.9947 /
+    -0.9938 / -0.9921; it is -0.708+0.686j, -0.560+0.814j, -0.288+0.934j.
+  - `test_sparam_accuracy` takes 45.5 s (was 72.5 s) and `test_frequency_sweep`
+    2.2 s (was 6.6 s).
+
+  New tests: `test_lumped_lossless_box`, `test_lumped_tem_line`; the
+  `test_wave_port_excitation` expected values changed to the physical source
+  (j 3.5543e-7 at omega = 1 rad/s, Z0 = 50 ohm).
+- **Patch geometry: substrate volumes, no cavity, probe from
+  `probe_radius`.** `StackedPatchDesign` built no substrate volume
+  (the substrate tag held only the probe interior, 41.6 mm^3 against
+  20,034.6 mm^3 expected for the FR-4 patch, so the substrate was solved as
+  air), and the PEC probe ran down to a PEC cavity floor at z = -5 mm,
+  shorting it under the port. Each substrate layer is now its own
+  volume (physical tag 110 + layer index), the domain starts at the ground
+  plane (z = 0), and the lumped port is a rectangle in a square hole in the
+  ground, from the probe's +x face to the hole edge. The probe is a square
+  PEC post of side `probe_radius / 0.59` (equivalent thin-wire radius
+  `probe_radius`) at every mesh density. New keyword `probe_hole_radius`
+  (default 2.30 x `probe_radius`, the 50 ohm air-coax ratio). `cavity_size`
+  and `cavity_depth` are ignored and raise a `DeprecationWarning`; the
+  cavity tags are gone. The air box is `0.5 c0 / f_min` above the top metal
+  (new `generate_mesh(f_min=...)`, new property `air_box_height`), and
+  `simulate()` / `frequency_sweep()` warn once per mesh when run below the
+  frequency at which the box is lambda/2.
+
+  Checked on the 2.45 GHz FR-4 patch at density 12: the substrate volume is
+  20,033.43 mm^3 against 20,034.58 mm^3 nominal (the difference is the
+  1.15 mm^3 probe post), and the ground, patch, probe-wall and port areas
+  equal their nominal values to 1e-6. The known-answer test (cavity model
+  2.4669 GHz, 5% tolerance) previously saw |S11| of -0.02 to -0.04 dB over
+  2.25 to 2.70 GHz with its minimum at the sweep edge; it now finds an
+  interior minimum at 2.350 GHz (-4.74%, -13.66 dB) with the geometry as
+  first committed, and 2.375 GHz (-3.73%) with the mesh default below.
+  A closed lossless box with the patch gives |S11| = 1.000000 at 13 points
+  from 2.30 to 2.45 GHz.
 - **A failed sweep point no longer becomes a number.**
   `StackedPatchDesign.frequency_sweep()` mapped a NaN S11 (failed solve) to
   `Z_in = 1e6`; it now returns NaN for Z_in there and raises a
@@ -171,6 +235,31 @@
   polarization, and directivity 1.5 — with assertions that survive
   `-DNDEBUG` builds (the previous asserts silently vanished in release
   builds). Prerequisite for the planned RCS capability.
+
+### Build and packaging
+
+- **Version 1.1.0, one source.** `__version__` in `python/edgefem/__init__.py`
+  is the only place the number is written; `pyproject.toml` takes it through
+  scikit-build-core's regex metadata provider and `CMakeLists.txt` reads the
+  same line for `project(... VERSION ...)`.
+- **`uv build --wheel` / `pip wheel .` work again.** `pyproject.toml` used
+  `cmake.minimum-version` and a table-form `wheel.packages`, which
+  scikit-build-core 0.8 and later reject ("Use cmake.version instead of
+  cmake.minimum-version"). It now uses `cmake.version = ">=3.20"` and a list
+  for `wheel.packages`, and requires `scikit-build-core>=0.10` (built with
+  0.10.7 and 1.1.1) and `pybind11>=2.12` (2.11 predates Python 3.13). Added
+  the Python 3.13 classifier.
+- **`.github/workflows/wheels.yml`:** cibuildwheel 2.21.3, `cp313-*` added,
+  `macos-13` replaced by `macos-15-intel` (x86_64) next to `macos-14`
+  (arm64), `MACOSX_DEPLOYMENT_TARGET=14.0`, Eigen 3.4.0 installed in the
+  Linux images (they ship 3.3, and `CMakeLists.txt` needs 3.4). The wheel
+  test runs `tools/wheel_smoke.py` (version, build flags and a WR-90 solve,
+  about 1 s) and `python/tests/test_contract.py` instead of only importing
+  `pyedgefem`. Published wheels are built with `EDGEFEM_USE_SUITESPARSE=OFF`
+  because UMFPACK is GPL-2.0-or-later; `pyproject.toml` now sets that option
+  to OFF explicitly.
+- **`.github/workflows/ci.yml`** runs `ctest -LE known_issue`, so a failing
+  test that is not labelled `known_issue` fails the job.
 
 ## Unreleased (2026-07-14) — assembled port operator, mesh-convergent S-parameters
 
