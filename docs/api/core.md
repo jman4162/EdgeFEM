@@ -206,7 +206,23 @@ S = em.calculate_sparams(
 ) -> np.ndarray
 ```
 
-Compute S-parameters using standard port extraction. Use `calculate_sparams_eigenmode` for higher accuracy.
+Compute the N-port S-matrix with one factorization and one solve per port.
+The port terms depend on `WavePort.kind`:
+
+- `PortKind.Lumped` (ports from `build_lumped_port`): gap port, load
+  j k0 eta0 / Z0 v v^H, source j k0 eta0 (2 / sqrt(Z0)) v,
+  S(j, i) = V_j / sqrt(Z0_j) - delta_ij. Validated on a closed box, a TEM
+  line and the probe-fed patch.
+- `PortKind.Modal` (the default; `build_wave_port`, `build_wave_port_2d`,
+  `build_wave_port_from_eigenvector`, hand-built ports): the 1.0.0 terms,
+  load w w^H / Z0, source 2 w / sqrt(Z0), S(j, i) = V_j / sqrt(Z0_i) -
+  delta_ij. **Not validated**: WR-90 with analytic TE10 weights gives
+  |S11| = 2.41 at 8 GHz. Each call emits a `RuntimeWarning` (and a one-time
+  stderr line from the C++ side). Use `calculate_sparams_eigenmode` for
+  modal ports.
+
+The same applies to `calculate_sparams_with_fields`, `frequency_sweep`,
+`assemble_maxwell` and `calculate_sparams_periodic`.
 
 ```python
 S, fields = em.calculate_sparams_with_fields(mesh, params, bc, ports, opts)
@@ -236,6 +252,14 @@ S = em.calculate_sparams_periodic(
 ```
 
 Compute S-parameters for periodic structures with Floquet boundary conditions.
+
+!!! warning "Not validated"
+    Floquet ports from `build_wave_port` are `PortKind.Modal` and use the
+    1.0.0 port terms. On a bare grounded slab (eps_r 3.5, 1 mm, port plane
+    14.99 mm above it) arg(R) is -172.15, -175.12, -176.70 deg at 8, 10,
+    12 GHz against the analytic -127.67, +155.07, +77.58 deg
+    (`python/tests/test_unit_cell_design.py`, marked `known_issue`). Each
+    call emits a `RuntimeWarning`.
 
 ---
 
@@ -280,7 +304,9 @@ port = em.build_wave_port(
 ) -> WavePort
 ```
 
-Build a wave port from surface mesh and mode definition.
+Build a wave port from surface mesh and mode definition. The port's `kind`
+is `PortKind.Modal`; see `calculate_sparams` for what that means for the
+S-parameters.
 
 ---
 

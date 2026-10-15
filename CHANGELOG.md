@@ -2,6 +2,76 @@
 
 ## 1.1.0 (2026-10-15)
 
+### Breaking changes and known limitations
+
+- **Modal and Floquet port S-parameters are not validated (known
+  limitation).** Only ports built by `build_lumped_port` get the new
+  gap-port terms; `WavePort.kind` (`PortKind.Lumped` / `PortKind.Modal`,
+  default Modal) selects them. Ports from `build_wave_port`,
+  `build_wave_port_2d`, `build_wave_port_from_eigenvector` and hand-built
+  `WavePort`s keep the 1.0.0 terms (load w w^H / Z0, source
+  2 w / sqrt(Z0), S(j, i) = V_j / sqrt(Z0_i) - delta_ij) in
+  `assemble_maxwell`, `calculate_sparams(_with_fields)`, `frequency_sweep`
+  and `calculate_sparams_periodic`. On the same meshes they equal 1.0.0 to
+  1e-13 (`test_modal_port_1p0`, and `test_unit_cell_design.py` to 1e-9).
+  Those 1.0.0 values are not physical: WR-90 with analytic TE10 weights
+  gives |S11| = 2.41 / 1.63 / 1.33 at 8 / 10 / 12 GHz, and a bare grounded
+  slab (eps_r 3.5, 1 mm, port plane 14.99 mm above) gives arg(R) =
+  -172.15 / -175.12 / -176.70 deg at 8 / 10 / 12 GHz against the analytic
+  -127.67 / +155.07 / +77.58 deg. These functions print a one-time stderr
+  warning (C++) and emit a `RuntimeWarning` (Python) when a Modal port is
+  present. `calculate_sparams_eigenmode` is unchanged, validated on WR-90
+  and WR-42, and does not warn. A hand-built `WavePort` meant as a gap port
+  needs `kind = PortKind.Lumped`.
+- **`assemble_maxwell` with a lumped port.** The active port's right-hand
+  side is now the gap-port source b = j k0 eta0 (2 / sqrt(Z0)) v, and every
+  lumped port adds j k0 eta0 / Z0 v v^H to A. In 1.0.0 it was
+  b = 2 w / sqrt(Z0) and A += w w^H / Z0 (with build_lumped_port scaling
+  ||w|| to sqrt(Z0)). For one edge with unit weight and Z0 = 50 ohm, b goes
+  from 0.2828 to j 2.233e4 at 10 GHz (j 3.5543e-7 at omega = 1 rad/s), so a
+  caller that solves the assembled system itself gets a different field
+  scale and phase than in 1.0.0. The solution now corresponds to an
+  incident power wave a = 1 and the port voltage is V = v^H x.
+- **`build_lumped_port` weights** are the voltage functional v = w / W
+  (W = strip width) instead of w scaled to ||w|| = sqrt(Z0), and it throws
+  (`RuntimeError` in Python) when `e_direction` has no extent in the port
+  surface.
+- **`normalize_port_weights` is a no-op** for every port kind. It prints a
+  one-time stderr warning (C++) or raises a `DeprecationWarning` (Python)
+  and returns the ports unchanged. In 1.0.0 it rescaled the weights to
+  w^H A^-1 w = Z0 (in place in C++, as a returned copy in Python). It will
+  be removed in a later release.
+- **`StackedPatchDesign` raises on geometry it cannot build.** `ValueError`
+  when `probe_hole_radius <= probe_radius` (constructor), and from
+  `generate_mesh()` when the probe does not fit inside the first patch or
+  the probe hole does not fit inside the ground plane. `generate_mesh()`
+  raises `RuntimeError` for a surface it cannot classify (ground, port,
+  probe, patch, ABC, Huygens), for a port strip whose area differs from
+  (b - a) x 2a by more than 1e-6 relative, for a group with no surfaces,
+  and for a substrate layer with no volume.
+- **`generate_mesh(f_min=None)` default.** The air box is lambda/2 at
+  `f_min`, and `f_min` defaults to 0.8 x `design_freq`. 1.0.0 used lambda/4
+  at the design frequency, so the default box is 2.5 times taller and the
+  mesh larger.
+- **`cavity_size` and `cavity_depth` are deprecated and ignored** (a
+  `DeprecationWarning`); the model has no cavity below the ground plane and
+  the cavity physical tags are gone.
+- **Other changes visible to direct callers.**
+  - `use_abc` adds j k0 times the boundary surface mass matrix instead of
+    j k0 on the diagonal of each ABC edge, for every port kind
+    (see Changed).
+  - A failed solve returns an empty field and a NaN S-matrix column;
+    `StackedPatchDesign.frequency_sweep()` gives NaN for `Z_in` there (was
+    1e6) and a `RuntimeWarning`.
+  - Radiation patterns from a Huygens surface change with the Stratton-Chu
+    fix (see Fixed): cross-polarization and absolute levels differ from
+    1.0.0.
+  - C++: `frequency_sweep` takes a `SweepFieldRequest` (defaulted) and
+    `check_solver_convergence` moved to `solver.hpp`; code built against
+    1.0.0 headers must be recompiled.
+  - The test-only factorization counter is `direct_factorization_count()`
+    (Python `_direct_factorization_count`).
+
 ### Added
 
 - **openEMS cross-check and patch convergence study.**
@@ -159,8 +229,11 @@
   - TEM line: |S11| was 1.07 / 0.98 / 1.09 and |S21| 0.11 / 0.03 / 0.09; it
     is now |S11| = 6.1e-5, 4.9e-4, 6.5e-5 and |S21| = 1, with Z11 within
     2.3e-5, 1.6e-3, 9.1e-3 of -j Zc cot(k0 L).
-  - WR-90 with the gap port: |S11|^2 + |S21|^2 was 12.3 / 5.8 / 2.65 at
-    7 / 8 / 10 GHz; it is 1.0000 from 7 to 100 GHz.
+  - WR-90 with analytic TE10 weights through `calculate_sparams`:
+    |S11|^2 + |S21|^2 was 12.3 / 5.8 / 2.65 at 7 / 8 / 10 GHz; with the gap
+    terms applied to these modal ports it was 1.0000 from 7 to 100 GHz.
+    Modal ports no longer get the gap terms (see Breaking changes), so these
+    sums are back to their 1.0.0 values.
   - Probe-fed patch (density 6, 2.2 / 2.45 / 2.7 GHz): S11 was -0.9947 /
     -0.9938 / -0.9921; it is -0.708+0.686j, -0.560+0.814j, -0.288+0.934j.
   - `test_sparam_accuracy` takes 45.5 s (was 72.5 s) and `test_frequency_sweep`
@@ -249,17 +322,27 @@
   for `wheel.packages`, and requires `scikit-build-core>=0.10` (built with
   0.10.7 and 1.1.1) and `pybind11>=2.12` (2.11 predates Python 3.13). Added
   the Python 3.13 classifier.
-- **`.github/workflows/wheels.yml`:** cibuildwheel 2.21.3, `cp313-*` added,
-  `macos-13` replaced by `macos-15-intel` (x86_64) next to `macos-14`
-  (arm64), `MACOSX_DEPLOYMENT_TARGET=14.0`, Eigen 3.4.0 installed in the
-  Linux images (they ship 3.3, and `CMakeLists.txt` needs 3.4). The wheel
-  test runs `tools/wheel_smoke.py` (version, build flags and a WR-90 solve,
-  about 1 s) and `python/tests/test_contract.py` instead of only importing
-  `pyedgefem`. Published wheels are built with `EDGEFEM_USE_SUITESPARSE=OFF`
+- **`.github/workflows/wheels.yml`:** cibuildwheel 3.4.1 (was 2.21.3,
+  which does not know `CIBW_TEST_SOURCES`; 3.x copies those files into the
+  test directory, and its default Linux image is manylinux_2_28),
+  `cp313-*` added, `macos-13` replaced by `macos-15-intel` (x86_64) next to
+  `macos-14` (arm64), `MACOSX_DEPLOYMENT_TARGET=14.0`, Eigen 3.4.0
+  installed in the Linux images (they offer 3.3, and EdgeFEM needs 3.4).
+  The wheel test runs `tools/wheel_smoke.py` (version, build flags and a
+  WR-90 solve, about 1 s) and `python/tests/test_contract.py` instead of
+  only importing `pyedgefem`. Published wheels are built with `EDGEFEM_USE_SUITESPARSE=OFF`
   because UMFPACK is GPL-2.0-or-later; `pyproject.toml` now sets that option
   to OFF explicitly.
 - **`.github/workflows/ci.yml`** runs `ctest -LE known_issue`, so a failing
-  test that is not labelled `known_issue` fails the job.
+  test that is not labelled `known_issue` fails the job. `tools/lint.sh`
+  (clang-format 19 and clang-tidy, run before ctest) passes: the tree is
+  formatted with clang-format 19.1.7.
+- **Eigen 3.4.x and 5.x.** `cmake/FindEigen3.cmake` asks for Eigen 3.4,
+  then 5, in config mode (each Eigen version file accepts only its own
+  major version, so a `3.4...5` range fails on 3.4.0). Homebrew's Eigen
+  5.0.1 builds and passes ctest and the fast Python suite.
+- **pytest marker `known_issue`** for known-answer tests that fail on an
+  open defect; each is also `xfail(strict=True)`.
 
 ## Unreleased (2026-07-14) — assembled port operator, mesh-convergent S-parameters
 

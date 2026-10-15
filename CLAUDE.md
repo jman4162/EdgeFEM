@@ -285,7 +285,9 @@ P = (1/2)·Re∫∫ E×H* · dS = 1
 
 **Problem**: the port term `w w^H / Z0` is real in a curl-curl system scaled by mu0, so it acts as a reactance. A lossless closed box gave |S11| = 0.994 (real S11) as built and 0 after `normalize_port_weights()`; a matched 50 ohm TEM line gave |S21| = 0.03 to 0.11.
 
-**Fix** (derivation in `src/assemble_maxwell.cpp`): `build_lumped_port()` returns the voltage functional `v = w / W` (surface-integral weights over the strip width), `V = v^H x`. Every port adds the load `j k0 eta0 / Z0 v v^H` (`port_load_matrix()`, scaled by `j k0` per frequency in `frequency_sweep()`); the driven port adds `j k0 eta0 (2 / sqrt(Z0)) v` (`port_excitation()`, incident wave a = 1); `S(j, i) = V_j / sqrt(Z0_j) - delta_ij` (`fill_sparam_column()`). `calculate_sparams()` assembles and factors once and solves one RHS per port. `normalize_port_weights()` is deprecated: it returns the ports unchanged and warns once.
+**Fix** (derivation in `src/assemble_maxwell.cpp`): `build_lumped_port()` returns the voltage functional `v = w / W` (surface-integral weights over the strip width), `V = v^H x`, and sets `WavePort::kind = PortKind::Lumped`. Every lumped port adds the load `j k0 eta0 / Z0 v v^H` (`port_load_matrix()`, scaled by `j k0` per frequency in `frequency_sweep()`); the driven port adds `j k0 eta0 (2 / sqrt(Z0)) v` (`port_excitation()`, incident wave a = 1); `S(j, i) = V_j / sqrt(Z0_j) - delta_ij` (`fill_sparam_column()`). `calculate_sparams()` assembles and factors once and solves one RHS per port. `normalize_port_weights()` is deprecated: it returns the ports unchanged and warns once.
+
+**Modal ports keep the 1.0.0 terms.** Ports from `build_wave_port`, `build_wave_port_2d`, `build_wave_port_from_eigenvector` and hand-built `WavePort`s are `PortKind::Modal` (the default) and get `w w^H / Z0`, `2 w / sqrt(Z0)` and `S(j, i) = V_j / sqrt(Z0_i) - delta_ij` in `assemble_maxwell`, `calculate_sparams*`, `frequency_sweep` and `calculate_sparams_periodic`. These are not validated (WR-90 analytic TE10: |S11| = 2.41 at 8 GHz); the functions warn once on stderr and the bindings emit a `RuntimeWarning`. `test_modal_port_1p0` pins them to 1.0.0; `ctest -L modal`. Use `calculate_sparams_eigenmode` for wave ports.
 
 **Guidelines for lumped port development**:
 - Do not call `normalize_port_weights()`; pass the ports from `build_lumped_port()` directly
@@ -293,7 +295,7 @@ P = (1/2)·Re∫∫ E×H* · dS = 1
 - Use `SurfaceIntegral` weight mode (default) for mesh-convergent weights
 - Use `convergence_check()` on design classes to verify mesh adequacy
 - Passivity violations (|S11| > 1) on coarse meshes are expected; refine mesh rather than clamping
-- Get fields and S-parameters from one factorization: `calculate_sparams_with_fields()`, or `frequency_sweep(..., keep_fields=...)` in the design classes (C++: `SweepFieldRequest`). Count factorizations in tests with `em._sparse_lu_factorization_count()` (difference across the call)
+- Get fields and S-parameters from one factorization: `calculate_sparams_with_fields()`, or `frequency_sweep(..., keep_fields=...)` in the design classes (C++: `SweepFieldRequest`). Count factorizations in tests with `em._direct_factorization_count()` (difference across the call)
 
 ### Waveguide Port/Eigenmode Path (Fixed Mar 2026)
 

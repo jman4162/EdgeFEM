@@ -69,8 +69,10 @@ class StackedPatchDesign:
     Geometry (bottom to top):
         - Ground plane (PEC) at z = 0, the bottom of the domain, with a
           square hole around the probe. The port strip spans the hole
-          from the probe to the ground on the +x side; the rest of the
-          hole is left without a boundary condition.
+          from the probe to the ground on the +x side. The rest of the
+          hole gets no explicit boundary condition, so the natural
+          boundary condition of the weak form applies there:
+          n x curl E = 0, a magnetic wall (PMC).
         - Probe: a square PEC post from z = 0 to the first patch, cut out
           of the mesh. Its side is probe_radius / 0.59, the thin-wire
           equivalent radius of a square (Balanis, Antenna Theory,

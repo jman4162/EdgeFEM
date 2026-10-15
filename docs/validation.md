@@ -129,6 +129,16 @@ At density 12 EdgeFEM puts f_res at 2.3768 GHz, openEMS at 2.389 GHz
 - TEM / coax S-parameters (scalar port eigensolver cannot produce the TEM
   mode; the coax test is setup-sanity only).
 - Periodic/unit-cell reflection against literature; oblique incidence.
+  Floquet ports (`build_wave_port` with `calculate_sparams_periodic`) use
+  the 1.0.0 modal port terms. Bare grounded slab (eps_r 3.5, 1 mm, port
+  plane 14.99 mm above it, 466 tets): arg(R) -172.15 / -175.12 / -176.70
+  deg at 8 / 10 / 12 GHz against the analytic -127.67 / +155.07 / +77.58
+  deg (`test_grounded_slab_reflection_phase`, `known_issue`).
+- Modal-port S-parameters from `calculate_sparams`, `frequency_sweep` and
+  `calculate_sparams_periodic` (any port not built by `build_lumped_port`).
+  They use the 1.0.0 port terms and are not passive in general: WR-90 with
+  analytic TE10 weights gives |S11| = 2.41 at 8 GHz. Modal ports are
+  validated only through `calculate_sparams_eigenmode` (tables above).
 - Dispersive materials inside an FEM solve (the material models themselves
   are unit-tested at the constitutive level).
 - Lossy conductors, surface impedance, roughness.

@@ -214,7 +214,7 @@ PatchAntennaDesign(
 | `substrate_eps_r` | float | Substrate relative permittivity (default: 4.4 for FR-4) |
 | `substrate_tan_d` | float | Substrate loss tangent (default: 0.02) |
 | `ground_plane_size` | float | Ground plane edge length (default: 3× patch) |
-| `air_box_height` | float | Air box height above the patch (default: lambda/2 at the `f_min` passed to `generate_mesh`, which defaults to the design frequency) |
+| `air_box_height` | float | Air box height above the patch (default: lambda/2 at the `f_min` passed to `generate_mesh`, which defaults to 0.8 × the design frequency) |
 
 ### Properties
 
