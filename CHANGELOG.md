@@ -59,6 +59,13 @@
 
 ### Changed
 
+- **UMFPACK runs with 64-bit indices** (`umfpack_zl_*`; `DirectLU` hands it
+  a `SparseMatrix<complex<double>, ColMajor, SuiteSparse_long>` copy). With
+  32-bit indices the 2.45 GHz FR-4 patch at density 12 with h/4 near the
+  patch (456k edges) failed with `UMFPACK_ERROR_out_of_memory` on a 76 GB
+  symbolic estimate; with 64-bit indices it factors in 20 s and 6.4 GB and
+  gives f_res 2.388 GHz (openEMS 2.389 GHz). Peak memory of other runs rises
+  by 1.4 to 2.2 GB (known-answer test 8.4 -> 10.6 GB, same S11).
 - **Patch mesh: finer near the patches, larger default air box.**
   `StackedPatchDesign._PATCH_SIZE_X_DENSITY` 6.0 -> 4.0: the mesh size
   inside and near the patch footprint is h/3 at density 12 (was h/2). On
@@ -85,7 +92,6 @@
   Off-resonance Re(Z) was already small after the gap-port and geometry
   fixes and did not change: 0.49 -> 0.50 ohm at 1.8 GHz, 1.38 -> 1.40 ohm
   at 3.0 GHz.
-
 - **Direct solves drop the PEC rows and columns.** `calculate_sparams*` and
   `frequency_sweep` factor the system restricted to the non-PEC edges and
   expand each field to one entry per mesh edge (zero on PEC edges); the
@@ -127,6 +133,15 @@
 
 ### Fixed
 
+- **A failed sweep point no longer becomes a number.**
+  `StackedPatchDesign.frequency_sweep()` mapped a NaN S11 (failed solve) to
+  `Z_in = 1e6`; it now returns NaN for Z_in there and raises a
+  `RuntimeWarning` naming the failed frequencies. The C++
+  `frequency_sweep` warns on stderr for each failed solve, as
+  `calculate_sparams` does (`check_solver_convergence`, now in
+  `solver.hpp`), and `DirectLU` failure messages carry the backend's status:
+  `UMFPACK factorization failed, status -1 (UMFPACK_ERROR_out_of_memory);
+  symbolic estimates: ...` or SparseLU's own message.
 - **A failed solve returns no field.** `calculate_sparams_with_fields` and
   `frequency_sweep` returned the last iterate of an iterative solve that
   did not converge as its field, while `SParamSolution::x` and

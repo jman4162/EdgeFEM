@@ -1,23 +1,34 @@
 #!/usr/bin/env python3
 """Mesh convergence study for the probe-fed patch (StackedPatchDesign).
 
-Reproduces the convergence table in docs/validation/patch_2p45ghz.md.
+Reproduces the tables in docs/validation/patch_2p45ghz.md.
 Each (case, density, patch factor) runs in its own subprocess so the peak
 resident memory of one run can be read from getrusage; runs go one at a
-time (a density-12 FR-4 run peaks near 6.5 GB).
+time (a density-12 FR-4 run at the default near-patch size peaks near
+10 GB).
 
-Run from the repository root with a build that has pyedgefem:
+--patch-factor sets StackedPatchDesign._PATCH_SIZE_X_DENSITY (near-patch
+mesh size = factor x h / density); without it the run uses the class
+default (4.0 since the study; the density 8/12/16 rows used 6.0).
+Run from the repository root with a build that has pyedgefem and a
+Python with numpy and gmsh; export PYTHONPATH=build-fix/python:python.
 
-    PYTHONPATH=build-fix/python:python python tools/patch_convergence.py \
-        --case fr4 --density 8 12 16 --out conv.jsonl
+    # Convergence table, rows density 8, 12, 16 (near-patch 6 h / density)
+    python tools/patch_convergence.py --case fr4 --density 8 12 16 \
+        --patch-factor 6 --out conv.jsonl
 
-    # near-patch mesh size at density 12: 6, 4 and 3 x h / density
-    PYTHONPATH=build-fix/python:python python tools/patch_convergence.py \
-        --case fr4 --density 12 --patch-factor 6 4 3 --out conv.jsonl
+    # Convergence table, rows density 12 at h/3 and h/4
+    python tools/patch_convergence.py --case fr4 --density 12 \
+        --patch-factor 4 3 --out conv.jsonl
 
-    # EdgeArray's 10 GHz RO4350B patch
-    PYTHONPATH=build-fix/python:python python tools/patch_convergence.py \
-        --case ro4350b_10g --density 6 12 --out ro.jsonl
+    # ABC table, lambda/4 air box rows (the lambda/2 rows are the density
+    # 12, factor 6 run above; the "diagonal" rows need a build of 697ec6a)
+    python tools/patch_convergence.py --case fr4 --density 12 \
+        --patch-factor 6 --air-box-height 0.0306 --out abc.jsonl
+
+    # EdgeArray's 10 GHz RO4350B patch table (default near-patch size)
+    python tools/patch_convergence.py --case ro4350b_10g \
+        --density 6 10 12 --out ro.jsonl
 
 Cases:
   fr4          2.45 GHz FR-4 patch of the known-answer test

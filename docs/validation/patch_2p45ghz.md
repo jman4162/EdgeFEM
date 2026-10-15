@@ -2,8 +2,10 @@
 
 Measured 2026-10-15 on macOS ARM64 (14 cores, 36 GB), Release build with
 UMFPACK (`EDGEFEM_USE_SUITESPARSE=ON`). EdgeFEM at commit 13cab87 (surface
-mass ABC) with the Python defaults of 23c6271; openEMS from the
-`antenna-cad-openems` Docker image (openEMS-Project 84703e2).
+mass ABC) with the Python defaults of 23c6271; the h/4 row and the
+known-answer rerun after UMFPACK moved to 64-bit indices (see below).
+openEMS from the `antenna-cad-openems` Docker image (openEMS-Project
+84703e2).
 
 ## Geometry
 
@@ -22,8 +24,13 @@ The 2.45 GHz FR-4 patch of the known-answer test
 
 ## EdgeFEM convergence
 
-Reproduce: `PYTHONPATH=build-fix/python:python python tools/patch_convergence.py --case fr4 --density 8 12 16`
-and `... --density 12 --patch-factor 4 3`.
+Reproduce (`export PYTHONPATH=build-fix/python:python`):
+
+- rows density 8, 12, 16: `python tools/patch_convergence.py --case fr4 --density 8 12 16 --patch-factor 6`
+- rows density 12 at h/3 and h/4: `python tools/patch_convergence.py --case fr4 --density 12 --patch-factor 4 3`
+
+The 8/12/16 rows use the near-patch factor 6.0 of the study, not the
+current default 4.0; without `--patch-factor 6` the tool uses 4.0.
 Air box lambda/2 at 1.8 GHz. f_res is the |S11| minimum of a 2.25 to
 2.60 GHz sweep in 10 MHz steps, refined by a parabola through the three
 points around it; Re(Z) off resonance comes from a 1.8 to 3.0 GHz sweep
@@ -38,30 +45,37 @@ process.
 | 12 | h/2 | 121,532 | 2.3600 | -4.34% | -14.53 | 60.3 - j18.3 | 0.50 / 1.40 | 97 s | 7.2 GB |
 | 16 | 0.375 h | 225,156 | 2.3703 | -3.92% | -14.39 | 60.8 - j18.5 | 0.47 / 1.35 | 295 s | 8.9 GB |
 | 12 | h/3 (default) | 258,355 | 2.3768 | -3.65% | -14.39 | 55.7 - j19.9 | 0.45 / 1.34 | 303 s | 9.7 GB |
-| 12 | h/4 | 456,162 | none | | | | | | |
+| 12 | h/4 | 456,162 | 2.3880 | -3.20% | -14.37 | 57.2 - j19.7 | 0.42 / 1.31 | 785 s | 11.2 GB |
 
-At h/4 every solve failed: UMFPACK reported "factorization failed" with
-4.2 GB resident (SUSPECTED: the 32-bit-index UMFPACK interface Eigen uses
-for `SparseMatrix<complex<double>>` runs out of addressable workspace).
+Peak memory of the first four rows was measured with the 32-bit-index
+UMFPACK interface. The h/4 row needed the 64-bit one: with 32-bit indices
+every factorization failed in about 10 s with status -1
+(`UMFPACK_ERROR_out_of_memory`) and symbolic estimates of 76.4 GB for the
+numeric object and 77.1 GB peak, more than 32-bit indices can address. The
+64-bit interface factors it with 6.4 GB peak (one frequency, 20 s); the
+estimate is an upper bound. The 64-bit interface also raises the peak of
+the other runs: 7.5 -> 8.9 GB at density 8, 8.4 -> 10.6 GB for the
+known-answer test, with the same S11 to the printed digits.
 
 f_res rises as the mesh near the patch shrinks: +47.5 MHz from 0.75 h to
-h/2, +16.8 MHz from h/2 to h/3 (step ratio 1.5 both times). The ratio of
-the two increments, 2.83, gives an observed order of 2.6 and an
-extrapolated f_res of 2.386 GHz (SUSPECTED: three points, one of them on
-the coarse side). The default near-patch size is h/3 at density 12
-(`_PATCH_SIZE_X_DENSITY = 4.0`), 0.4% below that extrapolation; h/2 was
-1.1% below at a third of the cost.
+h/2, +16.8 MHz from h/2 to h/3, +11.2 MHz from h/3 to h/4. At h/4
+EdgeFEM is 0.04% below openEMS (2.389 GHz, next section). The default
+near-patch size is h/3 at density 12 (`_PATCH_SIZE_X_DENSITY = 4.0`),
+0.47% below the h/4 value at 39% of its time; h/2 is 1.2% below at 12%.
 
 The known-answer test (25 MHz steps, air box lambda/2 at 2.25 GHz) finds
-2.375 GHz, -3.73% from the cavity model, min |S11| -14.39 dB, in 112 s and
-8.4 GB (`pytest python/tests -m slow`). It found 2.350 GHz (-4.74%) with
-the h/2 default.
+2.375 GHz, -3.73% from the cavity model, min |S11| -14.39 dB, in 106 s and
+10.6 GB (`pytest python/tests -m slow`, 64-bit UMFPACK). It found
+2.350 GHz (-4.74%) with the h/2 default.
 
 ## ABC: surface mass matrix
 
 Commit 13cab87 replaced `j k0` on the diagonal of each ABC edge with
 `j k0` times the assembled surface mass matrix. Density 12, near-patch
-h/2, same sweeps as above:
+h/2, same sweeps as above. Reproduce: the lambda/2 rows are the density-12
+row of the convergence commands; the lambda/4 rows are
+`python tools/patch_convergence.py --case fr4 --density 12 --patch-factor 6 --air-box-height 0.0306`;
+the "diagonal" rows need a build of 697ec6a on PYTHONPATH.
 
 | Air box | ABC | f_res (GHz) | min \|S11\| (dB) | Re Z 1.8 GHz | Re Z 3.0 GHz |
 |---|---|---|---|---|---|
@@ -80,8 +94,10 @@ gives 0.38 to 0.53 and 1.08 to 1.20 ohm (gap-port runs below).
 
 ## openEMS cross-check
 
-Reproduce: `python3 tools/openems_patch_crosscheck.py --case fr4 --workdir <dir>`
-(runs openEMS in Docker; see the script header). Same patch, substrate,
+Reproduce, one command per row (runs openEMS in Docker; see the script
+header): `python3 tools/openems_patch_crosscheck.py --case fr4 --workdir <dir>`
+plus nothing, `--edge-res 0.2 --n-sub 8`, `--ground infinite` and
+`--feed vertical` for the four rows. Same patch, substrate,
 ground, post, hole and gap port as EdgeFEM; 1.8 to 3.0 GHz Gaussian
 excitation, 1 MHz output steps, PML_8 on all six sides, lambda/4 of air
 around the board, end criterion -50 dB (reached in every run), thirds rule
@@ -105,7 +121,8 @@ mesh:
 | f at max Re Z | 2.35 GHz (10 MHz grid) | 2.364 GHz | -0.6% |
 
 CONFIRMED (tables): f_res agrees to 0.51%, inside the 2% target. At
-density 12 with h/2 near the patch EdgeFEM is 1.2% low (2.3600 GHz). Both
+density 12 with h/2 near the patch EdgeFEM is 1.2% low (2.3600 GHz); with
+h/4 it is 0.04% low (2.3880 GHz). Both
 solvers put the resonance 3.2% (openEMS) to 3.65% (EdgeFEM) below the
 cavity model; the vertical-port feed moves openEMS by +0.55% in f_res and
 +0.25% in the Re Z peak, so the gap from the cavity model is not a feed
@@ -130,7 +147,10 @@ Where the two models differ:
 
 ## EdgeArray's 10 GHz RO4350B patch
 
-`tools/patch_convergence.py --case ro4350b_10g`: L 7.679 mm, W 9.820 mm,
+`python tools/patch_convergence.py --case ro4350b_10g --density 6 10 12`
+(default near-patch size) and, for the openEMS numbers,
+`python3 tools/openems_patch_crosscheck.py --case ro4350b_10g --workdir <dir>`
+with nothing, `--probe-radius 0.25` and `--feed vertical`. L 7.679 mm, W 9.820 mm,
 h 0.508 mm, eps_r 3.66, tan d 0.0037, ground 24.81 mm, probe radius 0.5 mm
 at the inset point (y = -L/2 + 2.131 mm), as EdgeArray's EdgeFEM worker
 builds it; `f_min` 8.5 GHz. Cavity model 10.000 GHz. The sweep is
@@ -138,7 +158,7 @@ EdgeArray's live-test sweep, 8.5 to 11.5 GHz in 100 MHz steps.
 
 | Density | Near-patch | Edges | min \|S11\| (dB) at | Interior argmin | Phase spread | f_res vs 10 GHz | Time |
 |---|---|---|---|---|---|---|---|
-| 6 | h/1.5 | 45,124 | -13.77 at 9.0 GHz | yes | 364 deg | -10.0% | 34 s |
+| 6 | 0.67 h | 45,124 | -13.77 at 9.0 GHz | yes | 364 deg | -10.0% | 34 s |
 | 10 | 0.4 h | 97,114 | -14.09 at 9.3 GHz | yes | 367 deg | -7.0% | 121 s |
 | 12 | h/3 | 145,912 | -19.31 at 9.3 GHz | yes | 368 deg | -7.0% | 278 s |
 

@@ -281,7 +281,8 @@ def test_air_box_below_half_wavelength_warns(tmp_path):
     patch.generate_mesh(density=4, design_freq=FR4_DESIGN_FREQ,
                         output_path=str(tmp_path / "patch.msh"))
     with warnings.catch_warnings():
-        warnings.simplefilter("error")
+        warnings.filterwarnings("error", message=".*lambda/2",
+                                category=UserWarning)
         patch.simulate(0.85 * FR4_DESIGN_FREQ)
     with pytest.warns(UserWarning, match="lambda/2"):
         patch.simulate(0.75 * FR4_DESIGN_FREQ)

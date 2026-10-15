@@ -90,7 +90,8 @@ def run_in_container(params_path):
     from CSXCAD import ContinuousStructure
     from openEMS import openEMS
 
-    prm = json.load(open(params_path))
+    with open(params_path) as fh:
+        prm = json.load(fh)
     c = dict(CASES[prm["case"]])
     if prm.get("probe_radius"):
         c["probe_radius"] = prm["probe_radius"]
@@ -182,7 +183,8 @@ def run_in_container(params_path):
     np.savez(os.path.join(run_dir, "results.npz"), f=f, s11=s11, zin=zin)
     summary = {"cells": ncell, "t_run_s": t_run, "edge_res_mm": res,
                "max_res_mm": max_res, "kappa": kappa}
-    json.dump(summary, open(os.path.join(run_dir, "container.json"), "w"))
+    with open(os.path.join(run_dir, "container.json"), "w") as fh:
+        json.dump(summary, fh)
     return 0
 
 
@@ -259,7 +261,8 @@ def main():
 
     case = CASES[args.case]
     summary = dict(params)
-    summary.update(json.load(open(os.path.join(run_dir, "container.json"))))
+    with open(os.path.join(run_dir, "container.json")) as fh:
+        summary.update(json.load(fh))
     summary.update(_analyse(os.path.join(run_dir, "results.npz"), case))
     summary["wall_s"] = wall
     with open(os.path.join(run_dir, "summary.json"), "w") as fh:
