@@ -316,13 +316,31 @@ Eigen::MatrixXcd calculate_sparams_periodic(const Mesh &mesh,
 /// to contain the eigenvector-based weights and mode parameters (beta, kc,
 /// etc).
 ///
+/// The matrix is assembled once and solved on the non-PEC edges for one
+/// right-hand side per port (with opts.use_direct, one factorization).
+/// Each port mode's sign/phase is fixed (largest component of its
+/// face-integrated field real and positive), so S(j, i) does not depend
+/// on the eigensolver's sign. A port below cutoff gives an all-NaN S; a
+/// failed solve gives a NaN column.
+///
 /// @param mesh Volume mesh
 /// @param p Maxwell parameters (omega required; leave port_abc_scale = 1.0)
 /// @param bc PEC boundary conditions
-/// @param ports Wave ports with eigenvector-based weights
+/// @param ports Wave ports from build_wave_port_2d (preferred) or
+///              build_wave_port_from_eigenvector
+/// @param opts Linear solver options
 /// @return N×N S-parameter matrix
 Eigen::MatrixXcd
 calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, const std::vector<WavePort> &ports);
+                            const BC &bc, const std::vector<WavePort> &ports,
+                            const SolveOptions &opts = SolveOptions());
+
+/// calculate_sparams_eigenmode() that also returns the field solution for
+/// each excited port (x[k], one entry per mesh edge, zero on PEC edges;
+/// empty when that solve failed or a port is below cutoff).
+SParamSolution calculate_sparams_eigenmode_with_fields(
+    const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+    const std::vector<WavePort> &ports,
+    const SolveOptions &opts = SolveOptions());
 
 } // namespace edgefem

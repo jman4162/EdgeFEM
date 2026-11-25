@@ -771,9 +771,30 @@ PYBIND11_MODULE(pyedgefem, m) {
 
   m.def("calculate_sparams_eigenmode", &calculate_sparams_eigenmode,
         py::call_guard<py::gil_scoped_release>(),
-        "Calculate S-parameters using direct eigenmode excitation (more "
-        "accurate).",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
+        "Wave-port S-matrix (the validated modal path): first-order modal\n"
+        "port operator j beta M_s per port, one assembly, one solve per\n"
+        "port (one factorization with solver_options.use_direct). Ports\n"
+        "from build_wave_port_2d. NaN when a port is below cutoff.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+        py::arg("solver_options") = SolveOptions());
+
+  m.def(
+      "calculate_sparams_eigenmode_with_fields",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, const SolveOptions &opts) {
+        SParamSolution sol;
+        {
+          py::gil_scoped_release release;
+          sol =
+              calculate_sparams_eigenmode_with_fields(mesh, p, bc, ports, opts);
+        }
+        return py::make_tuple(sol.S, sol.x);
+      },
+      "calculate_sparams_eigenmode() that also returns the fields: "
+      "(S, [x_0, ..., x_{N-1}]) with x_k the solution for port k excited "
+      "(empty if that solve failed).",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("solver_options") = SolveOptions());
 
   // Frequency sweep
   py::class_<SweepField>(m, "SweepField",

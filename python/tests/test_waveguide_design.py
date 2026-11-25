@@ -115,3 +115,16 @@ def test_mixed_port_kinds_are_refused():
     with pytest.raises(ValueError, match="Lumped and Modal"):
         with pytest.warns(RuntimeWarning):
             em.calculate_sparams(mesh, p, bc, [modal, lumped])
+
+
+def test_export_fields_vtk_uses_eigenmode_field(tmp_path):
+    """export_fields_vtk writes the field of the validated eigenmode port
+    model, without the modal-port RuntimeWarning of the 1.0.0 terms."""
+    import warnings
+    wg = RectWaveguideDesign(a=22.86e-3, b=10.16e-3, length=50e-3)
+    wg.load_mesh("examples/rect_waveguide.msh")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        wg.export_fields_vtk(str(tmp_path / "f.vtu"), freq=10e9)
+    assert not [w for w in caught if "not validated" in str(w.message)]
+    assert (tmp_path / "f.vtu").stat().st_size > 0

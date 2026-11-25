@@ -792,20 +792,23 @@ Eigen::Vector3cd port_face_integral(const Mesh &mesh, int surface_tag,
 }
 } // namespace
 
-Eigen::MatrixXcd
-calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, const std::vector<WavePort> &ports) {
+SParamSolution calculate_sparams_eigenmode_with_fields(
+    const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+    const std::vector<WavePort> &ports, const SolveOptions &opts) {
   const int num_ports = static_cast<int>(ports.size());
   const int m = static_cast<int>(mesh.edges.size());
   // NaN until filled: an early return (evanescent port) or a failed solve
   // leaves NaN, never uninitialized values.
-  Eigen::MatrixXcd S = Eigen::MatrixXcd::Constant(
+  SParamSolution out;
+  out.S = Eigen::MatrixXcd::Constant(
       num_ports, num_ports,
       std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
                            std::numeric_limits<double>::quiet_NaN()));
+  out.x.resize(num_ports);
+  Eigen::MatrixXcd &S = out.S;
 
   if (num_ports == 0) {
-    return S;
+    return out;
   }
 
   // Per-port propagation constants: β = sqrt(ε_r μ_r k0² − kc²) with the
@@ -854,10 +857,8 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
           kc * c0 / (2.0 * M_PI * std::sqrt(std::abs(std::real(eps_mu))));
       std::cerr << "WARNING: Frequency " << freq_hz / 1e9
                 << " GHz is below cutoff " << fc_hz / 1e9 << " GHz for port "
-                << i
-                << " — mode is evanescent, S-parameters may be meaningless."
-                << std::endl;
-      return S;
+                << i << " — mode is evanescent; S is NaN." << std::endl;
+      return out;
     }
     betas[i] = std::sqrt(beta_sq);
   }
@@ -902,63 +903,51 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
       port_vecs[i] *= std::conj(mean(k_max)) / std::abs(mean(k_max));
   }
 
-  // Solve for each active port
+  // One system for every excitation: the base Maxwell matrix plus
+  // j beta_i M_s on each port face (port_abc_scale is 1.0 for the
+  // assembled operator, kept as a diagnostic knob). Port i only changes
+  // the RHS, 2 j beta_i M_s e_i. The system is solved on the free
+  // (non-PEC) edges.
+  MaxwellAssembly asmbl = assemble_maxwell(mesh, p, bc, {}, -1);
+  for (int i = 0; i < num_ports; ++i)
+    asmbl.A +=
+        (std::complex<double>(0.0, p.port_abc_scale) * betas[i]) * port_mass[i];
+  asmbl.A.makeCompressed();
+  const FreeDofs dofs(m, bc);
+  std::vector<VecC> rhs;
+  rhs.reserve(num_ports);
+  for (int i = 0; i < num_ports; ++i)
+    rhs.push_back(dofs.restrict_vector(
+        2.0 * (std::complex<double>(0.0, p.port_abc_scale) * betas[i]) *
+        (port_mass[i] * port_vecs[i])));
+  std::vector<SolveResult> sols =
+      solve_linear_multi(dofs.restrict_matrix(asmbl.A), rhs, opts);
+
   for (int active_port = 0; active_port < num_ports; ++active_port) {
-    // Assemble base Maxwell system (no ports)
-    std::vector<WavePort> no_ports;
-    auto asmbl = assemble_maxwell(mesh, p, bc, no_ports, -1);
-
-    // Add jβ·M_s on every port surface. port_abc_scale is 1.0 for the
-    // assembled operator (kept as a diagnostic knob).
-    for (int i = 0; i < num_ports; ++i) {
-      const std::complex<double> coeff =
-          std::complex<double>(0.0, p.port_abc_scale) * betas[i];
-      for (int col = 0; col < port_mass[i].outerSize(); ++col) {
-        for (SpMatC::InnerIterator it(port_mass[i], col); it; ++it) {
-          asmbl.A.coeffRef(it.row(), it.col()) += coeff * it.value();
-        }
-      }
-    }
-
-    // Excitation: RHS = 2jβ·M_s·e_inc
-    const std::complex<double> abc_active =
-        std::complex<double>(0.0, p.port_abc_scale) * betas[active_port];
-    asmbl.b =
-        2.0 * abc_active * (port_mass[active_port] * port_vecs[active_port]);
-
-    // Solve
-    auto res = solve_linear(asmbl.A, asmbl.b, {});
-
-    if (!check_solver_convergence(res,
+    if (!check_solver_convergence(sols[active_port],
                                   "calculate_sparams_eigenmode (active port " +
-                                      std::to_string(active_port) + ")")) {
-      for (int j = 0; j < num_ports; ++j) {
-        S(j, active_port) =
-            std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
-                                 std::numeric_limits<double>::quiet_NaN());
-      }
-      continue;
-    }
+                                      std::to_string(active_port) + ")"))
+      continue; // column stays NaN, no field
+    VecC x = dofs.expand(sols[active_port].x);
 
-    // Extract modal amplitudes via M_s-weighted overlaps: with the
-    // e^H M_s e = 1 normalization, Vj = e_j^H M_s x is the amplitude of
-    // mode j in the solution and V_inc = 1 by construction.
-    std::complex<double> V_inc(1.0, 0.0);
-
+    // Modal amplitudes from M_s-weighted overlaps: with the e^H M_s e = 1
+    // normalization, V_j = e_j^H M_s x is the amplitude of mode j and the
+    // incident amplitude is 1, so S_jj = V_j - 1 and S_ji = V_j.
     for (int j = 0; j < num_ports; ++j) {
-      std::complex<double> Vj = port_vecs[j].dot(port_mass[j] * res.x);
-
-      if (j == active_port) {
-        // Reflection: S_ii = (V_i - V_inc) / V_inc
-        S(j, active_port) = (Vj - V_inc) / V_inc;
-      } else {
-        // Transmission: S_ji = V_j / V_inc
-        S(j, active_port) = Vj / V_inc;
-      }
+      const std::complex<double> Vj = port_vecs[j].dot(port_mass[j] * x);
+      S(j, active_port) = (j == active_port) ? Vj - 1.0 : Vj;
     }
+    out.x[active_port] = std::move(x);
   }
+  return out;
+}
 
-  return S;
+Eigen::MatrixXcd calculate_sparams_eigenmode(const Mesh &mesh,
+                                             const MaxwellParams &p,
+                                             const BC &bc,
+                                             const std::vector<WavePort> &ports,
+                                             const SolveOptions &opts) {
+  return calculate_sparams_eigenmode_with_fields(mesh, p, bc, ports, opts).S;
 }
 
 } // namespace edgefem

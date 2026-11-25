@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include "edgefem/maxwell.hpp"
+#include "edgefem/solver.hpp"
 
 using namespace edgefem;
 
@@ -76,6 +77,32 @@ int main() {
     std::cout << "phase(S21) error vs -beta L: " << err * 180 / M_PI
               << " deg\n";
     CHECK(err < 10.0 * M_PI / 180.0);
+  }
+
+  // 3. One assembly and one factorization for all ports (direct solver),
+  //    and the fields variant returns the same S with one field per port.
+  {
+    const double f = 10e9;
+    std::vector<WavePort> ports = ports_at(g, f);
+    MaxwellParams p;
+    p.omega = 2.0 * M_PI * f;
+    SolveOptions direct;
+    direct.use_direct = true;
+    const auto before = direct_factorization_count();
+    SParamSolution sol =
+        calculate_sparams_eigenmode_with_fields(g.mesh, p, g.bc, ports, direct);
+    CHECK(direct_factorization_count() - before == 1);
+    const Eigen::MatrixXcd S_plain =
+        calculate_sparams_eigenmode(g.mesh, p, g.bc, ports);
+    CHECK((sol.S - S_plain).cwiseAbs().maxCoeff() < 1e-8);
+    CHECK(sol.x.size() == 2);
+    for (const auto &x : sol.x) {
+      CHECK(x.size() == static_cast<int>(g.mesh.edges.size()));
+      CHECK(x.size() > 0 && x.norm() > 0.0);
+      for (int e : g.bc.dirichlet_edges) // PEC edges carry no field
+        if (x.size() > e)
+          CHECK(x(e) == std::complex<double>(0.0));
+    }
   }
 
   return edgefem_test::exit_code();
