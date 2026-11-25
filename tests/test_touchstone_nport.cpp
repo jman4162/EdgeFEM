@@ -4,6 +4,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #include "edgefem/io/touchstone.hpp"
 
@@ -173,6 +175,78 @@ void test_dimension_mismatch_throws() {
   std::cout << "  Dimension mismatch correctly threw exception" << std::endl;
 }
 
+// Data lines (option line and comments dropped), each split into numbers.
+std::vector<std::vector<double>> data_lines(const std::string &path) {
+  std::ifstream ifs(path);
+  std::vector<std::vector<double>> out;
+  std::string line;
+  while (std::getline(ifs, line)) {
+    const auto bang = line.find('!');
+    if (bang != std::string::npos)
+      line.resize(bang);
+    if (line.find('#') != std::string::npos)
+      continue;
+    std::istringstream is(line);
+    std::vector<double> nums;
+    double v;
+    while (is >> v)
+      nums.push_back(v);
+    if (!nums.empty())
+      out.push_back(nums);
+  }
+  return out;
+}
+
+Eigen::MatrixXcd numbered(int n) {
+  // S(i, j) = (10 (i + 1) + (j + 1)) + j 0.5: every entry distinct, so the
+  // order on the line identifies it.
+  Eigen::MatrixXcd S(n, n);
+  for (int i = 0; i < n; ++i)
+    for (int j = 0; j < n; ++j)
+      S(i, j) = std::complex<double>(10.0 * (i + 1) + (j + 1), 0.5);
+  return S;
+}
+
+// Touchstone 1.1: a 2-port line is S11 S21 S12 S22 (column order); for
+// N >= 3 each matrix row starts on a new line, S(i,1) .. S(i,N), at most
+// four pairs per line.
+void test_data_layout() {
+  std::cout << "Testing Touchstone data layout..." << std::endl;
+  {
+    const std::string path = "/tmp/edgefem_layout.s2p";
+    write_touchstone_nport(path, {1e9}, {numbered(2)});
+    auto lines = data_lines(path);
+    CHECK(lines.size() == 1);
+    if (lines.size() == 1) {
+      CHECK(lines[0].size() == 9);
+      const double want[4] = {11, 21, 12, 22};
+      for (int k = 0; k < 4 && lines[0].size() == 9; ++k)
+        CHECK(lines[0][1 + 2 * k] == want[k]);
+    }
+  }
+  for (int n : {3, 5}) {
+    const std::string path = "/tmp/edgefem_layout" + touchstone_extension(n);
+    write_touchstone_nport(path, {1e9}, {numbered(n)});
+    auto lines = data_lines(path);
+    // Lines per row: ceil(n / 4); the first line also carries the frequency.
+    const int per_row = (n + 3) / 4;
+    CHECK(static_cast<int>(lines.size()) == n * per_row);
+    size_t li = 0;
+    for (int i = 0; i < n && li < lines.size(); ++i) {
+      std::vector<double> row;
+      for (int k = 0; k < per_row && li < lines.size(); ++k, ++li) {
+        const auto &ln = lines[li];
+        const size_t first = (i == 0 && k == 0) ? 1 : 0; // skip frequency
+        for (size_t t = first; t < ln.size(); ++t)
+          row.push_back(ln[t]);
+      }
+      CHECK(static_cast<int>(row.size()) == 2 * n);
+      for (int j = 0; j < n && static_cast<int>(row.size()) == 2 * n; ++j)
+        CHECK(row[2 * j] == 10.0 * (i + 1) + (j + 1));
+    }
+  }
+}
+
 int main() {
   test_touchstone_extension();
   test_write_3port();
@@ -180,6 +254,7 @@ int main() {
   test_db_format();
   test_empty_data_throws();
   test_dimension_mismatch_throws();
+  test_data_layout();
   std::cout << "All Touchstone N-port tests passed!" << std::endl;
   return edgefem_test::exit_code();
 }

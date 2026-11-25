@@ -106,31 +106,31 @@ void write_touchstone_nport(const std::string &path,
     const auto &S = S_matrices[fi];
 
     if (num_ports <= 2) {
-      // 1-port and 2-port: all data on one line
+      // 1-port: S11. 2-port: S11 S21 S12 S22 (Touchstone 1.1 lists the
+      // 2-port matrix by columns), all on one line.
       ofs << freq[fi];
-      for (int i = 0; i < num_ports; ++i) {
-        for (int j = 0; j < num_ports; ++j) {
+      for (int j = 0; j < num_ports; ++j) {
+        for (int i = 0; i < num_ports; ++i) {
           ofs << ' ';
           write_complex_value(ofs, S(i, j), opts.format);
         }
       }
       ofs << '\n';
     } else {
-      // N-port (N>2): S-parameters organized by row
-      // Each row may span multiple lines with continuation
-      ofs << freq[fi];
-
-      int values_per_line = 4; // Standard: 4 complex values per line
-      int value_count = 0;
-
+      // N-port (N > 2): row by row, S(i,1) .. S(i,N); each row starts on
+      // a new line and holds at most four pairs per line. The frequency
+      // leads the first line of the first row.
+      constexpr int values_per_line = 4;
       for (int i = 0; i < num_ports; ++i) {
         for (int j = 0; j < num_ports; ++j) {
-          if (value_count > 0 && value_count % values_per_line == 0) {
-            ofs << '\n'; // Continuation line (no frequency)
+          if (j % values_per_line == 0) {
+            if (i == 0 && j == 0)
+              ofs << freq[fi];
+            else
+              ofs << '\n';
           }
           ofs << ' ';
           write_complex_value(ofs, S(i, j), opts.format);
-          value_count++;
         }
       }
       ofs << '\n';
