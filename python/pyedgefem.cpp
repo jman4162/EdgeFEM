@@ -279,14 +279,17 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def("nnz", [](const SpMatC &m) { return m.nonZeros(); });
 
   py::class_<VecC>(m, "VecC", "Vector with complex coefficients.")
-      .def(py::init([](py::array_t<std::complex<double>> arr) {
-             auto buf = arr.request();
-             if (buf.ndim != 1)
+      .def(py::init([](py::array_t<std::complex<double>,
+                                   py::array::c_style | py::array::forcecast>
+                           arr) {
+             // c_style | forcecast: a strided or non-complex array arrives
+             // as a contiguous complex copy.
+             if (arr.ndim() != 1)
                throw std::runtime_error("VecC requires a 1D array");
-             VecC v(buf.shape[0]);
-             auto ptr = static_cast<std::complex<double> *>(buf.ptr);
-             for (py::ssize_t i = 0; i < buf.shape[0]; ++i)
-               v(i) = ptr[i];
+             VecC v(arr.shape(0));
+             auto a = arr.unchecked<1>();
+             for (py::ssize_t i = 0; i < arr.shape(0); ++i)
+               v(i) = a(i);
              return v;
            }),
            py::arg("array"), "Construct from a numpy complex array.")
@@ -457,7 +460,10 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("port_weight_scale", &MaxwellParams::port_weight_scale,
                      "Unused; kept for compatibility.")
       .def_readwrite("port_abc_scale", &MaxwellParams::port_abc_scale,
-                     "ABC coefficient scale (0.5 optimal).")
+                     "Scale of the port operator j beta M_s in "
+                     "calculate_sparams_eigenmode. The assembled operator "
+                     "is correct at 1.0 (default); a diagnostic knob, not "
+                     "a tuning parameter.")
       .def_readwrite("use_eigenmode_excitation",
                      &MaxwellParams::use_eigenmode_excitation,
                      "Use eigenmode excitation.");
@@ -598,13 +604,18 @@ PYBIND11_MODULE(pyedgefem, m) {
       "evaluate_edge_field",
       [](const std::array<Eigen::Vector3d, 4> &vertices,
          const std::array<int, 6> &edge_orient,
-         py::array_t<std::complex<double>> edge_dofs_arr,
+         py::array_t<std::complex<double>,
+                     py::array::c_style | py::array::forcecast>
+             edge_dofs_arr,
          const Eigen::Vector3d &point) {
-        auto buf = edge_dofs_arr.request();
-        auto *ptr = static_cast<std::complex<double> *>(buf.ptr);
+        if (edge_dofs_arr.ndim() != 1 || edge_dofs_arr.shape(0) != 6)
+          throw py::value_error(
+              "evaluate_edge_field: edge_dofs must hold 6 values (one per "
+              "tet edge)");
+        auto d = edge_dofs_arr.unchecked<1>();
         std::array<std::complex<double>, 6> edge_dofs;
         for (int i = 0; i < 6; ++i)
-          edge_dofs[i] = ptr[i];
+          edge_dofs[i] = d(i);
         return evaluate_edge_field(vertices, edge_orient, edge_dofs, point);
       },
       "Evaluate E-field at a point inside a tetrahedron from edge DOFs.",
