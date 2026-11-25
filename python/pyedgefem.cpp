@@ -189,7 +189,8 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readonly("n0", &Edge::n0, "First node ID")
       .def_readonly("n1", &Edge::n1, "Second node ID");
 
-  m.def("load_gmsh", &load_gmsh_v2, "Loads a mesh from a Gmsh v2 .msh file.");
+  m.def("load_gmsh", &load_gmsh_v2, py::call_guard<py::gil_scoped_release>(),
+        "Loads a mesh from a Gmsh v2 .msh file.");
 
   py::class_<BC>(m, "BC", "Boundary condition definitions.")
       .def(py::init<>())
@@ -508,6 +509,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("b", &RectWaveguidePort::b, "Height in meters");
 
   m.def("solve_port_eigens", &solve_port_eigens,
+        py::call_guard<py::gil_scoped_release>(),
         "Solve 2D eigenmode problem on port cross-section.", py::arg("mesh"),
         py::arg("num_modes"), py::arg("omega"), py::arg("eps_r"),
         py::arg("mu_r"), py::arg("pol"));
@@ -591,6 +593,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readonly("area", &HuygensSurfaceData::area, "Triangle areas");
 
   m.def("extract_huygens_surface", &extract_huygens_surface,
+        py::call_guard<py::gil_scoped_release>(),
         "Extract Huygens surface fields from FEM solution.\n"
         "H = -curl E / (j omega mu) (exp(+j omega t)), averaged over the\n"
         "tets sharing each face. Normals point away from interior_point\n"
@@ -685,8 +688,9 @@ PYBIND11_MODULE(pyedgefem, m) {
           "x", [](SolveResult &s) -> VecC & { return s.x; },
           py::return_value_policy::reference_internal, "Solution vector x.");
 
-  m.def("solve_linear", &solve_linear, "Solves a complex linear system Ax=b.",
-        py::arg("A"), py::arg("b"), py::arg("options") = SolveOptions());
+  m.def("solve_linear", &solve_linear, py::call_guard<py::gil_scoped_release>(),
+        "Solves a complex linear system Ax=b.", py::arg("A"), py::arg("b"),
+        py::arg("options") = SolveOptions());
 
   m.def("_direct_factorization_count", &direct_factorization_count,
         "Test diagnostic: sparse LU numeric factorizations (any backend) "
@@ -698,6 +702,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
          const std::vector<WavePort> &ports, int active_port_idx) {
         warn_modal_ports_py(ports, true);
+        py::gil_scoped_release release;
         return assemble_maxwell(mesh, p, bc, ports, active_port_idx);
       },
       "Assembles the 3D Maxwell system. active_port_idx = -1 (default)\n"
@@ -713,6 +718,7 @@ PYBIND11_MODULE(pyedgefem, m) {
          const std::vector<WavePort> &ports,
          const SolveOptions &opts) -> Eigen::MatrixXcd {
         warn_modal_ports_py(ports);
+        py::gil_scoped_release release;
         return calculate_sparams(mesh, p, bc, ports, opts);
       },
       "N-port S-matrix, one factorization, one solve per port. Lumped ports "
@@ -728,8 +734,11 @@ PYBIND11_MODULE(pyedgefem, m) {
       [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
          const std::vector<WavePort> &ports, const SolveOptions &opts) {
         warn_modal_ports_py(ports);
-        SParamSolution sol =
-            calculate_sparams_with_fields(mesh, p, bc, ports, opts);
+        SParamSolution sol;
+        {
+          py::gil_scoped_release release;
+          sol = calculate_sparams_with_fields(mesh, p, bc, ports, opts);
+        }
         return py::make_tuple(sol.S, sol.x);
       },
       "calculate_sparams() that also returns the field solutions: "
@@ -761,6 +770,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       py::arg("solver_options") = SolveOptions());
 
   m.def("calculate_sparams_eigenmode", &calculate_sparams_eigenmode,
+        py::call_guard<py::gil_scoped_release>(),
         "Calculate S-parameters using direct eigenmode excitation (more "
         "accurate).",
         py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
@@ -798,6 +808,7 @@ PYBIND11_MODULE(pyedgefem, m) {
         SweepFieldRequest keep;
         keep.indices = keep_indices;
         keep.min_reflection = keep_min_reflection;
+        py::gil_scoped_release release;
         return frequency_sweep(mesh, p, bc, ports, frequencies, opts, keep);
       },
       "Perform S-parameter frequency sweep with matrix reuse.\n"
@@ -812,12 +823,14 @@ PYBIND11_MODULE(pyedgefem, m) {
       py::arg("keep_min_reflection") = false);
 
   m.def("assemble_maxwell_km", &assemble_maxwell_km,
+        py::call_guard<py::gil_scoped_release>(),
         "Assemble stiffness (K) and mass (M) matrices separately.\n"
         "A(omega) = K - k₀² M. Only valid for non-dispersive materials.",
         py::arg("mesh"), py::arg("params"), py::arg("bc"));
 
   m.def(
       "compute_te_eigenvector", &compute_te_eigenvector,
+      py::call_guard<py::gil_scoped_release>(),
       "Compute 3D FEM eigenvector for a TE mode with given cutoff wavenumber.",
       py::arg("mesh"), py::arg("pec_edges"), py::arg("target_kc_sq"));
 
@@ -827,6 +840,7 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("pec_edges"));
 
   m.def("build_wave_port_2d", &build_wave_port_2d,
+        py::call_guard<py::gil_scoped_release>(),
         "Build wave port from the 2D discrete port-face eigenmode.\n"
         "Weights are the discrete port mode and mode.kc is replaced by the\n"
         "discrete cutoff, so calculate_sparams_eigenmode uses a consistent\n"
@@ -1010,6 +1024,7 @@ PYBIND11_MODULE(pyedgefem, m) {
          const PeriodicBC &pbc, const std::vector<WavePort> &ports,
          int active_port_idx) {
         warn_modal_ports_py(ports, true);
+        py::gil_scoped_release release;
         return assemble_maxwell_periodic(mesh, p, bc, pbc, ports,
                                          active_port_idx);
       },
@@ -1024,6 +1039,7 @@ PYBIND11_MODULE(pyedgefem, m) {
          const PeriodicBC &pbc,
          const std::vector<WavePort> &ports) -> Eigen::MatrixXcd {
         warn_modal_ports_py(ports);
+        py::gil_scoped_release release;
         return calculate_sparams_periodic(mesh, p, bc, pbc, ports);
       },
       "Calculate S-parameters with periodic BC. Floquet ports from "
@@ -1235,6 +1251,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("e_phi", &NTFPoint2D::e_phi, "E_phi far-field component");
 
   m.def("stratton_chu_2d", &stratton_chu_2d,
+        py::call_guard<py::gil_scoped_release>(),
         "Compute far-field pattern using Stratton-Chu integral.\n"
         "The surface is represented by sample points with normals, E/H fields, "
         "and areas.",
@@ -1271,6 +1288,7 @@ PYBIND11_MODULE(pyedgefem, m) {
            "Get pattern in dB relative to maximum (normalized)");
 
   m.def("stratton_chu_3d", &stratton_chu_3d,
+        py::call_guard<py::gil_scoped_release>(),
         "Compute full 3D far-field pattern using Stratton-Chu integral.\n"
         "Returns pattern sampled over spherical (theta, phi) grid.\n\n"
         "Args:\n"

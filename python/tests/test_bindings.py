@@ -44,3 +44,45 @@ def test_evaluate_edge_field_strided_dofs():
 def test_port_abc_scale_docstring_is_not_stale():
     doc = em.MaxwellParams.port_abc_scale.__doc__ or ""
     assert "0.5 optimal" not in doc
+
+
+def _wr90():
+    mesh = em.load_gmsh("examples/rect_waveguide.msh")
+    bc = em.build_edge_pec(mesh, 1)
+    dims = em.RectWaveguidePort()
+    dims.a, dims.b = 0.02286, 0.01016
+    mode = em.solve_te10_mode(dims, 10e9)
+    kc_sq = (np.pi / dims.a) ** 2
+    ports = [em.build_wave_port_2d(mesh, t, mode, set(bc.dirichlet_edges),
+                                   kc_sq) for t in (2, 3)]
+    p = em.MaxwellParams()
+    p.omega = 2 * np.pi * 10e9
+    return mesh, p, bc, ports
+
+
+def test_solves_release_the_gil():
+    """While a solve runs in another thread, the main thread keeps running
+    Python: the longest pause it sees is well below one solve."""
+    import threading
+    import time
+    mesh, p, bc, ports = _wr90()
+    t0 = time.perf_counter()
+    em.calculate_sparams_eigenmode(mesh, p, bc, ports)
+    one_solve = time.perf_counter() - t0
+
+    done = threading.Event()
+
+    def work():
+        for _ in range(3):
+            em.calculate_sparams_eigenmode(mesh, p, bc, ports)
+        done.set()
+
+    th = threading.Thread(target=work)
+    stamps = []
+    th.start()
+    while not done.is_set():
+        stamps.append(time.perf_counter())
+    th.join()
+    gaps = np.diff(stamps)
+    assert len(gaps) > 0
+    assert gaps.max() < 0.5 * one_solve, (gaps.max(), one_solve)
