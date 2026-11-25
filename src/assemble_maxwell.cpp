@@ -2,6 +2,7 @@
 #include "edgefem/free_dofs.hpp"
 #include "edgefem/maxwell.hpp"
 
+#include <Eigen/Geometry>
 #include <Eigen/SparseCore>
 #include <array>
 #include <atomic>
@@ -739,12 +740,54 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
   return S;
 }
 
+namespace {
+// Integral of the tangential mode field over the port face,
+// int_S sum_e x_e N_e dS, from the triangle Whitney integrals
+// int_T N_ab dS = (A / 3) (grad lambda_b - grad lambda_a). Also returns the
+// face area.
+Eigen::Vector3cd port_face_integral(const Mesh &mesh, int surface_tag,
+                                    const VecC &x, double &area_out) {
+  static const int tri_edge_nodes[3][2] = {{0, 1}, {1, 2}, {2, 0}};
+  Eigen::Vector3cd sum = Eigen::Vector3cd::Zero();
+  area_out = 0.0;
+  for (const auto &tri : mesh.tris) {
+    if (tri.phys != surface_tag)
+      continue;
+    Eigen::Vector3d v[3];
+    for (int k = 0; k < 3; ++k)
+      v[k] = mesh.nodes[mesh.nodeIndex.at(tri.conn[k])].xyz;
+    const Eigen::Vector3d normal = (v[1] - v[0]).cross(v[2] - v[0]);
+    const double area2 = normal.norm();
+    if (area2 < 1e-30)
+      continue;
+    const Eigen::Vector3d n_hat = normal / area2;
+    const Eigen::Vector3d g[3] = {n_hat.cross(v[2] - v[1]) / area2,
+                                  n_hat.cross(v[0] - v[2]) / area2,
+                                  n_hat.cross(v[1] - v[0]) / area2};
+    area_out += 0.5 * area2;
+    for (int le = 0; le < 3; ++le) {
+      const Eigen::Vector3d integral =
+          (0.5 * area2 / 3.0) *
+          (g[tri_edge_nodes[le][1]] - g[tri_edge_nodes[le][0]]);
+      sum += (static_cast<double>(tri.edge_orient[le]) * x(tri.edges[le])) *
+             integral.cast<std::complex<double>>();
+    }
+  }
+  return sum;
+}
+} // namespace
+
 Eigen::MatrixXcd
 calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
                             const BC &bc, const std::vector<WavePort> &ports) {
   const int num_ports = static_cast<int>(ports.size());
   const int m = static_cast<int>(mesh.edges.size());
-  Eigen::MatrixXcd S(num_ports, num_ports);
+  // NaN until filled: an early return (evanescent port) or a failed solve
+  // leaves NaN, never uninitialized values.
+  Eigen::MatrixXcd S = Eigen::MatrixXcd::Constant(
+      num_ports, num_ports,
+      std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
+                           std::numeric_limits<double>::quiet_NaN()));
 
   if (num_ports == 0) {
     return S;
@@ -830,6 +873,18 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
     if (norm_sq > 1e-30) {
       port_vecs[i] /= std::sqrt(norm_sq);
     }
+    // The eigensolver returns the mode with an arbitrary sign (or phase),
+    // which would carry into S(j, i), j != i. Fix it: make the largest
+    // Cartesian component of the face-integrated mode field real and
+    // positive (for TE10 the field along the narrow side). A mode whose
+    // face integral vanishes (e.g. TE20) is left as built.
+    double face_area = 0.0;
+    const Eigen::Vector3cd mean =
+        port_face_integral(mesh, ports[i].surface_tag, port_vecs[i], face_area);
+    Eigen::Index k_max = 0;
+    mean.cwiseAbs().maxCoeff(&k_max);
+    if (std::abs(mean(k_max)) > 1e-6 * std::sqrt(face_area))
+      port_vecs[i] *= std::conj(mean(k_max)) / std::abs(mean(k_max));
   }
 
   // Solve for each active port

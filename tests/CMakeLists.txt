@@ -103,6 +103,11 @@ target_link_libraries(test_sparam_accuracy PRIVATE edgefem)
 add_test(NAME test_sparam_accuracy COMMAND test_sparam_accuracy)
 set_tests_properties(test_sparam_accuracy PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped")
 
+add_executable(test_eigenmode_edge_cases test_eigenmode_edge_cases.cpp)
+target_link_libraries(test_eigenmode_edge_cases PRIVATE edgefem)
+add_test(NAME test_eigenmode_edge_cases COMMAND test_eigenmode_edge_cases)
+set_tests_properties(test_eigenmode_edge_cases PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+
 add_executable(test_eigenmode_sparams test_eigenmode_sparams.cpp)
 target_link_libraries(test_eigenmode_sparams PRIVATE edgefem)
 add_test(NAME test_eigenmode_sparams COMMAND test_eigenmode_sparams)
