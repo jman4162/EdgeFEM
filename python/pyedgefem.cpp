@@ -579,9 +579,13 @@ PYBIND11_MODULE(pyedgefem, m) {
 
   m.def("extract_huygens_surface", &extract_huygens_surface,
         "Extract Huygens surface fields from FEM solution.\n"
-        "Output is directly compatible with stratton_chu_3d().",
+        "H = -curl E / (j omega mu) (exp(+j omega t)), averaged over the\n"
+        "tets sharing each face. Normals point away from interior_point\n"
+        "when given (needed on interior surfaces). Output feeds\n"
+        "stratton_chu_3d() directly.",
         py::arg("mesh"), py::arg("solution"), py::arg("surface_tag"),
-        py::arg("omega"), py::arg("mu_r") = std::complex<double>(1.0, 0.0));
+        py::arg("omega"), py::arg("mu_r") = std::complex<double>(1.0, 0.0),
+        py::arg("interior_point") = py::none());
 
   m.def(
       "evaluate_edge_field",

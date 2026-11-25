@@ -61,7 +61,7 @@ set_tests_properties(test_vector_fit PROPERTIES WORKING_DIRECTORY ${PROJECT_SOUR
 add_executable(test_ntf test_ntf.cpp)
 target_link_libraries(test_ntf PRIVATE edgefem)
 add_test(NAME test_ntf COMMAND test_ntf)
-set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
+set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "ntf")
 
 add_executable(test_solver_convergence test_solver_convergence.cpp)
 target_link_libraries(test_solver_convergence PRIVATE edgefem)
