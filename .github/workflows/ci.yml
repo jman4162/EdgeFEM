@@ -90,9 +90,10 @@ jobs:
           UBSAN_OPTIONS: print_stacktrace=1
         run: ctest --test-dir build -L smoke -j --output-on-failure --timeout 900
 
-  # macOS (the main development platform; Homebrew Eigen 5.x).
+  # macOS (the main development platform; Homebrew Eigen 5.x). GitHub
+  # rejects the macos-14 label ("configuration not supported", Nov 2026).
   macos:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Install deps

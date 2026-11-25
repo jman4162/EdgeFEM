@@ -22,9 +22,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-14 is Apple silicon (arm64); macos-15-intel is the Intel
-        # (x86_64) image that replaced the retired macos-13.
-        os: [ubuntu-22.04, macos-14, macos-15-intel]
+        # macos-15 is Apple silicon (arm64); macos-15-intel is the Intel
+        # (x86_64) image. GitHub rejects macos-14 and macos-13. Wheels
+        # still target macOS 14 (MACOSX_DEPLOYMENT_TARGET below).
+        os: [ubuntu-22.04, macos-15, macos-15-intel]
 
     steps:
       - uses: actions/checkout@v4
