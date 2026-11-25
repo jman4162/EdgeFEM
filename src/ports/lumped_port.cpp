@@ -33,9 +33,7 @@ static Eigen::VectorXcd compute_surface_integral_weights(
 
     // Get triangle vertex positions (Tri3 uses first 3 of conn)
     Eigen::Vector3d v[3];
-    int node_ids[3];
     for (int k = 0; k < 3; ++k) {
-      node_ids[k] = static_cast<int>(tri.conn[k]);
       int idx = mesh.nodeIndex.at(tri.conn[k]);
       v[k] = mesh.nodes[idx].xyz;
     }
