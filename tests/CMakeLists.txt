@@ -68,6 +68,11 @@ target_link_libraries(test_solver_convergence PRIVATE edgefem)
 add_test(NAME test_solver_convergence COMMAND test_solver_convergence)
 set_tests_properties(test_solver_convergence PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "smoke;known_issue")
 
+add_executable(test_mesh_loader test_mesh_loader.cpp)
+target_link_libraries(test_mesh_loader PRIVATE edgefem)
+add_test(NAME test_mesh_loader COMMAND test_mesh_loader)
+set_tests_properties(test_mesh_loader PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS smoke)
+
 add_executable(test_mesh_quality test_mesh_quality.cpp)
 target_link_libraries(test_mesh_quality PRIVATE edgefem)
 add_test(NAME test_mesh_quality COMMAND test_mesh_quality)
