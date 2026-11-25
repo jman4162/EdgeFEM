@@ -539,12 +539,16 @@ class PatchAntennaDesign:
                 # Array factor for two slots separated by L
                 AF = np.cos(k0 * L * sin_th * sin_ph / 2)
 
-                # Pattern functions (E-plane and H-plane)
-                # E-plane (phi=0): E_theta dominates
-                # H-plane (phi=90): E_phi dominates
-
-                E_theta[i, j] = cos_ph * sinc_X * AF * cos_th
-                E_phi[i, j] = -sin_ph * sinc_X * AF
+                # Two slots of length W (along x), separated by L along y,
+                # each with aperture field along y over an infinite ground:
+                # M = -2 z x y = 2 x, so (Balanis 12-10) E_theta ~ -M_phi
+                # = 2 sin(phi) and E_phi ~ M_theta = 2 cos(theta) cos(phi).
+                # E-plane is phi = 90 deg (yz), H-plane phi = 0 (xz). No
+                # radiation below the ground (theta > 90 deg).
+                if th > np.pi / 2 + 1e-12:
+                    continue
+                E_theta[i, j] = sin_ph * sinc_X * AF
+                E_phi[i, j] = cos_th * cos_ph * sinc_X * AF
 
         # Create FFPattern3D-like structure
         # We'll return the data in a format compatible with our pattern functions

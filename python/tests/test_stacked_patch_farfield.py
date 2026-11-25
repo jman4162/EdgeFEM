@@ -2,6 +2,7 @@
 Far-field evaluation of StackedPatchDesign: the vectorized Stratton-Chu sum
 against the loop implementation it replaced, and the per-(frequency, grid)
 pattern cache.
+Closed-form checks of the kernel are in test_farfield_conventions.py.
 
 Requires Gmsh to be installed and in PATH.
 """
@@ -37,31 +38,20 @@ FREQ = 2.4e9
 
 
 def reference_pattern(design, freq, n_theta, n_phi):
-    """The per-direction, per-face loop that radiation_pattern() used before
-    it was vectorized. Kept verbatim as the reference for the 1e-10 check.
-    Returns (theta_grid, phi_grid, E_theta, E_phi)."""
+    """Per-direction, per-face loop form of the aperture far field (exp(+j
+    omega t), Balanis 12-10 with N = 0, M = -2 n x E_tan, n = +z), the
+    reference for the vectorized sum. Returns
+    (theta_grid, phi_grid, E_theta, E_phi)."""
     solution = design._last_solutions[freq]
     omega = 2 * np.pi * freq
     c0 = 299792458.0
     k0 = omega / c0
 
+    below = np.asarray(design._mesh.node_coords())[:, 2].min() - 1.0
     huygens = em.extract_huygens_surface(
-        design._mesh, solution, design._TAG_HUYGENS, omega
+        design._mesh, solution, design._TAG_HUYGENS, omega,
+        interior_point=np.array([0.0, 0.0, below]),
     )
-
-    normals_fixed = []
-    E_doubled = []
-    H_zero = []
-    for i in range(len(huygens.n)):
-        n = huygens.n[i]
-        E = huygens.E_tan[i]
-        if n[2] < 0:
-            normals_fixed.append(-n)
-            E_doubled.append(-2.0 * E)
-        else:
-            normals_fixed.append(n)
-            E_doubled.append(2.0 * E)
-        H_zero.append(np.zeros(3, dtype=complex))
 
     theta_rad = np.linspace(0, np.pi / 2, n_theta).tolist()
     phi_rad = np.linspace(0, 2 * np.pi, n_phi).tolist()
@@ -74,8 +64,6 @@ def reference_pattern(design, freq, n_theta, n_phi):
     for ti, th in enumerate(theta_rad):
         sin_th = np.sin(th)
         cos_th = np.cos(th)
-        obliquity = cos_th
-
         for pi_idx, ph in enumerate(phi_rad):
             theta_grid[ti, pi_idx] = th
             phi_grid[ti, pi_idx] = ph
@@ -86,15 +74,15 @@ def reference_pattern(design, freq, n_theta, n_phi):
                                cos_th * np.sin(ph), -sin_th])
             ph_hat = np.array([-np.sin(ph), np.cos(ph), 0.0])
 
-            Efar = np.zeros(3, dtype=complex)
+            L = np.zeros(3, dtype=complex)
             for s in range(len(huygens.r)):
-                M = -np.cross(normals_fixed[s], E_doubled[s])
-                phase = np.exp(-1j * k0 * np.dot(rhat, huygens.r[s]))
-                term = 1j * k0 * np.cross(np.cross(rhat, M), rhat)
-                Efar += term * phase * huygens.area[s] * obliquity
+                assert huygens.n[s][2] > 0.999
+                M = -2.0 * np.cross(huygens.n[s], huygens.E_tan[s])
+                phase = np.exp(1j * k0 * np.dot(rhat, huygens.r[s]))
+                L += M * phase * huygens.area[s]
 
-            E_theta_out[ti, pi_idx] = np.dot(Efar, th_hat)
-            E_phi_out[ti, pi_idx] = np.dot(Efar, ph_hat)
+            E_theta_out[ti, pi_idx] = -1j * k0 / (4 * np.pi) * np.dot(L, ph_hat)
+            E_phi_out[ti, pi_idx] = 1j * k0 / (4 * np.pi) * np.dot(L, th_hat)
 
     return theta_grid, phi_grid, E_theta_out, E_phi_out
 

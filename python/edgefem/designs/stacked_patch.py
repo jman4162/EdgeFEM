@@ -949,38 +949,61 @@ class StackedPatchDesign:
         )
 
     def _evaluate_pattern(self, freq: float, n_theta: int, n_phi: int):
-        """Stratton-Chu sum over the Huygens faces for an n_theta x n_phi
-        grid, vectorized over directions and faces in blocks."""
+        """Far field of the Huygens-plane aperture for an n_theta x n_phi
+        grid over the upper hemisphere."""
         solution = self._solutions[freq]
         omega = 2 * np.pi * freq
         c0 = 299792458.0
         k0 = omega / c0
 
         # Extract Huygens surface. Each attribute is read once: pybind
-        # copies the whole face list on every access.
+        # copies the whole face list on every access. The Huygens plane is
+        # horizontal and lies above the ground; a point below the mesh sets
+        # every normal to +z (its faces are interior, shared by two tets).
+        below = np.asarray(self._mesh.node_coords())[:, 2].min() - 1.0
         huygens = em.extract_huygens_surface(
-            self._mesh, solution, self._TAG_HUYGENS, omega
+            self._mesh, solution, self._TAG_HUYGENS, omega,
+            interior_point=np.array([0.0, 0.0, below]),
         )
         r = np.asarray(huygens.r, dtype=float).reshape(-1, 3)
         n = np.asarray(huygens.n, dtype=float).reshape(-1, 3)
         E_tan = np.asarray(huygens.E_tan, dtype=complex).reshape(-1, 3)
         area = np.asarray(huygens.area, dtype=float).reshape(-1)
 
-        # Ensure consistent outward (+z) normals on the horizontal Huygens
-        # surface. The C++ extractor picks one parent tet per face, and for
-        # faces shared between tets above and below the surface the choice
-        # is non-deterministic, occasionally flipping the normal.
-        # Use aperture/image theory: for an antenna above a PEC ground
-        # plane, the far field equals 2x the magnetic-current (M = -n x E)
-        # contribution from the aperture. H_tan is not used because image
-        # theory accounts for it via the factor of 2.
-        sign = np.where(n[:, 2] < 0.0, -1.0, 1.0)[:, None]
-        M = -np.cross(sign * n, sign * 2.0 * E_tan)
-        weighted_M = M * area[:, None]                       # (faces, 3)
-
         # Upper hemisphere only (ground plane blocks lower hemisphere)
         theta_rad = np.linspace(0, np.pi / 2, n_theta)
         phi_rad = np.linspace(0, 2 * np.pi, n_phi)
+        theta_grid, phi_grid = np.meshgrid(theta_rad, phi_rad, indexing="ij")
+        E_theta_out, E_phi_out = self._aperture_far_field(
+            r, n, E_tan, area, k0, theta_rad, phi_rad,
+            chunk_bytes=self._FARFIELD_CHUNK_BYTES)
+        return _AperturePattern(theta_grid, phi_grid, E_theta_out, E_phi_out)
+
+    @classmethod
+    def _aperture_far_field(cls, r, n, E_tan, area, k0, theta_rad, phi_rad,
+                            chunk_bytes=None):
+        """Far field of an aperture over a PEC ground plane, vectorized
+        over directions and faces in blocks. Returns (E_theta, E_phi), each
+        len(theta_rad) x len(phi_rad)."""
+        if chunk_bytes is None:
+            chunk_bytes = cls._FARFIELD_CHUNK_BYTES
+        n_theta, n_phi = len(theta_rad), len(phi_rad)
+        r = np.asarray(r, dtype=float).reshape(-1, 3)
+        n = np.asarray(n, dtype=float).reshape(-1, 3)
+        E_tan = np.asarray(E_tan, dtype=complex).reshape(-1, 3)
+        area = np.asarray(area, dtype=float).reshape(-1)
+
+        # Image theory: over an infinite PEC ground the aperture field E_a
+        # on the plane radiates as the magnetic current M = -2 n x E_a in
+        # free space (upper half space). H_tan is not used. n must be +z.
+        if r.shape[0] and np.any(n[:, 2] < 0.5):
+            raise ValueError(
+                "_aperture_far_field: the aperture normals must point up "
+                "(+z); extract the Huygens surface with an interior_point "
+                "below it")
+        M = -2.0 * np.cross(n, E_tan)
+        weighted_M = M * area[:, None]                       # (faces, 3)
+
         theta_grid, phi_grid = np.meshgrid(theta_rad, phi_rad, indexing="ij")
         th = theta_grid.ravel()
         ph = phi_grid.ravel()
@@ -991,39 +1014,33 @@ class StackedPatchDesign:
         th_hat = np.stack([cos_th * cos_ph, cos_th * sin_ph, -sin_th], axis=1)
         ph_hat = np.stack([-sin_ph, cos_ph, zeros], axis=1)
 
-        # Per direction, the loop form summed
-        #   j k0 (rhat x M_s) x rhat * exp(-j k0 rhat.r_s) * area_s * cos_th
-        # over faces s. (rhat x M) x rhat is the part of M perpendicular to
-        # rhat, and th_hat, ph_hat are perpendicular to rhat, so
-        #   E_theta = j k0 cos_th * th_hat . F,  E_phi = j k0 cos_th * ph_hat . F
-        # with F = sum_s exp(-j k0 rhat.r_s) area_s M_s. The aperture
-        # obliquity factor cos_th approximates the horizon cancellation a
-        # closed Huygens surface would give; an open single-plane surface
-        # has no side faces.
+        # exp(+j omega t), r-normalized (exp(-j k0 r) / r removed), Balanis
+        # 12-10a,b with N = 0:
+        #   L = sum_s M_s area_s exp(+j k0 rhat . r_s)
+        #   E_theta = -(j k0 / 4 pi) L . phi_hat
+        #   E_phi   = +(j k0 / 4 pi) L . theta_hat
         n_dir = th.size
         n_faces = r.shape[0]
-        per_dir = self._FARFIELD_BYTES_PER_ENTRY * max(n_faces, 1)
-        chunk = max(1, int(self._FARFIELD_CHUNK_BYTES // per_dir))
+        per_dir = cls._FARFIELD_BYTES_PER_ENTRY * max(n_faces, 1)
+        chunk = max(1, int(chunk_bytes // per_dir))
 
-        F = np.zeros((n_dir, 3), dtype=complex)
+        L = np.zeros((n_dir, 3), dtype=complex)
         if n_faces:
             for start in range(0, n_dir, chunk):
                 stop = min(start + chunk, n_dir)
                 arg = rhat[start:stop] @ r.T                  # (dirs, faces)
-                arg *= -k0
+                arg *= k0
                 phase = arg * 1j                              # complex copy
                 del arg
                 np.exp(phase, out=phase)
-                F[start:stop] = phase @ weighted_M
+                L[start:stop] = phase @ weighted_M
 
-        scale = 1j * k0 * cos_th
-        E_theta_out = (scale * np.einsum("ij,ij->i", F, th_hat)).reshape(
+        scale = 1j * k0 / (4.0 * np.pi)
+        E_theta_out = (-scale * np.einsum("ij,ij->i", L, ph_hat)).reshape(
             n_theta, n_phi)
-        E_phi_out = (scale * np.einsum("ij,ij->i", F, ph_hat)).reshape(
+        E_phi_out = (scale * np.einsum("ij,ij->i", L, th_hat)).reshape(
             n_theta, n_phi)
-
-        # Lightweight pattern object compatible with the C++ API
-        return _AperturePattern(theta_grid, phi_grid, E_theta_out, E_phi_out)
+        return E_theta_out, E_phi_out
 
     def directivity(
         self,
@@ -1076,11 +1093,11 @@ class StackedPatchDesign:
                 U = pwr[i, j] / (2.0 * Z0)
                 P_rad += U * sin_th * wt_th * wt_ph
         P_rad *= dtheta * dphi
-        # For upper hemisphere pattern, assume lower hemisphere has zero
-        # contribution (ground plane). Multiply by 2 for 4*pi normalization.
+        # The grid covers the upper hemisphere; the ground plane makes the
+        # lower one zero, so P_rad is the whole radiated power.
         if P_rad < 1e-30:
             return 0.0
-        return 4.0 * np.pi * U_max / (2.0 * P_rad)
+        return 4.0 * np.pi * U_max / P_rad
 
     def near_field(
         self, freq: float, points: np.ndarray
