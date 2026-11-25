@@ -62,11 +62,17 @@ struct MaxwellParams {
   std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>>
       mu_models;
 
-  // Conductivity term for PML coordinate stretching (sigma)
+  // Absorbing layer (experimental). Elements in a PML region get the
+  // isotropic factor s = 1 - j sigma / omega (exp(+j omega t); sigma in
+  // 1/s) as eps = mu = s: reflectionless only for a normally incident plane
+  // wave, not a uniaxial PML. Uniform sigma on every pml_regions element:
   double pml_sigma = 0.0;
   // Physical region tags that should be treated as PML
   std::unordered_set<int> pml_regions;
-  // Optional tensor PML specifications per physical region
+  // Graded spec per region: sigma_axis = sigma_max (xi)^grading_order, with
+  // xi rising from 0 at the inner interface to 1 at the region's face on the
+  // mesh boundary over `thickness`. The per-axis losses are summed into one
+  // isotropic s. Takes precedence over pml_regions for the same tag.
   std::unordered_map<int, PMLRegionSpec> pml_tensor_regions;
   bool enforce_pml_heuristics = true;
   // First-order absorbing boundary condition n x curl E + j k0 n x n x E = 0

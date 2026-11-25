@@ -33,10 +33,15 @@ target_link_libraries(test_waveguide_modal PRIVATE edgefem)
 add_test(NAME test_waveguide_modal COMMAND test_waveguide_modal)
 set_tests_properties(test_waveguide_modal PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "modal;known_issue")
 
+add_executable(test_pml_waveguide test_pml_waveguide.cpp)
+target_link_libraries(test_pml_waveguide PRIVATE edgefem)
+add_test(NAME test_pml_waveguide COMMAND test_pml_waveguide)
+set_tests_properties(test_pml_waveguide PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "pml")
+
 add_executable(test_pml test_pml.cpp)
 target_link_libraries(test_pml PRIVATE edgefem)
 add_test(NAME test_pml COMMAND test_pml)
-set_tests_properties(test_pml PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "pml;known_issue")
+set_tests_properties(test_pml PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "pml")
 
 add_executable(test_abc test_abc.cpp)
 target_link_libraries(test_abc PRIVATE edgefem)

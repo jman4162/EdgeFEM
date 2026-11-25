@@ -268,7 +268,15 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   for (const auto &kv : p.pml_tensor_regions)
     region_bounds.emplace(kv.first, Bounds{});
 
+  // Bounding box of the whole mesh: a PML region's face that lies on it is
+  // the outer (terminating) face, where the graded profile peaks.
+  Bounds domain;
   if (!region_bounds.empty()) {
+    for (const auto &node : mesh.nodes) {
+      domain.min = domain.min.cwiseMin(node.xyz);
+      domain.max = domain.max.cwiseMax(node.xyz);
+    }
+    domain.initialized = !mesh.nodes.empty();
     for (const auto &tet : mesh.tets) {
       auto it = region_bounds.find(tet.phys);
       if (it == region_bounds.end())
@@ -296,18 +304,21 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
     diag.region_tag = kv.first;
     diag.sigma_max = kv.second.sigma_max;
     diag.thickness = kv.second.thickness;
-    const double omega_mag = std::abs(p.omega);
+    // Normal-incidence plane-wave round trip through the graded layer:
+    // with s = 1 - j sigma / omega the field decays as
+    // exp(-(k0 / omega) int sigma dz) = exp(-int sigma dz / c0), so
+    //   R = exp(-2 sigma_max d / ((n + 1) c0))
+    // for sigma = sigma_max (z / d)^n.
     for (int axis = 0; axis < 3; ++axis) {
       const double sigma_max = kv.second.sigma_max[axis];
       const double thickness = kv.second.thickness[axis];
-      if (sigma_max <= 0.0 || thickness <= 0.0 || omega_mag <= 0.0) {
+      if (sigma_max <= 0.0 || thickness <= 0.0) {
         diag.reflection_est[axis] = 1.0;
         continue;
       }
       const double integral =
           sigma_max * thickness / (kv.second.grading_order + 1.0);
-      const double exponent = -2.0 * integral / omega_mag;
-      diag.reflection_est[axis] = std::exp(exponent);
+      diag.reflection_est[axis] = std::exp(-2.0 * integral / c0);
     }
     asmbl.diagnostics.push_back(diag);
   }
@@ -345,12 +356,26 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
             sigma[axis] = 0.0;
             continue;
           }
-          double dist_to_min = centroid[axis] - bbox_min[axis];
-          double dist_to_max = bbox_max[axis] - centroid[axis];
-          double min_dist = std::min(dist_to_min, dist_to_max);
+          // Distance from the region's outer face along this axis. A face
+          // of the region that lies on the domain boundary is outer; the
+          // face toward the interior is the interface, where sigma must
+          // start from zero. A region on both sides (a shell, or one with
+          // no face on the boundary) measures from the nearer face.
+          const double dist_to_min = centroid[axis] - bbox_min[axis];
+          const double dist_to_max = bbox_max[axis] - centroid[axis];
+          const double tol = 1e-9 * (domain.max[axis] - domain.min[axis] + 1.0);
+          const bool outer_min =
+              std::abs(bbox_min[axis] - domain.min[axis]) <= tol;
+          const bool outer_max =
+              std::abs(bbox_max[axis] - domain.max[axis]) <= tol;
+          double dist = std::min(dist_to_min, dist_to_max);
+          if (outer_max && !outer_min)
+            dist = dist_to_max;
+          else if (outer_min && !outer_max)
+            dist = dist_to_min;
           double xi = 0.0;
-          if (min_dist < thickness) {
-            xi = 1.0 - (min_dist / thickness);
+          if (dist < thickness) {
+            xi = 1.0 - (dist / thickness);
           }
           if (p.enforce_pml_heuristics && xi > 0.0) {
             xi = std::max(xi, kMinProfile);
@@ -360,14 +385,19 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
               sigma[axis] < sigma_max * kMinProfile) {
             sigma[axis] = sigma_max * kMinProfile;
           }
+          // exp(+j omega t): a lossy stretch has Im(s) < 0.
           stretch_tensor[axis] =
-              std::complex<double>(1.0, sigma[axis] / p.omega);
+              std::complex<double>(1.0, -sigma[axis] / p.omega);
         }
-        std::complex<double> stretch_sum =
-            stretch_tensor[0] + stretch_tensor[1] + stretch_tensor[2];
-        stretch_scalar = stretch_sum / 3.0;
+        // The assembly takes one isotropic factor (eps = mu = s), not the
+        // uniaxial tensor. Summing the per-axis losses keeps the full
+        // stretch of a face region (one active axis) instead of a third
+        // of it; edge and corner regions get the sum.
+        stretch_scalar = stretch_tensor[0] + stretch_tensor[1] +
+                         stretch_tensor[2] - std::complex<double>(2.0, 0.0);
       } else if (p.pml_regions.count(tet.phys)) {
-        stretch_scalar = std::complex<double>(1.0, p.pml_sigma / p.omega);
+        // exp(+j omega t): a lossy stretch has Im(s) < 0.
+        stretch_scalar = std::complex<double>(1.0, -p.pml_sigma / p.omega);
         stretch_tensor = {stretch_scalar, stretch_scalar, stretch_scalar};
       }
     }

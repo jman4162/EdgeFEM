@@ -297,7 +297,7 @@ EdgeFEM v1.0 targets small-to-medium waveguide, patch antenna, and unit cell pro
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| True tensor (coordinate-stretched) PML | Planned v1.1 | Current absorber applies a scalar average of the stretch tensor: a graded lossy layer, not reflectionless at oblique incidence |
+| True tensor (coordinate-stretched) PML | Planned | Current absorber (experimental) is an isotropic graded layer, eps = mu = 1 - j sigma/omega: matched only at normal plane-wave incidence. Terminating WR-90 at 10 GHz it gives \|S11\| about 0.07-0.10 (`test_pml_waveguide`) |
 | Wave port formulation | First-order single-mode ABC | Assembled surface-mass operator with 2D discrete port modes (no tuned constants); mesh-convergent S-parameters; higher-order port modes not mode-matched; accuracy degrades near cutoff |
 | Floquet ports / harmonic expansion | Planned | Periodic BC applies a Bloch phase along one lattice axis only; the constraint elimination is dense, limiting problem size |
 | Inhomogeneous / TEM ports (coax, microstrip) | Not supported | 2D port eigensolver is scalar (hollow homogeneous guides only) |
