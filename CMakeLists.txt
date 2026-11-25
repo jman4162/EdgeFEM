@@ -27,6 +27,8 @@ option(EDGEFEM_BUILD_SCALAR "Build scalar prototype" ON)
 option(EDGEFEM_BUILD_VECTOR "Build vector Maxwell path" ON)
 option(EDGEFEM_PYTHON "Build Python bindings" OFF)
 option(EDGEFEM_BUILD_DEBUG_TOOLS "Build one-off diagnostic executables in tests/" OFF)
+option(EDGEFEM_WARNINGS_AS_ERRORS
+       "Compile the edgefem library with -Wall -Wextra -Werror (CI)" OFF)
 option(EDGEFEM_USE_SUITESPARSE
        "Use SuiteSparse UMFPACK (GPL-2.0-or-later) for direct solves" OFF)
 

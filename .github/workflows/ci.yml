@@ -30,15 +30,16 @@ jobs:
         # 22 min and peaked at 10.8 GB; with UMFPACK it takes 2 min.
         # test_direct_solvers_backends still checks SparseLU against
         # UMFPACK to 1e-9.
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_PYTHON=ON -DEDGEFEM_USE_SUITESPARSE=ON -Dpybind11_DIR=${{ env.dir }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_PYTHON=ON -DEDGEFEM_USE_SUITESPARSE=ON -DEDGEFEM_WARNINGS_AS_ERRORS=ON -Dpybind11_DIR=${{ env.dir }}
       - name: Build
         run: cmake --build build -j
       - name: Static analysis
         run: bash tools/lint.sh build
       - name: Unit tests
-        # Tests labelled known_issue fail for reasons unrelated to the
-        # build (see tests/CMakeLists.txt); everything else must pass.
-        run: ctest --test-dir build -LE known_issue -j --output-on-failure
+        # Every registered test. Those labelled known_issue carry
+        # WILL_FAIL TRUE: they pass while their defect is open and fail
+        # once it is fixed (see tests/CMakeLists.txt).
+        run: ctest --test-dir build -j --output-on-failure
       - name: Python integration tests
         # The slow known-answer patch test (`-m slow`) is deselected by
         # addopts in pyproject.toml and does not run here.
@@ -53,3 +54,53 @@ jobs:
           name: edgefem-artifacts
           path: artifacts
 
+  # The configuration every wheel user gets: Eigen SparseLU, no UMFPACK.
+  sparselu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libeigen3-dev
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_USE_SUITESPARSE=OFF -DEDGEFEM_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Unit tests
+        # The long accuracy benchmarks run in build-test (UMFPACK).
+        run: ctest --test-dir build -j --output-on-failure -LE benchmark -E test_sparam_accuracy
+
+  # Debug build (Eigen bounds asserts on) with AddressSanitizer and
+  # UndefinedBehaviorSanitizer, smoke subset.
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build libeigen3-dev
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+          -DEDGEFEM_USE_SUITESPARSE=OFF
+          "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=undefined"
+          "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Build
+        run: cmake --build build -j
+      - name: Smoke tests under sanitizers
+        env:
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --test-dir build -L smoke -j --output-on-failure --timeout 900
+
+  # macOS (the main development platform; Homebrew Eigen 5.x). GitHub
+  # rejects the macos-14 label ("configuration not supported", Nov 2026).
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install deps
+        run: brew install eigen ninja
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DEDGEFEM_USE_SUITESPARSE=OFF -DEDGEFEM_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build -j
+      - name: Unit tests
+        run: ctest --test-dir build -j --output-on-failure -LE benchmark -E test_sparam_accuracy

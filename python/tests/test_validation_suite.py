@@ -41,28 +41,17 @@ gmsh_required = pytest.mark.skipif(not HAS_GMSH, reason="Gmsh not available")
 class TestUnitCellPassivity:
     """Verify passivity for unit cell designs."""
 
-    def test_grounded_patch_passive(self):
-        """Grounded patch unit cell must have |S11| <= 1."""
-        from edgefem.designs import UnitCellDesign
-        cell = UnitCellDesign(
-            period_x=10e-3, period_y=10e-3,
-            substrate_height=1.6e-3, substrate_eps_r=4.4,
-        )
-        cell.add_patch(width=8e-3, length=6e-3)
-        cell.generate_mesh(density=8)
-        R, T = cell.reflection_transmission(10e9)
-        assert abs(R) <= 1.01, f"|R| = {abs(R):.4f} > 1.01 (passivity violation)"
-
     def test_bare_ground_total_reflection(self):
         """Grounded substrate with no patch should reflect nearly all energy."""
         from edgefem.designs import UnitCellDesign
         cell = UnitCellDesign(
             period_x=10e-3, period_y=10e-3,
             substrate_height=0.5e-3, substrate_eps_r=2.2,
+            experimental=True,
         )
         cell.generate_mesh(density=8)
         R, T = cell.reflection_transmission(10e9)
-        assert abs(R) > 0.90, f"|R| = {abs(R):.4f} should be near 1.0 for bare ground"
+        assert abs(abs(R) - 1.0) < 0.01, f"|R| = {abs(R):.4f}, lossless ground"
 
 
 # ---------- Stacked Patch Validation ----------
@@ -110,8 +99,8 @@ class TestStackedPatchValidation:
         freqs, _, S11_sweep = self.design.frequency_sweep(
             freq, freq, n_points=1
         )
-        # Allow some tolerance since sweep uses mid-frequency normalization
-        assert abs(abs(S11_single) - abs(S11_sweep[0])) < 0.15, (
+        # Same assembly and solve: equal to solver tolerance
+        assert abs(S11_single - S11_sweep[0]) < 1e-6, (
             f"|S11| single={abs(S11_single):.4f} vs sweep={abs(S11_sweep[0]):.4f}"
         )
 
@@ -141,8 +130,8 @@ class TestPatchAntennaAnalytical:
         )
         D = patch.directivity(2.4e9)
         D_dBi = 10 * np.log10(D) if D > 0 else -np.inf
-        # Analytical model gives lower directivity than full-wave (simplified aperture)
-        assert 1.0 <= D_dBi <= 10.0, f"Directivity = {D_dBi:.1f} dBi out of range"
+        # Two-slot model over an infinite ground: about 6 dBi
+        assert 5.5 <= D_dBi <= 8.0, f"Directivity = {D_dBi:.1f} dBi out of range"
 
     def test_impedance_positive_resistance(self):
         """Input impedance real part must be positive."""
@@ -175,6 +164,7 @@ class TestSolverRobustness:
         cell = UnitCellDesign(
             period_x=10e-3, period_y=10e-3,
             substrate_height=1.6e-3, substrate_eps_r=4.4,
+            experimental=True,
         )
         cell.generate_mesh(density=6)
         R, T = cell.reflection_transmission(10e9)

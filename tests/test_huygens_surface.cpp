@@ -7,10 +7,110 @@
 #include "edgefem/solver.hpp"
 
 #include "test_check.hpp"
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
+#include <map>
 
 using namespace edgefem;
+
+namespace {
+constexpr double kC0 = 299792458.0;
+constexpr double kEta0 = 376.730313668;
+
+// Edge DOF of E = x exp(-j k z): the line integral from the edge's n0 to n1
+// (the canonical global direction).
+VecC plane_wave_dofs(const Mesh &mesh, double k) {
+  const std::complex<double> j(0.0, 1.0);
+  VecC x(mesh.edges.size());
+  for (size_t i = 0; i < mesh.edges.size(); ++i) {
+    const auto &p0 = mesh.nodes[mesh.nodeIndex.at(mesh.edges[i].n0)].xyz;
+    const auto &p1 = mesh.nodes[mesh.nodeIndex.at(mesh.edges[i].n1)].xyz;
+    const double dz = p1.z() - p0.z();
+    std::complex<double> avg = std::exp(-j * k * p0.z());
+    if (std::abs(k * dz) > 1e-12)
+      avg = (std::exp(-j * k * p1.z()) - std::exp(-j * k * p0.z())) /
+            (-j * k * dz);
+    x(i) = (p1.x() - p0.x()) * avg;
+  }
+  return x;
+}
+
+// exp(+j omega t): for E = x exp(-j k z), a wave travelling to +z,
+// curl E = -j omega mu H gives H = y exp(-j k z) / eta0. On the z = 0 port
+// face, with an interior point inside the guide, the outward normal is -z.
+void test_plane_wave_h_sign_and_normals() {
+  Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");
+  const double f = 1e9; // k h << 1 on this mesh
+  const double omega = 2 * M_PI * f, k = omega / kC0;
+  const VecC x = plane_wave_dofs(mesh, k);
+  const Eigen::Vector3d inside(0.01143, 0.00508, 0.025);
+
+  HuygensSurfaceData d =
+      extract_huygens_surface(mesh, x, 2, omega, 1.0, inside);
+  CHECK(!d.r.empty());
+  double worst_h = 0.0, worst_e = 0.0;
+  for (size_t i = 0; i < d.r.size(); ++i) {
+    CHECK(d.n[i].z() < -0.999); // outward from the guide at z = 0
+    const std::complex<double> j(0.0, 1.0);
+    const std::complex<double> ph = std::exp(-j * k * d.r[i].z());
+    worst_e = std::max(worst_e, std::abs(d.E_tan[i].x() - ph));
+    worst_h = std::max(worst_h, std::abs(d.H_tan[i].y() * kEta0 - ph));
+    CHECK(std::abs(d.E_tan[i].z()) < 1e-12); // tangential to z = 0
+    CHECK(std::abs(d.H_tan[i].z()) < 1e-12);
+  }
+  std::cout << "plane wave: max |E_x - 1| = " << worst_e
+            << ", max |eta0 H_y - 1| = " << worst_h << "\n";
+  CHECK(worst_e < 0.02);
+  CHECK(worst_h < 0.05);
+}
+
+// Interior faces (two parent tets) tagged as a Huygens surface: every normal
+// points away from the interior point, whatever tet the lookup meets last.
+void test_interior_surface_normals() {
+  Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");
+  // Collect faces shared by two tets with centroid z in a thin band.
+  std::map<std::array<std::int64_t, 3>, int> face_count;
+  for (const auto &tet : mesh.tets) {
+    static const int fn[4][3] = {{1, 2, 3}, {0, 2, 3}, {0, 1, 3}, {0, 1, 2}};
+    for (const auto &f : fn) {
+      std::array<std::int64_t, 3> key{tet.conn[f[0]], tet.conn[f[1]],
+                                      tet.conn[f[2]]};
+      std::sort(key.begin(), key.end());
+      ++face_count[key];
+    }
+  }
+  const int tag = 777;
+  int added = 0;
+  for (const auto &kv : face_count) {
+    if (kv.second != 2)
+      continue;
+    Element tri;
+    tri.type = ElemType::Tri3;
+    tri.phys = tag;
+    for (int i = 0; i < 3; ++i)
+      tri.conn[i] = kv.first[i];
+    mesh.tris.push_back(tri);
+    ++added;
+  }
+  CHECK(added > 100);
+  // extract_huygens_surface reads only conn and phys of the triangles.
+  const double omega = 2 * M_PI * 1e9;
+  const VecC x = plane_wave_dofs(mesh, omega / kC0);
+  const Eigen::Vector3d inside(0.01143, 0.00508, 0.025);
+  HuygensSurfaceData d =
+      extract_huygens_surface(mesh, x, tag, omega, 1.0, inside);
+  CHECK(d.r.size() == static_cast<size_t>(added));
+  int wrong = 0;
+  for (size_t i = 0; i < d.r.size(); ++i) {
+    const double s = d.n[i].dot(d.r[i] - inside);
+    if (std::abs(s) > 1e-9 && s < 0.0)
+      ++wrong;
+  }
+  CHECK(wrong == 0);
+}
+} // namespace
 
 int main() {
   // Load waveguide mesh which has known ports and propagating modes
@@ -29,10 +129,9 @@ int main() {
   std::cout << "\n";
 
   // Need at least 2 surface tags (ports) and a surface for Huygens extraction
-  if (tags.surface_tags.size() < 2) {
-    std::cout << "SKIP: need at least 2 surface tags for waveguide test\n";
-    return 0;
-  }
+  CHECK(tags.surface_tags.size() >= 2);
+  if (tags.surface_tags.size() < 2)
+    return edgefem_test::exit_code();
 
   // Find a surface tag to use as Huygens surface
   // Use a port cross-section surface for testing
@@ -125,6 +224,7 @@ int main() {
     CHECK(std::abs(n_mag - 1.0) < 1e-10 && "Normals must be unit vectors");
   }
 
-  std::cout << "\nAll Huygens surface tests passed!\n";
+  test_plane_wave_h_sign_and_normals();
+  test_interior_surface_normals();
   return edgefem_test::exit_code();
 }

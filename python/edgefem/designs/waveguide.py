@@ -495,14 +495,17 @@ Mesh.Algorithm3D = 1;  // Delaunay
         params = em.MaxwellParams()
         params.omega = 2 * np.pi * freq
 
-        # Assemble and solve
-        assembly = em.assemble_maxwell(
-            self._mesh, params, self._bc, self._ports, active_port
+        # Field from the same (validated) eigenmode port model as the
+        # S-parameters
+        _, fields = em.calculate_sparams_eigenmode_with_fields(
+            self._mesh, params, self._bc, self._ports
         )
-        result = em.solve_linear(assembly.A, assembly.b)
-
-        # Export
-        em.export_fields_vtk(self._mesh, result.x, path)
+        x = fields[active_port]
+        if len(x) == 0:
+            raise RuntimeError(
+                f"export_fields_vtk: no field at {freq / 1e9:.6g} GHz "
+                f"(below cutoff or the solve failed)")
+        em.export_fields_vtk(self._mesh, x, path)
 
     def __repr__(self) -> str:
         return (

@@ -1,8 +1,10 @@
 """
 EdgeFEM - 3D FEM Electromagnetic Simulator
 
-A research-grade finite-element electromagnetics solver for metasurface,
-metamaterial, and phased array unit cell RF modeling (100 kHz–110 GHz).
+A finite-element electromagnetics solver (lowest-order Nedelec elements,
+time convention exp(+j omega t)) for waveguides and probe-fed patch
+antennas; periodic unit cells are experimental. Validated: WR-90/WR-42
+wave ports (7-12, 20-26 GHz) and a 2.45 GHz patch (docs/validation.md).
 
 Example usage:
     import edgefem as em
@@ -14,6 +16,9 @@ Example usage:
 
     bc = em.build_edge_pec(mesh, 1)  # PEC on surface tag 1
 
+    # Wave ports from the 2D port-face eigenmode (tags 2 and 3)
+    ports = [em.build_wave_port_2d(mesh, tag, mode, set(bc.dirichlet_edges),
+                                   kc_sq) for tag in (2, 3)]
     S = em.calculate_sparams_eigenmode(mesh, params, bc, ports)
 
     # Export to Touchstone
@@ -47,13 +52,18 @@ __all__ = [
     "PhysicalTagInfo", "list_physical_tags", "has_surface_tag", "has_volume_tag",
     "MaxwellParams", "MaxwellAssembly", "PortABCType",
     "assemble_maxwell", "assemble_maxwell_periodic",
-    "calculate_sparams", "calculate_sparams_periodic", "calculate_sparams_eigenmode",
-    "normalize_port_weights",
-    "WavePort", "PortMode", "ModePolarization", "RectWaveguidePort",
+    "calculate_sparams", "calculate_sparams_with_fields",
+    "calculate_sparams_periodic",
+    "calculate_sparams_eigenmode", "calculate_sparams_eigenmode_with_fields",
+    "frequency_sweep", "SweepResult", "SweepField",
+    "WavePort", "PortKind", "PortMode", "ModePolarization", "RectWaveguidePort",
+    "build_wave_port_2d", "build_lumped_port", "LumpedPortConfig",
+    "LumpedPortWeightMode",
     "build_wave_port", "solve_port_eigens", "solve_te10_mode",
     "extract_surface_mesh", "populate_te10_field",
     "compute_te_eigenvector", "build_wave_port_from_eigenvector",
-    "SolveOptions", "SolveResult", "solve_linear",
+    "SolveOptions", "SolveResult", "solve_linear", "umfpack_available",
+    "HuygensSurfaceData", "extract_huygens_surface",
     "CouplingMatrix", "compute_coupling", "mutual_coupling_db",
     "active_reflection", "is_passive", "check_passivity", "is_lossless", "is_reciprocal",
     "PeriodicBC", "PeriodicPair", "build_periodic_pairs", "validate_periodic_bc",

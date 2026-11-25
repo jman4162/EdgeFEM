@@ -25,6 +25,17 @@ add_library(edgefem
 
 set_target_properties(edgefem PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# -Wall -Wextra on the library sources; -Werror with EDGEFEM_WARNINGS_AS_ERRORS
+# (CI). The deprecated SParams2 is still used by its own header and the
+# legacy writers, so deprecation warnings stay warnings.
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  target_compile_options(edgefem PRIVATE -Wall -Wextra)
+  if (EDGEFEM_WARNINGS_AS_ERRORS)
+    target_compile_options(edgefem PRIVATE -Werror
+                           -Wno-error=deprecated-declarations)
+  endif()
+endif()
+
 if (EDGEFEM_BUILD_SCALAR)
   target_sources(edgefem PRIVATE fem_scalar.cpp)
 endif()

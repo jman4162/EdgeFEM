@@ -2,7 +2,7 @@
 
 **3D Finite-Element Electromagnetics Simulator for RF and mmWave**
 
-EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and microwave structures: hollow waveguides, probe-fed patch antennas, and periodic unit cells. It computes S-parameters, electromagnetic fields, and radiation patterns using lowest-order Nédélec (edge) tetrahedral elements. Accuracy is validated against analytical benchmarks over roughly 5-26 GHz (see [Validation](validation.md)).
+EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and microwave structures: hollow waveguides and probe-fed patch antennas, with experimental support for periodic unit cells. It computes S-parameters, electromagnetic fields, and radiation patterns using lowest-order Nédélec (edge) tetrahedral elements. Validated so far: WR-90 and WR-42 wave-port S-parameters (7–12 and 20–26 GHz) against analytic TE10 results, and a 2.45 GHz probe-fed patch against openEMS (see [Validation](validation.md)). Unit-cell reflection is not validated.
 
 ## Key Features
 

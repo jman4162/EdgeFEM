@@ -161,36 +161,30 @@ def main():
     print("FULL-WAVE FEM WORKFLOW (Reference)")
     print("="*60)
     print("""
-The full-wave FEM workflow follows these steps:
+The validated full-wave workflow (wave ports from the 2D port-face
+eigenmode, first-order modal port operator):
 
-1. Compute analytical mode:
+1. Analytical mode parameters (kc is replaced by the discrete cutoff):
    mode = em.solve_te10_mode(port, freq)
 
-2. Populate mode field on mesh:
-   em.populate_te10_field(surface, port, mode)
+2. Wave ports on the port faces (tags 2 and 3):
+   pec = set(bc.dirichlet_edges)
+   kc_sq = (np.pi / port.a) ** 2
+   ports = [em.build_wave_port_2d(mesh, t, mode, pec, kc_sq) for t in (2, 3)]
 
-3. Build wave port structure:
-   wave_port = em.build_wave_port(mesh, surface, mode)
-
-4. Set Maxwell parameters:
+3. Maxwell parameters:
    params = em.MaxwellParams()
-   params.omega = 2 * pi * freq
-   params.eps_r = 1.0 + 0j
-   params.mu_r = 1.0 + 0j
+   params.omega = 2 * np.pi * freq
 
-5. Calculate S-parameters:
-   S = em.calculate_sparams(mesh, params, bc, [port1, port2])
+4. S-parameters:
+   S = em.calculate_sparams_eigenmode(mesh, params, bc, ports)
 
-Note: Full-wave FEM results should match analytical for simple
-waveguide geometries. Discrepancies indicate mesh or solver
-issues that need investigation.
+Do not combine build_wave_port with calculate_sparams: that path uses the
+1.0.0 modal port terms, which are not validated (|S11| = 2.41 for WR-90 at
+8 GHz) and emit a RuntimeWarning.
 """)
 
     print("Demo complete.")
-
-
-if __name__ == "__main__":
-    main()
 
 
 if __name__ == "__main__":

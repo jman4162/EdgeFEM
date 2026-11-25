@@ -57,13 +57,13 @@ Physical Surface("Port1", 1) = {1};
 // Port 2 (top, z=Lz)
 Physical Surface("Port2", 2) = {out3[0]};
 
-// Periodic faces (x-direction)
-Physical Surface("PeriodicX_minus", 3) = {out1[2], out2[2], out3[2]};
-Physical Surface("PeriodicX_plus", 4) = {out1[4], out2[4], out3[4]};
-
-// Periodic faces (y-direction)
-Physical Surface("PeriodicY_minus", 5) = {out1[5], out2[5], out3[5]};
-Physical Surface("PeriodicY_plus", 6) = {out1[3], out2[3], out3[3]};
+// Side faces. Extrude returns the lateral faces in the order of the base
+// curves: [2] from line 1 (y = 0), [3] line 2 (x = Lx), [4] line 3
+// (y = Ly), [5] line 4 (x = 0).
+Physical Surface("PeriodicY_minus", 3) = {out1[2], out2[2], out3[2]};  // y = 0
+Physical Surface("PeriodicY_plus", 4) = {out1[4], out2[4], out3[4]};   // y = Ly
+Physical Surface("PeriodicX_minus", 5) = {out1[5], out2[5], out3[5]};  // x = 0
+Physical Surface("PeriodicX_plus", 6) = {out1[3], out2[3], out3[3]};   // x = Lx
 
 // Volumes
 Physical Volume("Air1", 100) = {out1[1]};       // Air below slab

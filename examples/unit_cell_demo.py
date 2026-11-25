@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Periodic unit cell demo: reflection coefficient of a patch-loaded cell.
+"""Periodic unit cell demo: reflection coefficient of a bare grounded cell.
 
-Runs a real periodic FEM solve via UnitCellDesign.reflection_transmission().
-
-Scope (see README "Current Limitations"): the solver applies the Bloch phase
-along the x lattice axis only, the port is the cell's dominant waveguide mode
-(not a Floquet harmonic), and the periodic constraint elimination is dense,
-so keep meshes small. Results are most meaningful at normal incidence.
+EXPERIMENTAL, NOT VALIDATED. UnitCellDesign has no validated Floquet port:
+its port uses the 1.0.0 modal terms (on this bare grounded slab |R| = 1 but
+arg(R) is 30-106 deg off the analytic value), the periodic BC covers the x
+faces only, and patches are not meshed. The results below need
+experimental=True and must not be used for design.
 """
 
 import numpy as np
@@ -15,16 +14,16 @@ from edgefem.designs import UnitCellDesign
 
 
 def main():
-    # 5 mm square cell, patch on a thin grounded substrate
+    # 5 mm square cell, thin grounded substrate (no patch: not meshed yet)
     cell = UnitCellDesign(
         period_x=5e-3,
         period_y=5e-3,
         substrate_height=0.5e-3,
         substrate_eps_r=3.5,
+        experimental=True,
     )
-    cell.add_patch(width=4e-3, length=4e-3)
 
-    print("Generating mesh (coarse; periodic elimination is dense)...")
+    print("Generating mesh (coarse)...")
     cell.generate_mesh(density=8)
 
     print("\nReflection vs frequency at normal incidence:")

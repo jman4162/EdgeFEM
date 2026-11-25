@@ -25,6 +25,7 @@ void test_convergence_options() {
   opts.tolerance = 1e-10;
   opts.max_iterations = 1000;
   opts.use_bicgstab = true;
+  opts.use_ilut = false; // plain BiCGSTAB (the default adds ILUT)
 
   auto result = solve_linear(A, b, opts);
 
@@ -58,6 +59,7 @@ void test_cg_solver() {
 
   SolveOptions opts;
   opts.use_bicgstab = false; // Use CG
+  opts.use_ilut = false;     // plain CG (the default adds ILUT)
   opts.tolerance = 1e-8;
 
   auto result = solve_linear(A, b, opts);

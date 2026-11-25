@@ -41,28 +41,30 @@ class TestWaveguideSparams:
         """TE10 mode at 10 GHz should propagate with high transmission."""
         S = wr90.sparams_at_freq(10e9)
         S21_mag = abs(S[1, 0])
-        # Coarse mesh won't be perfect, but should show clear propagation
-        assert S21_mag > 0.80, f"|S21| = {S21_mag:.4f}, expected > 0.80"
+        # WR-90 benchmark mesh gives 0.999; this coarse one should be close
+        assert S21_mag > 0.99, f"|S21| = {S21_mag:.4f}, expected > 0.99"
 
     def test_passivity(self, wr90):
         """S-parameter matrix must satisfy passivity: |S11|^2 + |S21|^2 <= 1.01."""
         S = wr90.sparams_at_freq(10e9)
         power = abs(S[0, 0]) ** 2 + abs(S[1, 0]) ** 2
-        assert power <= 1.05, f"|S11|^2 + |S21|^2 = {power:.4f}, violates passivity"
+        assert power <= 1.01, f"|S11|^2 + |S21|^2 = {power:.4f}, violates passivity"
 
     def test_reciprocity(self, wr90):
         """Reciprocal structure: S12 ≈ S21."""
         S = wr90.sparams_at_freq(10e9)
-        assert abs(S[0, 1] - S[1, 0]) < 0.1, (
+        assert abs(S[0, 1] - S[1, 0]) < 0.01, (
             f"S12={S[0,1]:.4f}, S21={S[1,0]:.4f} — not reciprocal"
         )
 
-    def test_s21_phase_progresses(self, wr90):
-        """S21 phase should be negative (wave propagates in +z direction)."""
+    def test_s21_phase_matches_beta_l(self, wr90):
+        """phase(S21) = -beta L (exp(+j omega t)) within 15 deg on this
+        coarse mesh."""
         S = wr90.sparams_at_freq(10e9)
-        phase_deg = np.angle(S[1, 0], deg=True)
-        # Phase should be significantly negative for 50mm waveguide at 10 GHz
-        assert phase_deg < -10, f"S21 phase = {phase_deg:.1f} deg, expected < -10"
+        k0 = 2 * np.pi * 10e9 / 299792458.0
+        beta = np.sqrt(k0**2 - (np.pi / wr90.a) ** 2)
+        err = abs(np.angle(S[1, 0] * np.exp(1j * beta * wr90.length), deg=True))
+        assert err < 15.0, f"phase(S21) off -beta L by {err:.1f} deg"
 
     def test_smatrix_shape(self, wr90):
         S = wr90.sparams_at_freq(10e9)
@@ -80,3 +82,51 @@ class TestWaveguideFrequencySweep:
         freqs, S_list = wr90.frequency_sweep(8e9, 12e9, n_points=3)
         for S in S_list:
             assert abs(S[1, 0]) > 0.5, "Transmission too low in passband"
+
+
+def test_assemble_maxwell_warns_on_modal_ports():
+    """assemble_maxwell applies the unvalidated 1.0.0 terms to modal ports,
+    so it warns like the S-parameter functions."""
+    import pyedgefem as em
+    mesh = em.load_gmsh("examples/rect_waveguide.msh")
+    bc = em.build_edge_pec(mesh, 1)
+    dims = em.RectWaveguidePort()
+    dims.a, dims.b = 0.02286, 0.01016
+    mode = em.solve_te10_mode(dims, 10e9)
+    port = em.build_wave_port_2d(mesh, 2, mode, set(bc.dirichlet_edges),
+                                 (np.pi / dims.a) ** 2)
+    p = em.MaxwellParams()
+    p.omega = 2 * np.pi * 10e9
+    with pytest.warns(RuntimeWarning, match="not validated"):
+        em.assemble_maxwell(mesh, p, bc, [port], 0)
+
+
+def test_mixed_port_kinds_are_refused():
+    import pyedgefem as em
+    mesh = em.load_gmsh("examples/rect_waveguide.msh")
+    bc = em.build_edge_pec(mesh, 1)
+    dims = em.RectWaveguidePort()
+    dims.a, dims.b = 0.02286, 0.01016
+    mode = em.solve_te10_mode(dims, 10e9)
+    kc_sq = (np.pi / dims.a) ** 2
+    modal = em.build_wave_port_2d(mesh, 2, mode, set(bc.dirichlet_edges), kc_sq)
+    lumped = em.build_wave_port_2d(mesh, 3, mode, set(bc.dirichlet_edges), kc_sq)
+    lumped.kind = em.PortKind.Lumped
+    p = em.MaxwellParams()
+    p.omega = 2 * np.pi * 10e9
+    with pytest.raises(ValueError, match="Lumped and Modal"):
+        with pytest.warns(RuntimeWarning):
+            em.calculate_sparams(mesh, p, bc, [modal, lumped])
+
+
+def test_export_fields_vtk_uses_eigenmode_field(tmp_path):
+    """export_fields_vtk writes the field of the validated eigenmode port
+    model, without the modal-port RuntimeWarning of the 1.0.0 terms."""
+    import warnings
+    wg = RectWaveguideDesign(a=22.86e-3, b=10.16e-3, length=50e-3)
+    wg.load_mesh("examples/rect_waveguide.msh")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        wg.export_fields_vtk(str(tmp_path / "f.vtu"), freq=10e9)
+    assert not [w for w in caught if "not validated" in str(w.message)]
+    assert (tmp_path / "f.vtu").stat().st_size > 0

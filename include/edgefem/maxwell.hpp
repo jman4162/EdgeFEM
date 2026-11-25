@@ -62,11 +62,17 @@ struct MaxwellParams {
   std::unordered_map<int, std::shared_ptr<materials::DispersiveMaterial>>
       mu_models;
 
-  // Conductivity term for PML coordinate stretching (sigma)
+  // Absorbing layer (experimental). Elements in a PML region get the
+  // isotropic factor s = 1 - j sigma / omega (exp(+j omega t); sigma in
+  // 1/s) as eps = mu = s: reflectionless only for a normally incident plane
+  // wave, not a uniaxial PML. Uniform sigma on every pml_regions element:
   double pml_sigma = 0.0;
   // Physical region tags that should be treated as PML
   std::unordered_set<int> pml_regions;
-  // Optional tensor PML specifications per physical region
+  // Graded spec per region: sigma_axis = sigma_max (xi)^grading_order, with
+  // xi rising from 0 at the inner interface to 1 at the region's face on the
+  // mesh boundary over `thickness`. The per-axis losses are summed into one
+  // isotropic s. Takes precedence over pml_regions for the same tag.
   std::unordered_map<int, PMLRegionSpec> pml_tensor_regions;
   bool enforce_pml_heuristics = true;
   // First-order absorbing boundary condition n x curl E + j k0 n x n x E = 0
@@ -91,9 +97,8 @@ struct MaxwellParams {
   // knob remains only as a diagnostic. (Before the assembled operator, a
   // diagonal-lumped approximation required an empirical 0.5 here.)
   double port_abc_scale = 1.0;
-  // Use direct eigenmode excitation (more accurate, but slower)
-  // When enabled, ports are excited using 3D FEM eigenvector instead of
-  // analytical mode weights. Requires calling compute_te_eigenvector() first.
+  // Unused: no code path reads it (calculate_sparams_eigenmode is the
+  // eigenmode path). Kept so existing callers that set it still compile.
   bool use_eigenmode_excitation = false;
 
   /// Get effective permittivity for a given physical region tag
@@ -156,9 +161,8 @@ assemble_maxwell(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
                  const std::vector<WavePort> &ports,
                  int active_port_idx = -1); // -1 for no active port
 
-/// Assemble Maxwell system with periodic boundary conditions.
-/// Enforces phase-shifted periodic constraints via direct elimination:
-/// slave DOFs are eliminated, their contributions accumulated to master DOFs.
+/// Assemble Maxwell system with periodic boundary conditions:
+/// assemble_maxwell followed by eliminate_periodic.
 ///
 /// @param mesh Volume mesh with periodic surfaces
 /// @param p Maxwell parameters (frequency, materials, PML)
@@ -172,6 +176,20 @@ MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
                                           const PeriodicBC &pbc,
                                           const std::vector<WavePort> &ports,
                                           int active_port_idx = -1);
+
+/// Eliminate the slave edges of `pbc` from A x = b in place (sparse):
+/// with x = P y, x(slave) = c x(master), c = phase_shift * orient (0 when
+/// the master is PEC), A becomes P^H A P and b becomes P^H b; slave rows
+/// get a unit diagonal and zero RHS. PEC slaves are left as they are.
+/// Throws std::invalid_argument on a slave listed twice or an edge that is
+/// both master and slave.
+void eliminate_periodic(SpMatC &A, VecC &b, const PeriodicBC &pbc,
+                        const BC &bc);
+
+/// Full solution from the solution of an eliminated system: every slave
+/// edge gets c times its master's value.
+VecC expand_periodic(const VecC &x_reduced, const PeriodicBC &pbc,
+                     const BC &bc);
 
 // ---------------------------------------------------------------------------
 // Port network terms used by assemble_maxwell, calculate_sparams,
@@ -230,9 +248,15 @@ bool has_modal_ports(const std::vector<WavePort> &ports);
 
 /// Prints a warning to stderr, once per process, when `ports` holds a Modal
 /// port: modal and Floquet port S-parameters are not validated in this
-/// release. calculate_sparams(_with_fields), frequency_sweep and
+/// release. assemble_maxwell (so also assemble_maxwell_periodic),
+/// calculate_sparams(_with_fields), frequency_sweep and
 /// calculate_sparams_periodic call it; calculate_sparams_eigenmode does not.
 void warn_modal_sparams(const std::vector<WavePort> &ports);
+
+/// Throws std::invalid_argument when `ports` holds both Lumped and Modal
+/// ports: their S definitions differ, so calculate_sparams(_with_fields),
+/// frequency_sweep and calculate_sparams_periodic refuse a mix.
+void check_port_kinds(const std::vector<WavePort> &ports);
 
 /// N-port S-matrix: the loaded system is assembled and factored once
 /// (direct solver) and solved for one right-hand side per port. The
@@ -291,13 +315,31 @@ Eigen::MatrixXcd calculate_sparams_periodic(const Mesh &mesh,
 /// to contain the eigenvector-based weights and mode parameters (beta, kc,
 /// etc).
 ///
+/// The matrix is assembled once and solved on the non-PEC edges for one
+/// right-hand side per port (with opts.use_direct, one factorization).
+/// Each port mode's sign/phase is fixed (largest component of its
+/// face-integrated field real and positive), so S(j, i) does not depend
+/// on the eigensolver's sign. A port below cutoff gives an all-NaN S; a
+/// failed solve gives a NaN column.
+///
 /// @param mesh Volume mesh
 /// @param p Maxwell parameters (omega required; leave port_abc_scale = 1.0)
 /// @param bc PEC boundary conditions
-/// @param ports Wave ports with eigenvector-based weights
+/// @param ports Wave ports from build_wave_port_2d (preferred) or
+///              build_wave_port_from_eigenvector
+/// @param opts Linear solver options
 /// @return N×N S-parameter matrix
 Eigen::MatrixXcd
 calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, const std::vector<WavePort> &ports);
+                            const BC &bc, const std::vector<WavePort> &ports,
+                            const SolveOptions &opts = SolveOptions());
+
+/// calculate_sparams_eigenmode() that also returns the field solution for
+/// each excited port (x[k], one entry per mesh edge, zero on PEC edges;
+/// empty when that solve failed or a port is below cutoff).
+SParamSolution calculate_sparams_eigenmode_with_fields(
+    const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+    const std::vector<WavePort> &ports,
+    const SolveOptions &opts = SolveOptions());
 
 } // namespace edgefem

@@ -10,19 +10,25 @@
 namespace edgefem {
 
 /// Pair of edges linked by periodic boundary condition.
+/// The product master_orient * slave_orient is +1 when the two global edges
+/// (each directed from its lower to its higher node tag) point the same way
+/// after translating the slave back by the period, -1 otherwise.
 struct PeriodicPair {
   int master_edge;             // Global edge index on master surface
   int slave_edge;              // Global edge index on slave surface
-  int master_orient;           // Orientation of edge on master (+1 or -1)
-  int slave_orient;            // Orientation of edge on slave (+1 or -1)
+  int master_orient;           // +1 (build_periodic_pairs)
+  int slave_orient;            // Relative orientation, +1 or -1
   Eigen::Vector3d translation; // Vector from master to slave
 };
 
-/// Periodic boundary condition specification.
+/// Periodic boundary condition specification. The constraint is
+///   x(slave) = phase_shift * master_orient * slave_orient * x(master).
+/// Time convention exp(+j omega t): a field with transverse wavevector k_t
+/// has phase_shift = exp(-j k_t . L), L = period_vector.
 struct PeriodicBC {
   std::vector<PeriodicPair> pairs;  // Master-slave edge pairs
   Eigen::Vector3d period_vector;    // Lattice translation vector
-  std::complex<double> phase_shift; // Floquet phase: exp(j*k·L)
+  std::complex<double> phase_shift; // Floquet phase: exp(-j k_t . L)
 };
 
 /// Build periodic edge pairs from mesh surface tags.
@@ -48,8 +54,8 @@ PeriodicBC build_periodic_pairs(const Mesh &mesh, int master_tag, int slave_tag,
 /// @return true if valid, false if issues found
 bool validate_periodic_bc(const Mesh &mesh, const PeriodicBC &pbc);
 
-/// Set Floquet phase shift for given transverse wave vector.
-/// The phase shift is computed as exp(j * k_transverse · period_vector).
+/// Set Floquet phase shift for given transverse wave vector:
+/// exp(-j * k_transverse · period_vector) (exp(+j omega t) convention).
 ///
 /// @param pbc PeriodicBC to modify
 /// @param k_transverse Transverse wave vector [kx, ky] (rad/m)
@@ -60,7 +66,7 @@ void set_floquet_phase(PeriodicBC &pbc, const Eigen::Vector2d &k_transverse);
 /// @param theta Elevation angle from z-axis (radians)
 /// @param phi Azimuth angle from x-axis (radians)
 /// @param k0 Free-space wavenumber (rad/m)
-/// @return Phase shift exp(j * k_inc · period_vector)
+/// @return Phase shift exp(-j * k_inc · period_vector)
 std::complex<double>
 floquet_phase_from_angle(const Eigen::Vector3d &period_vector, double theta,
                          double phi, double k0);

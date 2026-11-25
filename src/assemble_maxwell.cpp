@@ -2,6 +2,7 @@
 #include "edgefem/free_dofs.hpp"
 #include "edgefem/maxwell.hpp"
 
+#include <Eigen/Geometry>
 #include <Eigen/SparseCore>
 #include <array>
 #include <atomic>
@@ -10,6 +11,8 @@
 #include <iostream>
 #include <limits>
 #include <set>
+#include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -142,12 +145,24 @@ void warn_modal_sparams(const std::vector<WavePort> &ports) {
   static std::atomic<bool> warned{false};
   if (!has_modal_ports(ports) || warned.exchange(true))
     return;
-  std::cerr << "WARNING: S-parameters computed with modal or Floquet ports "
-               "(any port not built by build_lumped_port). Modal and Floquet "
-               "port S-parameters are not validated in this release; they "
-               "use the 1.0.0 port terms unchanged. calculate_sparams_"
+  std::cerr << "WARNING: modal or Floquet ports (any port not built by "
+               "build_lumped_port) get the 1.0.0 port terms in "
+               "assemble_maxwell, calculate_sparams, frequency_sweep and "
+               "calculate_sparams_periodic. Their S-parameters and fields "
+               "are not validated in this release. calculate_sparams_"
                "eigenmode is the validated modal path."
             << std::endl;
+}
+
+void check_port_kinds(const std::vector<WavePort> &ports) {
+  bool lumped = false, modal = false;
+  for (const auto &port : ports)
+    (is_lumped(port) ? lumped : modal) = true;
+  if (lumped && modal)
+    throw std::invalid_argument(
+        "S-parameters: Lumped and Modal ports in one call. The two kinds "
+        "use different S definitions (gap voltage vs the 1.0.0 modal "
+        "terms), so a mixed matrix is neither; use one kind per call.");
 }
 
 SpMatC modal_port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
@@ -249,6 +264,7 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
                                  const std::vector<WavePort> &ports,
                                  int active_port_idx) {
   const int m = static_cast<int>(mesh.edges.size());
+  warn_modal_sparams(ports);
   MaxwellAssembly asmbl;
   asmbl.A.resize(m, m);
   asmbl.b = VecC::Zero(m);
@@ -268,7 +284,15 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
   for (const auto &kv : p.pml_tensor_regions)
     region_bounds.emplace(kv.first, Bounds{});
 
+  // Bounding box of the whole mesh: a PML region's face that lies on it is
+  // the outer (terminating) face, where the graded profile peaks.
+  Bounds domain;
   if (!region_bounds.empty()) {
+    for (const auto &node : mesh.nodes) {
+      domain.min = domain.min.cwiseMin(node.xyz);
+      domain.max = domain.max.cwiseMax(node.xyz);
+    }
+    domain.initialized = !mesh.nodes.empty();
     for (const auto &tet : mesh.tets) {
       auto it = region_bounds.find(tet.phys);
       if (it == region_bounds.end())
@@ -296,18 +320,21 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
     diag.region_tag = kv.first;
     diag.sigma_max = kv.second.sigma_max;
     diag.thickness = kv.second.thickness;
-    const double omega_mag = std::abs(p.omega);
+    // Normal-incidence plane-wave round trip through the graded layer:
+    // with s = 1 - j sigma / omega the field decays as
+    // exp(-(k0 / omega) int sigma dz) = exp(-int sigma dz / c0), so
+    //   R = exp(-2 sigma_max d / ((n + 1) c0))
+    // for sigma = sigma_max (z / d)^n.
     for (int axis = 0; axis < 3; ++axis) {
       const double sigma_max = kv.second.sigma_max[axis];
       const double thickness = kv.second.thickness[axis];
-      if (sigma_max <= 0.0 || thickness <= 0.0 || omega_mag <= 0.0) {
+      if (sigma_max <= 0.0 || thickness <= 0.0) {
         diag.reflection_est[axis] = 1.0;
         continue;
       }
       const double integral =
           sigma_max * thickness / (kv.second.grading_order + 1.0);
-      const double exponent = -2.0 * integral / omega_mag;
-      diag.reflection_est[axis] = std::exp(exponent);
+      diag.reflection_est[axis] = std::exp(-2.0 * integral / c0);
     }
     asmbl.diagnostics.push_back(diag);
   }
@@ -345,12 +372,26 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
             sigma[axis] = 0.0;
             continue;
           }
-          double dist_to_min = centroid[axis] - bbox_min[axis];
-          double dist_to_max = bbox_max[axis] - centroid[axis];
-          double min_dist = std::min(dist_to_min, dist_to_max);
+          // Distance from the region's outer face along this axis. A face
+          // of the region that lies on the domain boundary is outer; the
+          // face toward the interior is the interface, where sigma must
+          // start from zero. A region on both sides (a shell, or one with
+          // no face on the boundary) measures from the nearer face.
+          const double dist_to_min = centroid[axis] - bbox_min[axis];
+          const double dist_to_max = bbox_max[axis] - centroid[axis];
+          const double tol = 1e-9 * (domain.max[axis] - domain.min[axis] + 1.0);
+          const bool outer_min =
+              std::abs(bbox_min[axis] - domain.min[axis]) <= tol;
+          const bool outer_max =
+              std::abs(bbox_max[axis] - domain.max[axis]) <= tol;
+          double dist = std::min(dist_to_min, dist_to_max);
+          if (outer_max && !outer_min)
+            dist = dist_to_max;
+          else if (outer_min && !outer_max)
+            dist = dist_to_min;
           double xi = 0.0;
-          if (min_dist < thickness) {
-            xi = 1.0 - (min_dist / thickness);
+          if (dist < thickness) {
+            xi = 1.0 - (dist / thickness);
           }
           if (p.enforce_pml_heuristics && xi > 0.0) {
             xi = std::max(xi, kMinProfile);
@@ -360,14 +401,19 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
               sigma[axis] < sigma_max * kMinProfile) {
             sigma[axis] = sigma_max * kMinProfile;
           }
+          // exp(+j omega t): a lossy stretch has Im(s) < 0.
           stretch_tensor[axis] =
-              std::complex<double>(1.0, sigma[axis] / p.omega);
+              std::complex<double>(1.0, -sigma[axis] / p.omega);
         }
-        std::complex<double> stretch_sum =
-            stretch_tensor[0] + stretch_tensor[1] + stretch_tensor[2];
-        stretch_scalar = stretch_sum / 3.0;
+        // The assembly takes one isotropic factor (eps = mu = s), not the
+        // uniaxial tensor. Summing the per-axis losses keeps the full
+        // stretch of a face region (one active axis) instead of a third
+        // of it; edge and corner regions get the sum.
+        stretch_scalar = stretch_tensor[0] + stretch_tensor[1] +
+                         stretch_tensor[2] - std::complex<double>(2.0, 0.0);
       } else if (p.pml_regions.count(tet.phys)) {
-        stretch_scalar = std::complex<double>(1.0, p.pml_sigma / p.omega);
+        // exp(+j omega t): a lossy stretch has Im(s) < 0.
+        stretch_scalar = std::complex<double>(1.0, -p.pml_sigma / p.omega);
         stretch_tensor = {stretch_scalar, stretch_scalar, stretch_scalar};
       }
     }
@@ -535,6 +581,7 @@ SParamSolution calculate_sparams_with_fields(const Mesh &mesh,
   out.S.resize(num_ports, num_ports);
   if (num_ports == 0)
     return out;
+  check_port_kinds(ports);
   warn_modal_sparams(ports);
 
   // One loaded matrix for all ports; port i only changes the RHS. The
@@ -593,83 +640,90 @@ void normalize_port_weights(const Mesh & /*mesh*/, const MaxwellParams & /*p*/,
   }
 }
 
+namespace {
+// Slave edge -> (master edge, c) with x_slave = c x_master. A slave whose
+// master is PEC gets c = 0; a PEC slave is left out (already zero).
+std::unordered_map<int, std::pair<int, std::complex<double>>>
+periodic_slave_map(const PeriodicBC &pbc, const BC &bc) {
+  std::unordered_map<int, std::pair<int, std::complex<double>>> slaves;
+  std::unordered_set<int> masters;
+  for (const auto &pair : pbc.pairs) {
+    if (bc.dirichlet_edges.count(pair.slave_edge))
+      continue;
+    const double orient =
+        static_cast<double>(pair.master_orient * pair.slave_orient);
+    const std::complex<double> c = bc.dirichlet_edges.count(pair.master_edge)
+                                       ? std::complex<double>(0.0)
+                                       : pbc.phase_shift * orient;
+    if (!slaves.emplace(pair.slave_edge, std::make_pair(pair.master_edge, c))
+             .second)
+      throw std::invalid_argument("periodic BC: slave edge " +
+                                  std::to_string(pair.slave_edge) +
+                                  " appears in two pairs");
+    masters.insert(pair.master_edge);
+  }
+  for (const auto &kv : slaves)
+    if (masters.count(kv.first))
+      throw std::invalid_argument(
+          "periodic BC: edge " + std::to_string(kv.first) +
+          " is both a master and a slave (chained pairs are not supported)");
+  return slaves;
+}
+} // namespace
+
+void eliminate_periodic(SpMatC &A, VecC &b, const PeriodicBC &pbc,
+                        const BC &bc) {
+  if (pbc.pairs.empty())
+    return;
+  // x = P y with P(i, i) = 1 for every edge that is not a slave and
+  // P(s, m) = c for a slave s of master m. The test functions obey the
+  // conjugate relation (for the bilinear FEM form the boundary terms on the
+  // two faces cancel only then), so the reduced system is
+  //   (P^H A P) y = P^H b,
+  // i.e. row m += conj(c) row s, column m += c column s. Slave rows and
+  // columns of P^H A P are zero; they get a unit diagonal and zero RHS.
+  const int n = static_cast<int>(A.rows());
+  const auto slaves = periodic_slave_map(pbc, bc);
+  using T = Eigen::Triplet<std::complex<double>>;
+  std::vector<T> p_trips, d_trips;
+  p_trips.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    auto it = slaves.find(i);
+    if (it == slaves.end()) {
+      p_trips.emplace_back(i, i, 1.0);
+    } else {
+      if (it->second.second != std::complex<double>(0.0))
+        p_trips.emplace_back(i, it->second.first, it->second.second);
+      d_trips.emplace_back(i, i, 1.0);
+    }
+  }
+  SpMatC P(n, n), D(n, n);
+  P.setFromTriplets(p_trips.begin(), p_trips.end());
+  D.setFromTriplets(d_trips.begin(), d_trips.end());
+  const SpMatC PH = P.adjoint();
+  SpMatC reduced = PH * A * P;
+  reduced += D;
+  reduced.prune(std::complex<double>(0.0), 0.0);
+  reduced.makeCompressed();
+  A = std::move(reduced);
+  b = PH * b;
+}
+
+VecC expand_periodic(const VecC &x_reduced, const PeriodicBC &pbc,
+                     const BC &bc) {
+  VecC x = x_reduced;
+  for (const auto &kv : periodic_slave_map(pbc, bc))
+    x(kv.first) = kv.second.second * x_reduced(kv.second.first);
+  return x;
+}
+
 MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
                                           const MaxwellParams &p, const BC &bc,
                                           const PeriodicBC &pbc,
                                           const std::vector<WavePort> &ports,
                                           int active_port_idx) {
-  // First, assemble the standard Maxwell system
   MaxwellAssembly asmbl = assemble_maxwell(mesh, p, bc, ports, active_port_idx);
-
-  if (pbc.pairs.empty()) {
-    return asmbl;
-  }
-
-  const std::complex<double> phi = pbc.phase_shift;
-  const std::complex<double> phi_conj = std::conj(phi);
-
-  // Build set of slave edges for quick lookup
-  std::unordered_set<int> slave_edges;
-  for (const auto &pair : pbc.pairs) {
-    slave_edges.insert(pair.slave_edge);
-  }
-
-  // Apply periodic constraint by direct elimination:
-  // For each pair, we have: E_slave = phi * orient * E_master
-  // We accumulate slave contributions to master DOFs and zero out slave
-  // rows/cols.
-
-  // Copy matrix to dense for easier manipulation (for small systems)
-  // For large systems, a more efficient sparse manipulation would be needed
-  Eigen::MatrixXcd A_dense = Eigen::MatrixXcd(asmbl.A);
-  VecC b_new = asmbl.b;
-
-  for (const auto &pair : pbc.pairs) {
-    int m_edge = pair.master_edge;
-    int s_edge = pair.slave_edge;
-    double orient = static_cast<double>(pair.master_orient * pair.slave_orient);
-    std::complex<double> phase = phi * orient;
-    std::complex<double> phase_conj = phi_conj * orient;
-
-    // Skip if either edge is in PEC BC (already constrained to zero)
-    if (bc.dirichlet_edges.count(m_edge) || bc.dirichlet_edges.count(s_edge)) {
-      continue;
-    }
-
-    // Accumulate slave row to master: A[m,:] += phase * A[s,:]
-    A_dense.row(m_edge) += phase * A_dense.row(s_edge);
-
-    // Accumulate slave column to master: A[:,m] += phase_conj * A[:,s]
-    A_dense.col(m_edge) += phase_conj * A_dense.col(s_edge);
-
-    // Accumulate RHS: b[m] += phase * b[s]
-    b_new(m_edge) += phase * b_new(s_edge);
-  }
-
-  // Zero out slave rows and columns, set diagonal to 1
-  for (const auto &pair : pbc.pairs) {
-    int s_edge = pair.slave_edge;
-
-    if (bc.dirichlet_edges.count(s_edge)) {
-      continue;
-    }
-
-    // Zero row and column
-    A_dense.row(s_edge).setZero();
-    A_dense.col(s_edge).setZero();
-
-    // Set diagonal to 1
-    A_dense(s_edge, s_edge) = std::complex<double>(1.0, 0.0);
-
-    // Set RHS to 0 (slave solution will be computed from master post-solve)
-    b_new(s_edge) = std::complex<double>(0.0, 0.0);
-  }
-
-  // Convert back to sparse
-  asmbl.A = A_dense.sparseView();
-  asmbl.A.makeCompressed();
-  asmbl.b = b_new;
-
+  eliminate_periodic(asmbl.A, asmbl.b, pbc, bc);
   return asmbl;
 }
 
@@ -679,15 +733,8 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
                            const std::vector<WavePort> &ports) {
   const int num_ports = static_cast<int>(ports.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
+  check_port_kinds(ports);
   warn_modal_sparams(ports);
-
-  // Build map of slave to master edges for solution recovery
-  std::unordered_map<int, std::pair<int, std::complex<double>>> slave_to_master;
-  for (const auto &pair : pbc.pairs) {
-    double orient = static_cast<double>(pair.master_orient * pair.slave_orient);
-    std::complex<double> phase = pbc.phase_shift * orient;
-    slave_to_master[pair.slave_edge] = {pair.master_edge, phase};
-  }
 
   for (int i = 0; i < num_ports; ++i) { // active port
     auto asmbl = assemble_maxwell_periodic(mesh, p, bc, pbc, ports, i);
@@ -703,30 +750,65 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
       }
       continue;
     }
-
-    // Recover slave DOF values from master DOFs
-    VecC x_full = res.x;
-    for (const auto &kv : slave_to_master) {
-      int s_edge = kv.first;
-      int m_edge = kv.second.first;
-      std::complex<double> phase = kv.second.second;
-      x_full(s_edge) = phase * x_full(m_edge);
-    }
-
-    fill_sparam_column(S, i, ports, bc, x_full);
+    fill_sparam_column(S, i, ports, bc, expand_periodic(res.x, pbc, bc));
   }
   return S;
 }
 
-Eigen::MatrixXcd
-calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
-                            const BC &bc, const std::vector<WavePort> &ports) {
+namespace {
+// Integral of the tangential mode field over the port face,
+// int_S sum_e x_e N_e dS, from the triangle Whitney integrals
+// int_T N_ab dS = (A / 3) (grad lambda_b - grad lambda_a). Also returns the
+// face area.
+Eigen::Vector3cd port_face_integral(const Mesh &mesh, int surface_tag,
+                                    const VecC &x, double &area_out) {
+  static const int tri_edge_nodes[3][2] = {{0, 1}, {1, 2}, {2, 0}};
+  Eigen::Vector3cd sum = Eigen::Vector3cd::Zero();
+  area_out = 0.0;
+  for (const auto &tri : mesh.tris) {
+    if (tri.phys != surface_tag)
+      continue;
+    Eigen::Vector3d v[3];
+    for (int k = 0; k < 3; ++k)
+      v[k] = mesh.nodes[mesh.nodeIndex.at(tri.conn[k])].xyz;
+    const Eigen::Vector3d normal = (v[1] - v[0]).cross(v[2] - v[0]);
+    const double area2 = normal.norm();
+    if (area2 < 1e-30)
+      continue;
+    const Eigen::Vector3d n_hat = normal / area2;
+    const Eigen::Vector3d g[3] = {n_hat.cross(v[2] - v[1]) / area2,
+                                  n_hat.cross(v[0] - v[2]) / area2,
+                                  n_hat.cross(v[1] - v[0]) / area2};
+    area_out += 0.5 * area2;
+    for (int le = 0; le < 3; ++le) {
+      const Eigen::Vector3d integral =
+          (0.5 * area2 / 3.0) *
+          (g[tri_edge_nodes[le][1]] - g[tri_edge_nodes[le][0]]);
+      sum += (static_cast<double>(tri.edge_orient[le]) * x(tri.edges[le])) *
+             integral.cast<std::complex<double>>();
+    }
+  }
+  return sum;
+}
+} // namespace
+
+SParamSolution calculate_sparams_eigenmode_with_fields(
+    const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+    const std::vector<WavePort> &ports, const SolveOptions &opts) {
   const int num_ports = static_cast<int>(ports.size());
   const int m = static_cast<int>(mesh.edges.size());
-  Eigen::MatrixXcd S(num_ports, num_ports);
+  // NaN until filled: an early return (evanescent port) or a failed solve
+  // leaves NaN, never uninitialized values.
+  SParamSolution out;
+  out.S = Eigen::MatrixXcd::Constant(
+      num_ports, num_ports,
+      std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
+                           std::numeric_limits<double>::quiet_NaN()));
+  out.x.resize(num_ports);
+  Eigen::MatrixXcd &S = out.S;
 
   if (num_ports == 0) {
-    return S;
+    return out;
   }
 
   // Per-port propagation constants: β = sqrt(ε_r μ_r k0² − kc²) with the
@@ -775,10 +857,8 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
           kc * c0 / (2.0 * M_PI * std::sqrt(std::abs(std::real(eps_mu))));
       std::cerr << "WARNING: Frequency " << freq_hz / 1e9
                 << " GHz is below cutoff " << fc_hz / 1e9 << " GHz for port "
-                << i
-                << " — mode is evanescent, S-parameters may be meaningless."
-                << std::endl;
-      return S;
+                << i << " — mode is evanescent; S is NaN." << std::endl;
+      return out;
     }
     betas[i] = std::sqrt(beta_sq);
   }
@@ -809,65 +889,65 @@ calculate_sparams_eigenmode(const Mesh &mesh, const MaxwellParams &p,
     if (norm_sq > 1e-30) {
       port_vecs[i] /= std::sqrt(norm_sq);
     }
+    // The eigensolver returns the mode with an arbitrary sign (or phase),
+    // which would carry into S(j, i), j != i. Fix it: make the largest
+    // Cartesian component of the face-integrated mode field real and
+    // positive (for TE10 the field along the narrow side). A mode whose
+    // face integral vanishes (e.g. TE20) is left as built.
+    double face_area = 0.0;
+    const Eigen::Vector3cd mean =
+        port_face_integral(mesh, ports[i].surface_tag, port_vecs[i], face_area);
+    Eigen::Index k_max = 0;
+    mean.cwiseAbs().maxCoeff(&k_max);
+    if (std::abs(mean(k_max)) > 1e-6 * std::sqrt(face_area))
+      port_vecs[i] *= std::conj(mean(k_max)) / std::abs(mean(k_max));
   }
 
-  // Solve for each active port
+  // One system for every excitation: the base Maxwell matrix plus
+  // j beta_i M_s on each port face (port_abc_scale is 1.0 for the
+  // assembled operator, kept as a diagnostic knob). Port i only changes
+  // the RHS, 2 j beta_i M_s e_i. The system is solved on the free
+  // (non-PEC) edges.
+  MaxwellAssembly asmbl = assemble_maxwell(mesh, p, bc, {}, -1);
+  for (int i = 0; i < num_ports; ++i)
+    asmbl.A +=
+        (std::complex<double>(0.0, p.port_abc_scale) * betas[i]) * port_mass[i];
+  asmbl.A.makeCompressed();
+  const FreeDofs dofs(m, bc);
+  std::vector<VecC> rhs;
+  rhs.reserve(num_ports);
+  for (int i = 0; i < num_ports; ++i)
+    rhs.push_back(dofs.restrict_vector(
+        2.0 * (std::complex<double>(0.0, p.port_abc_scale) * betas[i]) *
+        (port_mass[i] * port_vecs[i])));
+  std::vector<SolveResult> sols =
+      solve_linear_multi(dofs.restrict_matrix(asmbl.A), rhs, opts);
+
   for (int active_port = 0; active_port < num_ports; ++active_port) {
-    // Assemble base Maxwell system (no ports)
-    std::vector<WavePort> no_ports;
-    auto asmbl = assemble_maxwell(mesh, p, bc, no_ports, -1);
-
-    // Add jβ·M_s on every port surface. port_abc_scale is 1.0 for the
-    // assembled operator (kept as a diagnostic knob).
-    for (int i = 0; i < num_ports; ++i) {
-      const std::complex<double> coeff =
-          std::complex<double>(0.0, p.port_abc_scale) * betas[i];
-      for (int col = 0; col < port_mass[i].outerSize(); ++col) {
-        for (SpMatC::InnerIterator it(port_mass[i], col); it; ++it) {
-          asmbl.A.coeffRef(it.row(), it.col()) += coeff * it.value();
-        }
-      }
-    }
-
-    // Excitation: RHS = 2jβ·M_s·e_inc
-    const std::complex<double> abc_active =
-        std::complex<double>(0.0, p.port_abc_scale) * betas[active_port];
-    asmbl.b =
-        2.0 * abc_active * (port_mass[active_port] * port_vecs[active_port]);
-
-    // Solve
-    auto res = solve_linear(asmbl.A, asmbl.b, {});
-
-    if (!check_solver_convergence(res,
+    if (!check_solver_convergence(sols[active_port],
                                   "calculate_sparams_eigenmode (active port " +
-                                      std::to_string(active_port) + ")")) {
-      for (int j = 0; j < num_ports; ++j) {
-        S(j, active_port) =
-            std::complex<double>(std::numeric_limits<double>::quiet_NaN(),
-                                 std::numeric_limits<double>::quiet_NaN());
-      }
-      continue;
-    }
+                                      std::to_string(active_port) + ")"))
+      continue; // column stays NaN, no field
+    VecC x = dofs.expand(sols[active_port].x);
 
-    // Extract modal amplitudes via M_s-weighted overlaps: with the
-    // e^H M_s e = 1 normalization, Vj = e_j^H M_s x is the amplitude of
-    // mode j in the solution and V_inc = 1 by construction.
-    std::complex<double> V_inc(1.0, 0.0);
-
+    // Modal amplitudes from M_s-weighted overlaps: with the e^H M_s e = 1
+    // normalization, V_j = e_j^H M_s x is the amplitude of mode j and the
+    // incident amplitude is 1, so S_jj = V_j - 1 and S_ji = V_j.
     for (int j = 0; j < num_ports; ++j) {
-      std::complex<double> Vj = port_vecs[j].dot(port_mass[j] * res.x);
-
-      if (j == active_port) {
-        // Reflection: S_ii = (V_i - V_inc) / V_inc
-        S(j, active_port) = (Vj - V_inc) / V_inc;
-      } else {
-        // Transmission: S_ji = V_j / V_inc
-        S(j, active_port) = Vj / V_inc;
-      }
+      const std::complex<double> Vj = port_vecs[j].dot(port_mass[j] * x);
+      S(j, active_port) = (j == active_port) ? Vj - 1.0 : Vj;
     }
+    out.x[active_port] = std::move(x);
   }
+  return out;
+}
 
-  return S;
+Eigen::MatrixXcd calculate_sparams_eigenmode(const Mesh &mesh,
+                                             const MaxwellParams &p,
+                                             const BC &bc,
+                                             const std::vector<WavePort> &ports,
+                                             const SolveOptions &opts) {
+  return calculate_sparams_eigenmode_with_fields(mesh, p, bc, ports, opts).S;
 }
 
 } // namespace edgefem

@@ -7,6 +7,7 @@ namespace edgefem {
 ScalarAssembly assemble_scalar_helmholtz(const Mesh &mesh,
                                          const ScalarHelmholtzParams &p,
                                          const BC &bc) {
+  (void)p; // placeholder: k0 and eps_r are not used (see fem.hpp)
   const int n = static_cast<int>(mesh.nodes.size());
   ScalarAssembly asmbl;
   asmbl.A.resize(n, n);

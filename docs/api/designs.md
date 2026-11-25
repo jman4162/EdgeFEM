@@ -89,7 +89,7 @@ S = wg.sparams_at_freq(
     freq: float,
     *,
     use_eigenmode: bool = True,
-    port_abc_scale: float = 0.5
+    port_abc_scale: float = 1.0
 ) -> np.ndarray
 ```
 
@@ -98,8 +98,8 @@ Compute S-parameters at a single frequency.
 **Parameters:**
 
 - `freq` - Frequency in Hz (must be above cutoff)
-- `use_eigenmode` - Use eigenmode-based extraction (recommended)
-- `port_abc_scale` - ABC scaling factor (0.5 is optimal)
+- `use_eigenmode` - Eigenmode-based extraction (default; the validated path). `False` uses the unvalidated 1.0.0 modal port terms and emits a `RuntimeWarning`
+- `port_abc_scale` - Scale of the port operator j beta M_s. 1.0 (default) is correct for the assembled operator; a diagnostic knob, not a tuning parameter
 
 **Returns:** 2×2 complex S-parameter matrix
 
@@ -119,7 +119,7 @@ freqs, S_list = wg.frequency_sweep(
     n_points: int = 11,
     *,
     use_eigenmode: bool = True,
-    port_abc_scale: float = 0.5,
+    port_abc_scale: float = 1.0,
     verbose: bool = False
 ) -> Tuple[np.ndarray, List[np.ndarray]]
 ```
@@ -398,7 +398,14 @@ vp.plot_pattern_3d_cuts(pattern, title="2.4 GHz Patch", save="patch_pattern.png"
 
 ## UnitCellDesign
 
-High-level interface for periodic metasurface/metamaterial unit cell analysis.
+Periodic metasurface/metamaterial unit cell. **Experimental**: there is no
+validated Floquet port yet. The port uses the 1.0.0 modal terms; on a bare
+grounded slab |R| = 1 but arg(R) is 30–106 deg off the analytic value
+([validation](../validation.md)). The periodic BC is applied on the x faces
+only. `reflection_transmission()` and the methods built on it raise
+`NotImplementedError` unless the design is built with `experimental=True`;
+incidence with k_y != 0 raises `ValueError`. Patches, slots and vias are not
+meshed: `add_patch`, `add_slot` and `add_via` raise `NotImplementedError`.
 
 ```python
 from edgefem.designs import UnitCellDesign
@@ -416,7 +423,8 @@ UnitCellDesign(
     *,
     air_height_above: Optional[float] = None,
     air_height_below: Optional[float] = None,
-    has_ground_plane: bool = True
+    has_ground_plane: bool = True,
+    experimental: bool = False
 )
 ```
 
@@ -432,6 +440,7 @@ UnitCellDesign(
 | `air_height_above` | float | Air region above substrate |
 | `air_height_below` | float | Air region below (for FSS configurations) |
 | `has_ground_plane` | bool | Whether there's a PEC ground at z=0 |
+| `experimental` | bool | Allow the unvalidated reflection/transmission results |
 
 ### Properties
 
@@ -456,7 +465,7 @@ cell.add_patch(
 )
 ```
 
-Add a rectangular PEC patch.
+Not implemented: raises `NotImplementedError` (the geometry is not meshed).
 
 #### add_slot
 
@@ -472,7 +481,7 @@ cell.add_slot(
 )
 ```
 
-Add a rectangular slot (aperture).
+Not implemented: raises `NotImplementedError` (the geometry is not meshed).
 
 #### add_via
 
@@ -487,7 +496,7 @@ cell.add_via(
 )
 ```
 
-Add a cylindrical via between layers.
+Not implemented: raises `NotImplementedError` (the geometry is not meshed).
 
 ### Simulation Methods
 
@@ -559,16 +568,14 @@ from edgefem.designs import UnitCellDesign
 import edgefem.plots as vp
 import numpy as np
 
-# Create unit cell for phased array
+# Bare grounded substrate; results are NOT validated (experimental=True)
 cell = UnitCellDesign(
     period_x=5e-3,
     period_y=5e-3,
     substrate_height=0.5e-3,
     substrate_eps_r=3.5,
+    experimental=True,
 )
-
-# Add square patch
-cell.add_patch(width=4e-3, length=4e-3)
 
 # Generate mesh
 cell.generate_mesh(density=20)

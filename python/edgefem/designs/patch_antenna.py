@@ -18,6 +18,7 @@ from typing import Optional, Tuple, List, Dict, Union
 import numpy as np
 
 import pyedgefem as em
+from edgefem.designs.stacked_patch import _renormalize_s11, write_pattern_csv
 
 
 class PatchAntennaDesign:
@@ -214,6 +215,12 @@ class PatchAntennaDesign:
 
             if self._feed_type is None:
                 self.set_probe_feed()
+            if self._feed_type != 'probe':
+                raise NotImplementedError(
+                    "PatchAntennaDesign: the FEM model has probe feeds only; "
+                    f"an {self._feed_type} feed (set_edge_feed) has no FEM "
+                    "geometry. Use set_probe_feed(), or input_impedance() "
+                    "for the analytical estimate.")
 
             probe_offset = (
                 self._feed_params.get('x_offset', 0.0),
@@ -306,7 +313,9 @@ class PatchAntennaDesign:
         Args:
             mesh_path: Path to Gmsh v2 .msh file
         """
-        self._mesh = em.load_gmsh(mesh_path)
+        backend = self._get_fem_backend()
+        backend.load_mesh(mesh_path)
+        self._mesh = backend.mesh
         self._mesh_path = mesh_path
         self._bc = None
         self._ports = None
@@ -371,13 +380,19 @@ class PatchAntennaDesign:
         else:
             R_in = 1 / (2 * G1)
 
-        # Reactance (simplified model)
-        # Near resonance, reactance is approximately zero
-        # Add small frequency-dependent term
-        delta_f = (freq - self._estimated_fr) / self._estimated_fr
-        X_in = R_in * np.tan(np.pi * delta_f / 2) if abs(delta_f) < 0.2 else 0
-
-        Z_in = complex(R_in, X_in)
+        # Parallel RLC around the TM010 resonance:
+        #   Z = R_in / (1 + j Q (f / f_r - f_r / f))
+        # Radiation Q from the Jackson-Alexopoulos bandwidth
+        # BW(VSWR 2) = 3.77 ((eps_r - 1) / eps_r^2) (W / L) (h / lambda0)
+        # with BW = 1 / (sqrt(2) Q); dielectric loss adds tan_d to 1/Q.
+        fr = self._estimated_fr
+        eps_r = self.substrate_eps_r
+        lambda_r = c0 / fr
+        bw_rad = (3.77 * (eps_r - 1) / eps_r**2 * (W / self.patch_length)
+                  * (h / lambda_r))
+        q_rad = 1.0 / (np.sqrt(2.0) * bw_rad)
+        q_total = 1.0 / (1.0 / q_rad + self.substrate_tan_d)
+        Z_in = complex(R_in / (1 + 1j * q_total * (freq / fr - fr / freq)))
 
         self._last_results[('Z_in', freq)] = Z_in
         return Z_in
@@ -437,10 +452,17 @@ class PatchAntennaDesign:
             Tuple of (frequencies, Z_in_array, S11_array)
         """
         if self.has_fem:
-            return self._fem_backend.frequency_sweep(
+            result = self._fem_backend.frequency_sweep(
                 f_start, f_stop, n_points, verbose=verbose,
                 keep_fields=keep_fields,
             )
+            z_port = self._fem_backend.z0
+            if z0 == z_port:
+                return result
+            freqs, Z_in, S11 = result
+            return type(result)(freqs, Z_in,
+                                _renormalize_s11(S11, z_port, z0),
+                                result.min_s11_index)
 
         freqs = np.linspace(f_start, f_stop, n_points)
         Z_list = []
@@ -539,12 +561,16 @@ class PatchAntennaDesign:
                 # Array factor for two slots separated by L
                 AF = np.cos(k0 * L * sin_th * sin_ph / 2)
 
-                # Pattern functions (E-plane and H-plane)
-                # E-plane (phi=0): E_theta dominates
-                # H-plane (phi=90): E_phi dominates
-
-                E_theta[i, j] = cos_ph * sinc_X * AF * cos_th
-                E_phi[i, j] = -sin_ph * sinc_X * AF
+                # Two slots of length W (along x), separated by L along y,
+                # each with aperture field along y over an infinite ground:
+                # M = -2 z x y = 2 x, so (Balanis 12-10) E_theta ~ -M_phi
+                # = 2 sin(phi) and E_phi ~ M_theta = 2 cos(theta) cos(phi).
+                # E-plane is phi = 90 deg (yz), H-plane phi = 0 (xz). No
+                # radiation below the ground (theta > 90 deg).
+                if th > np.pi / 2 + 1e-12:
+                    continue
+                E_theta[i, j] = sin_ph * sinc_X * AF
+                E_phi[i, j] = cos_th * cos_ph * sinc_X * AF
 
         # Create FFPattern3D-like structure
         # We'll return the data in a format compatible with our pattern functions
@@ -741,8 +767,7 @@ class PatchAntennaDesign:
             path: Output path
             freq: Frequency in Hz
         """
-        pattern = self.radiation_pattern(freq)
-        em.write_pattern_3d_csv(path, pattern)
+        write_pattern_csv(path, self.radiation_pattern(freq))
 
     def __repr__(self) -> str:
         feed_str = f", feed={self._feed_type}" if self._feed_type else ""

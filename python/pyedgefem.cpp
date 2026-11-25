@@ -60,18 +60,25 @@ element_nodes(const Mesh &m, const std::vector<Element> &elements, int nverts) {
 }
 
 // RuntimeWarning (each call; Python's filters decide what is shown) when an
-// S-parameter function gets a Modal port. Not used by
+// S-parameter or assembly function gets a Modal port. Not used by
 // calculate_sparams_eigenmode.
-void warn_modal_ports_py(const std::vector<WavePort> &ports) {
+void warn_modal_ports_py(const std::vector<WavePort> &ports,
+                         bool assembly = false) {
   if (!has_modal_ports(ports))
     return;
-  if (PyErr_WarnEx(PyExc_RuntimeWarning,
-                   "S-parameters computed with modal or Floquet ports (any "
-                   "port not built by build_lumped_port). Modal and Floquet "
-                   "port S-parameters are not validated in this release; "
-                   "they use the 1.0.0 port terms unchanged. "
-                   "calculate_sparams_eigenmode is the validated modal path.",
-                   1) < 0)
+  const char *msg =
+      assembly
+          ? "assemble_maxwell with modal or Floquet ports (any port not "
+            "built by build_lumped_port) applies the 1.0.0 port terms; "
+            "fields and S-parameters from them are not validated in this "
+            "release. calculate_sparams_eigenmode is the validated modal "
+            "path."
+          : "S-parameters computed with modal or Floquet ports (any port "
+            "not built by build_lumped_port). Modal and Floquet port "
+            "S-parameters are not validated in this release; they use the "
+            "1.0.0 port terms unchanged. calculate_sparams_eigenmode is the "
+            "validated modal path.";
+  if (PyErr_WarnEx(PyExc_RuntimeWarning, msg, 1) < 0)
     throw py::error_already_set();
 }
 
@@ -182,7 +189,8 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readonly("n0", &Edge::n0, "First node ID")
       .def_readonly("n1", &Edge::n1, "Second node ID");
 
-  m.def("load_gmsh", &load_gmsh_v2, "Loads a mesh from a Gmsh v2 .msh file.");
+  m.def("load_gmsh", &load_gmsh_v2, py::call_guard<py::gil_scoped_release>(),
+        "Loads a mesh from a Gmsh v2 .msh file.");
 
   py::class_<BC>(m, "BC", "Boundary condition definitions.")
       .def(py::init<>())
@@ -272,14 +280,17 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def("nnz", [](const SpMatC &m) { return m.nonZeros(); });
 
   py::class_<VecC>(m, "VecC", "Vector with complex coefficients.")
-      .def(py::init([](py::array_t<std::complex<double>> arr) {
-             auto buf = arr.request();
-             if (buf.ndim != 1)
+      .def(py::init([](py::array_t<std::complex<double>,
+                                   py::array::c_style | py::array::forcecast>
+                           arr) {
+             // c_style | forcecast: a strided or non-complex array arrives
+             // as a contiguous complex copy.
+             if (arr.ndim() != 1)
                throw std::runtime_error("VecC requires a 1D array");
-             VecC v(buf.shape[0]);
-             auto ptr = static_cast<std::complex<double> *>(buf.ptr);
-             for (py::ssize_t i = 0; i < buf.shape[0]; ++i)
-               v(i) = ptr[i];
+             VecC v(arr.shape(0));
+             auto a = arr.unchecked<1>();
+             for (py::ssize_t i = 0; i < arr.shape(0); ++i)
+               v(i) = a(i);
              return v;
            }),
            py::arg("array"), "Construct from a numpy complex array.")
@@ -323,8 +334,9 @@ PYBIND11_MODULE(pyedgefem, m) {
           py::return_value_policy::reference_internal, "RHS vector b.");
 
   m.def("assemble_scalar_helmholtz", &assemble_scalar_helmholtz,
-        "Assembles the scalar Helmholtz system.", py::arg("mesh"),
-        py::arg("params"), py::arg("bc"));
+        "Placeholder (identity matrix; k0 and eps_r ignored), not a "
+        "Helmholtz assembly.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"));
 
   py::enum_<PortABCType>(
       m, "PortABCType", "ABC formulation variants for port boundary treatment.")
@@ -450,10 +462,13 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("port_weight_scale", &MaxwellParams::port_weight_scale,
                      "Unused; kept for compatibility.")
       .def_readwrite("port_abc_scale", &MaxwellParams::port_abc_scale,
-                     "ABC coefficient scale (0.5 optimal).")
+                     "Scale of the port operator j beta M_s in "
+                     "calculate_sparams_eigenmode. The assembled operator "
+                     "is correct at 1.0 (default); a diagnostic knob, not "
+                     "a tuning parameter.")
       .def_readwrite("use_eigenmode_excitation",
                      &MaxwellParams::use_eigenmode_excitation,
-                     "Use eigenmode excitation.");
+                     "Unused (no effect); use calculate_sparams_eigenmode.");
 
   py::class_<MaxwellAssembly>(m, "MaxwellAssembly",
                               "Assembled Maxwell system (A, b).")
@@ -495,6 +510,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("b", &RectWaveguidePort::b, "Height in meters");
 
   m.def("solve_port_eigens", &solve_port_eigens,
+        py::call_guard<py::gil_scoped_release>(),
         "Solve 2D eigenmode problem on port cross-section.", py::arg("mesh"),
         py::arg("num_modes"), py::arg("omega"), py::arg("eps_r"),
         py::arg("mu_r"), py::arg("pol"));
@@ -578,22 +594,32 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readonly("area", &HuygensSurfaceData::area, "Triangle areas");
 
   m.def("extract_huygens_surface", &extract_huygens_surface,
+        py::call_guard<py::gil_scoped_release>(),
         "Extract Huygens surface fields from FEM solution.\n"
-        "Output is directly compatible with stratton_chu_3d().",
+        "H = -curl E / (j omega mu) (exp(+j omega t)), averaged over the\n"
+        "tets sharing each face. Normals point away from interior_point\n"
+        "when given (needed on interior surfaces). Output feeds\n"
+        "stratton_chu_3d() directly.",
         py::arg("mesh"), py::arg("solution"), py::arg("surface_tag"),
-        py::arg("omega"), py::arg("mu_r") = std::complex<double>(1.0, 0.0));
+        py::arg("omega"), py::arg("mu_r") = std::complex<double>(1.0, 0.0),
+        py::arg("interior_point") = py::none());
 
   m.def(
       "evaluate_edge_field",
       [](const std::array<Eigen::Vector3d, 4> &vertices,
          const std::array<int, 6> &edge_orient,
-         py::array_t<std::complex<double>> edge_dofs_arr,
+         py::array_t<std::complex<double>,
+                     py::array::c_style | py::array::forcecast>
+             edge_dofs_arr,
          const Eigen::Vector3d &point) {
-        auto buf = edge_dofs_arr.request();
-        auto *ptr = static_cast<std::complex<double> *>(buf.ptr);
+        if (edge_dofs_arr.ndim() != 1 || edge_dofs_arr.shape(0) != 6)
+          throw py::value_error(
+              "evaluate_edge_field: edge_dofs must hold 6 values (one per "
+              "tet edge)");
+        auto d = edge_dofs_arr.unchecked<1>();
         std::array<std::complex<double>, 6> edge_dofs;
         for (int i = 0; i < 6; ++i)
-          edge_dofs[i] = ptr[i];
+          edge_dofs[i] = d(i);
         return evaluate_edge_field(vertices, edge_orient, edge_dofs, point);
       },
       "Evaluate E-field at a point inside a tetrahedron from edge DOFs.",
@@ -663,18 +689,29 @@ PYBIND11_MODULE(pyedgefem, m) {
           "x", [](SolveResult &s) -> VecC & { return s.x; },
           py::return_value_policy::reference_internal, "Solution vector x.");
 
-  m.def("solve_linear", &solve_linear, "Solves a complex linear system Ax=b.",
-        py::arg("A"), py::arg("b"), py::arg("options") = SolveOptions());
+  m.def("solve_linear", &solve_linear, py::call_guard<py::gil_scoped_release>(),
+        "Solves a complex linear system Ax=b.", py::arg("A"), py::arg("b"),
+        py::arg("options") = SolveOptions());
 
   m.def("_direct_factorization_count", &direct_factorization_count,
         "Test diagnostic: sparse LU numeric factorizations (any backend) "
         "run in this process so far (never reset). Tests take the "
         "difference across a call to count what it costs.");
 
-  m.def("assemble_maxwell", &assemble_maxwell,
-        "Assembles the 3D Maxwell system.", py::arg("mesh"), py::arg("params"),
-        py::arg("bc"), py::arg("ports") = std::vector<WavePort>(),
-        py::arg("active_port_idx") = -1);
+  m.def(
+      "assemble_maxwell",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, int active_port_idx) {
+        warn_modal_ports_py(ports, true);
+        py::gil_scoped_release release;
+        return assemble_maxwell(mesh, p, bc, ports, active_port_idx);
+      },
+      "Assembles the 3D Maxwell system. active_port_idx = -1 (default)\n"
+      "builds no source (b = 0). Modal ports get the 1.0.0 port terms\n"
+      "(RuntimeWarning).",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"),
+      py::arg("ports") = std::vector<WavePort>(),
+      py::arg("active_port_idx") = -1);
 
   m.def(
       "calculate_sparams",
@@ -682,6 +719,7 @@ PYBIND11_MODULE(pyedgefem, m) {
          const std::vector<WavePort> &ports,
          const SolveOptions &opts) -> Eigen::MatrixXcd {
         warn_modal_ports_py(ports);
+        py::gil_scoped_release release;
         return calculate_sparams(mesh, p, bc, ports, opts);
       },
       "N-port S-matrix, one factorization, one solve per port. Lumped ports "
@@ -697,8 +735,11 @@ PYBIND11_MODULE(pyedgefem, m) {
       [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
          const std::vector<WavePort> &ports, const SolveOptions &opts) {
         warn_modal_ports_py(ports);
-        SParamSolution sol =
-            calculate_sparams_with_fields(mesh, p, bc, ports, opts);
+        SParamSolution sol;
+        {
+          py::gil_scoped_release release;
+          sol = calculate_sparams_with_fields(mesh, p, bc, ports, opts);
+        }
         return py::make_tuple(sol.S, sol.x);
       },
       "calculate_sparams() that also returns the field solutions: "
@@ -730,9 +771,31 @@ PYBIND11_MODULE(pyedgefem, m) {
       py::arg("solver_options") = SolveOptions());
 
   m.def("calculate_sparams_eigenmode", &calculate_sparams_eigenmode,
-        "Calculate S-parameters using direct eigenmode excitation (more "
-        "accurate).",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"));
+        py::call_guard<py::gil_scoped_release>(),
+        "Wave-port S-matrix (the validated modal path): first-order modal\n"
+        "port operator j beta M_s per port, one assembly, one solve per\n"
+        "port (one factorization with solver_options.use_direct). Ports\n"
+        "from build_wave_port_2d. NaN when a port is below cutoff.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+        py::arg("solver_options") = SolveOptions());
+
+  m.def(
+      "calculate_sparams_eigenmode_with_fields",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, const SolveOptions &opts) {
+        SParamSolution sol;
+        {
+          py::gil_scoped_release release;
+          sol =
+              calculate_sparams_eigenmode_with_fields(mesh, p, bc, ports, opts);
+        }
+        return py::make_tuple(sol.S, sol.x);
+      },
+      "calculate_sparams_eigenmode() that also returns the fields: "
+      "(S, [x_0, ..., x_{N-1}]) with x_k the solution for port k excited "
+      "(empty if that solve failed).",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("solver_options") = SolveOptions());
 
   // Frequency sweep
   py::class_<SweepField>(m, "SweepField",
@@ -767,6 +830,7 @@ PYBIND11_MODULE(pyedgefem, m) {
         SweepFieldRequest keep;
         keep.indices = keep_indices;
         keep.min_reflection = keep_min_reflection;
+        py::gil_scoped_release release;
         return frequency_sweep(mesh, p, bc, ports, frequencies, opts, keep);
       },
       "Perform S-parameter frequency sweep with matrix reuse.\n"
@@ -781,12 +845,14 @@ PYBIND11_MODULE(pyedgefem, m) {
       py::arg("keep_min_reflection") = false);
 
   m.def("assemble_maxwell_km", &assemble_maxwell_km,
+        py::call_guard<py::gil_scoped_release>(),
         "Assemble stiffness (K) and mass (M) matrices separately.\n"
         "A(omega) = K - k₀² M. Only valid for non-dispersive materials.",
         py::arg("mesh"), py::arg("params"), py::arg("bc"));
 
   m.def(
       "compute_te_eigenvector", &compute_te_eigenvector,
+      py::call_guard<py::gil_scoped_release>(),
       "Compute 3D FEM eigenvector for a TE mode with given cutoff wavenumber.",
       py::arg("mesh"), py::arg("pec_edges"), py::arg("target_kc_sq"));
 
@@ -796,6 +862,7 @@ PYBIND11_MODULE(pyedgefem, m) {
         py::arg("pec_edges"));
 
   m.def("build_wave_port_2d", &build_wave_port_2d,
+        py::call_guard<py::gil_scoped_release>(),
         "Build wave port from the 2D discrete port-face eigenmode.\n"
         "Weights are the discrete port mode and mode.kc is replaced by the\n"
         "discrete cutoff, so calculate_sparams_eigenmode uses a consistent\n"
@@ -958,11 +1025,14 @@ PYBIND11_MODULE(pyedgefem, m) {
         "Validate periodic BC pairs.", py::arg("mesh"), py::arg("pbc"));
 
   m.def("set_floquet_phase", &set_floquet_phase,
-        "Set Floquet phase shift for transverse wave vector.", py::arg("pbc"),
-        py::arg("k_transverse"));
+        "Set pbc.phase_shift = exp(-j k_t . L) for the transverse wave\n"
+        "vector k_t = [kx, ky] (exp(+j omega t)); the constraint is\n"
+        "x(slave) = phase_shift * orient * x(master).",
+        py::arg("pbc"), py::arg("k_transverse"));
 
   m.def("floquet_phase_from_angle", &floquet_phase_from_angle,
-        "Compute Floquet phase from incidence angles.",
+        "Floquet phase exp(-j k_inc . L) for incidence angles theta, phi\n"
+        "(radians) and free-space wavenumber k0.",
         py::arg("period_vector"), py::arg("theta"), py::arg("phi"),
         py::arg("k0"));
 
@@ -970,11 +1040,20 @@ PYBIND11_MODULE(pyedgefem, m) {
         "Count edges on surface with given tag.", py::arg("mesh"),
         py::arg("surface_tag"));
 
-  m.def("assemble_maxwell_periodic", &assemble_maxwell_periodic,
-        "Assemble Maxwell system with periodic BC.", py::arg("mesh"),
-        py::arg("params"), py::arg("bc"), py::arg("pbc"),
-        py::arg("ports") = std::vector<WavePort>(),
-        py::arg("active_port_idx") = -1);
+  m.def(
+      "assemble_maxwell_periodic",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const PeriodicBC &pbc, const std::vector<WavePort> &ports,
+         int active_port_idx) {
+        warn_modal_ports_py(ports, true);
+        py::gil_scoped_release release;
+        return assemble_maxwell_periodic(mesh, p, bc, pbc, ports,
+                                         active_port_idx);
+      },
+      "Assemble Maxwell system with periodic BC.", py::arg("mesh"),
+      py::arg("params"), py::arg("bc"), py::arg("pbc"),
+      py::arg("ports") = std::vector<WavePort>(),
+      py::arg("active_port_idx") = -1);
 
   m.def(
       "calculate_sparams_periodic",
@@ -982,6 +1061,7 @@ PYBIND11_MODULE(pyedgefem, m) {
          const PeriodicBC &pbc,
          const std::vector<WavePort> &ports) -> Eigen::MatrixXcd {
         warn_modal_ports_py(ports);
+        py::gil_scoped_release release;
         return calculate_sparams_periodic(mesh, p, bc, pbc, ports);
       },
       "Calculate S-parameters with periodic BC. Floquet ports from "
@@ -1110,19 +1190,42 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("huygens_radius", &ArrayPatternConfig::huygens_radius,
                      "Radius for Huygens surface (0=auto)");
 
-  // Compute embedded patterns (all ports)
-  m.def("compute_embedded_patterns", &compute_embedded_patterns,
-        "Compute embedded element patterns for all ports.\n"
-        "Includes mutual coupling effects from other elements.",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
-        py::arg("config"));
+  // Embedded patterns: not implemented (the C++ functions throw
+  // std::logic_error); raise NotImplementedError in Python.
+  m.def(
+      "compute_embedded_patterns",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, const ArrayPatternConfig &cfg) {
+        try {
+          return compute_embedded_patterns(mesh, p, bc, ports, cfg);
+        } catch (const std::logic_error &e) {
+          PyErr_SetString(PyExc_NotImplementedError, e.what());
+          throw py::error_already_set();
+        }
+      },
+      "Not implemented (raises NotImplementedError). Use\n"
+      "calculate_sparams_with_fields, extract_huygens_surface and\n"
+      "stratton_chu_3d.",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("config"));
 
-  // Compute single embedded pattern
-  m.def("compute_single_embedded_pattern", &compute_single_embedded_pattern,
-        "Compute embedded pattern for a single port.\n"
-        "Other ports are properly loaded.",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
-        py::arg("active_port"), py::arg("config"));
+  m.def(
+      "compute_single_embedded_pattern",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, int active_port,
+         const ArrayPatternConfig &cfg) {
+        try {
+          return compute_single_embedded_pattern(mesh, p, bc, ports,
+                                                 active_port, cfg);
+        } catch (const std::logic_error &e) {
+          PyErr_SetString(PyExc_NotImplementedError, e.what());
+          throw py::error_already_set();
+        }
+      },
+      "Not implemented (raises NotImplementedError); see\n"
+      "compute_embedded_patterns.",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("active_port"), py::arg("config"));
 
   // Utility functions
   m.def("to_db", &to_db, "Convert linear magnitude to dB.", py::arg("linear"));
@@ -1193,6 +1296,7 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("e_phi", &NTFPoint2D::e_phi, "E_phi far-field component");
 
   m.def("stratton_chu_2d", &stratton_chu_2d,
+        py::call_guard<py::gil_scoped_release>(),
         "Compute far-field pattern using Stratton-Chu integral.\n"
         "The surface is represented by sample points with normals, E/H fields, "
         "and areas.",
@@ -1229,6 +1333,7 @@ PYBIND11_MODULE(pyedgefem, m) {
            "Get pattern in dB relative to maximum (normalized)");
 
   m.def("stratton_chu_3d", &stratton_chu_3d,
+        py::call_guard<py::gil_scoped_release>(),
         "Compute full 3D far-field pattern using Stratton-Chu integral.\n"
         "Returns pattern sampled over spherical (theta, phi) grid.\n\n"
         "Args:\n"
@@ -1387,7 +1492,8 @@ PYBIND11_MODULE(pyedgefem, m) {
   py::class_<DrudeMaterial, DispersiveMaterial, std::shared_ptr<DrudeMaterial>>(
       materials, "DrudeMaterial",
       "Drude free-electron model for metals and plasmas.\n\n"
-      "Formula: eps(omega) = 1 - omega_p^2 / (omega^2 + j*gamma*omega)\n\n"
+      "Formula: eps(omega) = 1 - omega_p^2 / (omega^2 - j*gamma*omega)\n"
+      "(exp(+j omega t): Im(eps) < 0 for a lossy metal)\n\n"
       "Example (gold-like):\n"
       "    gold = DrudeMaterial(omega_p=1.37e16, gamma=4.05e13)")
       .def(py::init<double, double>(), py::arg("omega_p"), py::arg("gamma"),

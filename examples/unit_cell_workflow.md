@@ -1,5 +1,7 @@
 # Unit Cell Simulation Workflow
 
+> **Experimental, not validated.** EdgeFEM has no validated Floquet port yet: `UnitCellDesign` uses the 1.0.0 modal port terms (on a bare grounded slab |R| = 1 but arg(R) is 30–106 deg off), applies the periodic BC on the x faces only, and does not mesh patches, slots or vias (`add_patch` and friends raise). Its results need `experimental=True`. The Floquet phase convention is exp(-j k_t·L) (time convention exp(+jωt)). See [validation](../docs/validation.md).
+
 This guide explains how to simulate phased array unit cells using periodic boundary conditions (Floquet analysis) in EdgeFEM.
 
 ## Overview

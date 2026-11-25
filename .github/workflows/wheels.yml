@@ -4,6 +4,16 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+  # Build and test (not publish) when the packaging changes.
+  pull_request:
+    paths:
+      - pyproject.toml
+      - CMakeLists.txt
+      - cmake/**
+      - python/CMakeLists.txt
+      - python/pyedgefem.cpp
+      - tools/wheel_smoke.py
+      - .github/workflows/wheels.yml
 
 jobs:
   build_wheels:
@@ -12,9 +22,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-14 is Apple silicon (arm64); macos-15-intel is the Intel
-        # (x86_64) image that replaced the retired macos-13.
-        os: [ubuntu-22.04, macos-14, macos-15-intel]
+        # macos-15 is Apple silicon (arm64); macos-15-intel is the Intel
+        # (x86_64) image. GitHub rejects macos-14 and macos-13. Wheels
+        # still target macOS 14 (MACOSX_DEPLOYMENT_TARGET below).
+        os: [ubuntu-22.04, macos-15, macos-15-intel]
 
     steps:
       - uses: actions/checkout@v4
@@ -47,10 +58,15 @@ jobs:
             MACOSX_DEPLOYMENT_TARGET=14.0
           # CMakeLists.txt needs Eigen >= 3.4; the manylinux_2_28 image
           # (AlmaLinux 8) offers 3.3. Install the 3.4.0 headers and CMake
-          # config (cmake from pip, since the image may not have it).
+          # config (cmake from pip, since the image may not have it). The
+          # tag is cloned and its commit checked (GitLab's generated
+          # archives are not byte-stable, so a tarball hash could break).
           CIBW_BEFORE_ALL_LINUX: >
-            curl -sSL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
-            | tar xz -C /tmp &&
+            (command -v git || dnf -y install git) &&
+            git clone --quiet --depth 1 --branch 3.4.0
+            https://gitlab.com/libeigen/eigen.git /tmp/eigen-3.4.0 &&
+            test "$(git -C /tmp/eigen-3.4.0 rev-parse HEAD)"
+            = 3147391d946bb4b6c68edd901f2add6ac1f31f8c &&
             /opt/python/cp312-cp312/bin/pip install cmake &&
             /opt/python/cp312-cp312/bin/cmake -S /tmp/eigen-3.4.0 -B /tmp/eigen-build
             -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_TESTING=OFF &&
@@ -82,6 +98,18 @@ jobs:
 
       - name: Build sdist
         run: pipx run build --sdist
+
+      # README names the sdist as the install path off the wheel
+      # platforms: build it into a wheel and run the smoke test.
+      - name: Install and test the sdist
+        run: |
+          sudo apt-get update && sudo apt-get install -y libeigen3-dev ninja-build
+          python -m venv /tmp/sdist-venv
+          /tmp/sdist-venv/bin/pip install dist/*.tar.gz
+          cd /tmp && /tmp/sdist-venv/bin/python \
+            "$GITHUB_WORKSPACE/tools/wheel_smoke.py" \
+            --mesh "$GITHUB_WORKSPACE/examples/rect_waveguide.msh" \
+            --expect-umfpack off
 
       - uses: actions/upload-artifact@v4
         with:

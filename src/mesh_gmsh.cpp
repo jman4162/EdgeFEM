@@ -12,65 +12,150 @@ namespace {
 void build_edges(Mesh &mesh);
 }
 
+namespace {
+// getline that drops a trailing '\r' (CRLF files).
+bool get_line(std::istream &in, std::string &line) {
+  if (!std::getline(in, line))
+    return false;
+  if (!line.empty() && line.back() == '\r')
+    line.pop_back();
+  return true;
+}
+
+[[noreturn]] void fail(const std::string &path, const std::string &what) {
+  throw std::runtime_error("load_gmsh_v2: " + path + ": " + what);
+}
+
+// Skips lines up to and including `end_marker`.
+void skip_to(std::istream &in, const std::string &end_marker,
+             const std::string &path) {
+  std::string line;
+  while (get_line(in, line))
+    if (line == end_marker)
+      return;
+  fail(path, "missing " + end_marker);
+}
+} // namespace
+
 Mesh load_gmsh_v2(const std::string &path) {
-  std::ifstream in(path);
+  std::ifstream in(path, std::ios::binary);
   if (!in) {
     throw std::runtime_error("Failed to open mesh file: " + path);
   }
 
   Mesh mesh;
   std::string line;
-  while (std::getline(in, line)) {
-    if (line == "$Nodes") {
-      int n;
-      in >> n;
-      for (int i = 0; i < n; ++i) {
+  bool have_format = false;
+  while (get_line(in, line)) {
+    if (line == "$MeshFormat") {
+      if (!get_line(in, line))
+        fail(path, "truncated $MeshFormat");
+      std::istringstream fs(line);
+      double version = 0.0;
+      int file_type = -1, data_size = 0;
+      if (!(fs >> version >> file_type >> data_size))
+        fail(path, "unreadable $MeshFormat line '" + line + "'");
+      if (version < 2.0 || version >= 3.0)
+        fail(path, "MSH version " + line.substr(0, line.find(' ')) +
+                       " is not supported; only MSH 2.x ASCII is. Export "
+                       "with `gmsh -format msh2` (or Mesh.MshFileVersion = "
+                       "2.2)");
+      if (file_type != 0)
+        fail(path, "binary MSH is not supported; export ASCII with "
+                   "`gmsh -format msh2` and without -bin");
+      skip_to(in, "$EndMeshFormat", path);
+      have_format = true;
+    } else if (line == "$Nodes") {
+      if (!have_format)
+        fail(path, "no $MeshFormat section before $Nodes (not an MSH 2 "
+                   "file?)");
+      if (!get_line(in, line))
+        fail(path, "truncated $Nodes");
+      long n = -1;
+      std::istringstream(line) >> n;
+      if (n < 0)
+        fail(path, "bad node count in $Nodes: '" + line + "'");
+      mesh.nodes.reserve(static_cast<size_t>(n));
+      for (long i = 0; i < n; ++i) {
         std::int64_t id;
         double x, y, z;
-        in >> id >> x >> y >> z;
+        if (!get_line(in, line) ||
+            !(std::istringstream(line) >> id >> x >> y >> z))
+          fail(path, "truncated or malformed $Nodes at node " +
+                         std::to_string(i + 1) + " of " + std::to_string(n));
         mesh.nodeIndex[id] = static_cast<int>(mesh.nodes.size());
         mesh.nodes.push_back(Node{id, Eigen::Vector3d{x, y, z}});
       }
-      std::getline(in, line); // consume endline
-      std::getline(in, line); // "$EndNodes"
+      if (!get_line(in, line) || line != "$EndNodes")
+        fail(path, "expected $EndNodes after " + std::to_string(n) + " nodes");
     } else if (line == "$Elements") {
-      int m;
-      in >> m;
-      for (int i = 0; i < m; ++i) {
+      if (!have_format)
+        fail(path, "no $MeshFormat section before $Elements");
+      if (!get_line(in, line))
+        fail(path, "truncated $Elements");
+      long m = -1;
+      std::istringstream(line) >> m;
+      if (m < 0)
+        fail(path, "bad element count in $Elements: '" + line + "'");
+      for (long i = 0; i < m; ++i) {
+        if (!get_line(in, line))
+          fail(path, "truncated $Elements at element " + std::to_string(i + 1) +
+                         " of " + std::to_string(m));
+        std::istringstream es(line);
         std::int64_t id;
         int type, num_tags;
-        in >> id >> type >> num_tags;
+        if (!(es >> id >> type >> num_tags) || num_tags < 0)
+          fail(path, "malformed element line '" + line + "'");
         Element e;
         e.id = id;
         e.type = static_cast<ElemType>(type);
         for (int t = 0; t < num_tags; ++t) {
           int tag;
-          in >> tag;
+          if (!(es >> tag))
+            fail(path, "malformed element line '" + line + "'");
           if (t == 0)
             e.phys = tag;
         }
+        bool ok = true;
         if (type == 2) { // Tri3
           for (int k = 0; k < 3; ++k)
-            in >> e.conn[k];
+            ok = ok && static_cast<bool>(es >> e.conn[k]);
           mesh.tris.push_back(e);
         } else if (type == 1) { // Line2
           BoundaryLine b;
           b.phys = e.phys;
-          in >> b.n0 >> b.n1;
+          ok = static_cast<bool>(es >> b.n0 >> b.n1);
           mesh.boundary_lines.push_back(b);
         } else if (type == 4) { // Tet4
           for (int k = 0; k < 4; ++k)
-            in >> e.conn[k];
+            ok = ok && static_cast<bool>(es >> e.conn[k]);
           mesh.tets.push_back(e);
+        } else if (type == 15) { // point: not used
         } else {
-          std::string dummy;
-          std::getline(in, dummy);
+          fail(path, "element type " + std::to_string(type) +
+                         " is not supported (Line2 = 1, Tri3 = 2, Tet4 = 4 "
+                         "and points only; mesh with -order 1)");
         }
+        if (!ok)
+          fail(path, "malformed element line '" + line + "'");
       }
-      std::getline(in, line); // consume endline
-      std::getline(in, line); // "$EndElements"
+      if (!get_line(in, line) || line != "$EndElements")
+        fail(path,
+             "expected $EndElements after " + std::to_string(m) + " elements");
     }
   }
+  if (!have_format)
+    fail(path, "no $MeshFormat section (not an MSH 2 file)");
+  for (const auto &t : mesh.tets)
+    for (int k = 0; k < 4; ++k)
+      if (!mesh.nodeIndex.count(t.conn[k]))
+        fail(path, "tet " + std::to_string(t.id) + " uses undefined node " +
+                       std::to_string(t.conn[k]));
+  for (const auto &t : mesh.tris)
+    for (int k = 0; k < 3; ++k)
+      if (!mesh.nodeIndex.count(t.conn[k]))
+        fail(path, "triangle " + std::to_string(t.id) +
+                       " uses undefined node " + std::to_string(t.conn[k]));
   build_edges(mesh);
 
   // Validate mesh quality and warn about issues

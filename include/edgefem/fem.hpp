@@ -23,6 +23,9 @@ struct ScalarAssembly {
 
 /// @warning STUB - Demo only. Returns identity matrix.
 /// Use assemble_maxwell() for production simulations.
+/// Placeholder, not a Helmholtz assembly: returns the identity matrix with
+/// Dirichlet rows set, and ignores p (k0, eps_r). Kept for the scalar demo
+/// (EDGEFEM_BUILD_SCALAR, "scalar prototype"); do not use for physics.
 ScalarAssembly assemble_scalar_helmholtz(const Mesh &mesh,
                                          const ScalarHelmholtzParams &p,
                                          const BC &bc);

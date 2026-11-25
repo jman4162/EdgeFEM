@@ -139,7 +139,7 @@ assembly = em.assemble_maxwell(
     params: MaxwellParams,
     bc: BC,
     ports: List[WavePort],
-    active_port: int = 0
+    active_port_idx: int = -1
 ) -> MaxwellAssembly
 ```
 
@@ -151,7 +151,7 @@ Assemble the Maxwell curl-curl FEM system matrix.
 - `params` - Maxwell parameters
 - `bc` - Boundary conditions
 - `ports` - List of wave ports
-- `active_port` - Index of port to excite (default: 0)
+- `active_port_idx` - Index of the port to excite; -1 (default) builds no source (b = 0). Modal ports get the 1.0.0 port terms and emit a `RuntimeWarning`
 
 **Returns:** `MaxwellAssembly` with system matrix A and RHS vector b
 
@@ -256,7 +256,7 @@ Compute S-parameters for periodic structures with Floquet boundary conditions.
 !!! warning "Not validated"
     Floquet ports from `build_wave_port` are `PortKind.Modal` and use the
     1.0.0 port terms. On a bare grounded slab (eps_r 3.5, 1 mm, port plane
-    14.99 mm above it) arg(R) is -172.15, -175.12, -176.70 deg at 8, 10,
+    14.99 mm above it) arg(R) is -170.59, -174.06, -175.97 deg at 8, 10,
     12 GHz against the analytic -127.67, +155.07, +77.58 deg
     (`python/tests/test_unit_cell_design.py`, marked `known_issue`). Each
     call emits a `RuntimeWarning`.
@@ -388,19 +388,22 @@ pbc_x = em.build_periodic_pairs(mesh, 5, 6, np.array([5e-3, 0, 0]))
 em.set_floquet_phase(pbc: PeriodicBC, k_transverse: np.ndarray)
 ```
 
-Set Floquet phase shift for oblique incidence.
+Set the Floquet phase shift for oblique incidence:
+`pbc.phase_shift = exp(-j k_t . L)` with `L = pbc.period_vector`
+(time convention exp(+j omega t)). The constraint is
+`x(slave) = phase_shift * orient * x(master)`.
 
 **Parameters:**
 
 - `pbc` - Periodic boundary condition
-- `k_transverse` - Transverse wave vector [kx, ky, 0]
+- `k_transverse` - Transverse wave vector `[kx, ky]` (rad/m)
 
 **Example:**
 ```python
 # 30 degree incidence at 10 GHz
 k0 = 2 * np.pi * 10e9 / 3e8
 kx = k0 * np.sin(np.deg2rad(30))
-em.set_floquet_phase(pbc_x, np.array([kx, 0, 0]))
+em.set_floquet_phase(pbc_x, np.array([kx, 0.0]))
 ```
 
 ---

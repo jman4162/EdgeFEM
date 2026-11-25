@@ -1,5 +1,7 @@
 # Wave Port Workflow Guide
 
+> **Outdated recipe.** The `build_wave_port` + `calculate_sparams` path below uses the 1.0.0 modal port terms, which are not validated (WR-90 with analytic TE10 weights gives |S11| = 2.41 at 8 GHz) and emit a `RuntimeWarning`. Use `build_wave_port_2d` with `calculate_sparams_eigenmode` instead (see docs/quickstart.md, "Low-Level API Example").
+
 This guide explains how to set up and extract S-parameters using modal wave ports in EdgeFEM.
 
 ## Overview

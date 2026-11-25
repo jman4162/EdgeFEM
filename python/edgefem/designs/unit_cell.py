@@ -11,26 +11,44 @@ import os
 from typing import Optional, Tuple, List, Dict
 import numpy as np
 
+_NOT_VALIDATED = (
+    "UnitCellDesign.{name}: no validated Floquet port yet. The current port "
+    "(build_wave_port with calculate_sparams_periodic, the 1.0.0 modal "
+    "terms) misses the analytic phase of a bare grounded slab by 30 to "
+    "106 deg (docs/validation.md). Pass experimental=True to the "
+    "constructor to run it anyway.")
+
+_NOT_MESHED = (
+    "UnitCellDesign.{name}: this geometry is not meshed: generate_mesh() "
+    "builds the bare substrate (and ground) only, so the element would be "
+    "ignored.")
+
 import pyedgefem as em
 
 
 class UnitCellDesign:
     """
-    Periodic unit cell design for metasurface/metamaterial analysis.
+    Periodic unit cell (experimental: no validated Floquet port yet).
 
-    A unit cell represents the fundamental building block of a periodic
-    structure (metasurface, frequency selective surface, or metamaterial).
-    This class provides methods for:
-    - Mesh generation with periodic boundary conditions
-    - Floquet port excitation for oblique incidence
-    - Reflection/transmission coefficient extraction
-    - Surface impedance computation
-    - Effective parameter extraction (NRW method)
+    Status:
+    - generate_mesh() builds a substrate (on a ground plane, or with air
+      below for an FSS) with periodic x and y faces. Patches, slots and
+      vias are not meshed; add_patch/add_slot/add_via raise.
+    - reflection_transmission() uses build_wave_port ports with
+      calculate_sparams_periodic (the 1.0.0 modal port terms) and the x
+      periodic pairs only. On a bare grounded slab |R| = 1 but the phase
+      is 30 to 106 deg off (docs/validation.md). It, and the methods built
+      on it (frequency_sweep_reflection, surface_impedance,
+      effective_parameters, export_touchstone), raise NotImplementedError
+      unless the design is built with experimental=True.
+    - The NRW extraction (_nrw) and the surface-impedance formula are
+      correct for S-parameters that are; they are checked on analytic slab
+      data.
 
     The unit cell is oriented with:
     - X, Y: in-plane periodic directions
-    - Z: propagation direction (wave normally incident from below)
-    - Substrate on ground plane (z=0) with patch on top (z=substrate_height)
+    - Z: normal to the substrate; the top port is air_height_above over it
+    - Substrate on ground plane (z=0)
 
     Example:
         cell = UnitCellDesign(
@@ -38,24 +56,10 @@ class UnitCellDesign:
             period_y=5e-3,
             substrate_height=1.0e-3,
             substrate_eps_r=3.5,
+            experimental=True,
         )
-        cell.add_patch(width=4e-3, length=4e-3)
         cell.generate_mesh(density=20)
-
-        # Normal incidence
-        R, T = cell.reflection_transmission(10e9)
-
-        # Oblique incidence (30 degrees, TE polarization)
-        R, T = cell.reflection_transmission(10e9, theta=30, phi=0, pol='TE')
-
-        # Surface impedance
-        Zs = cell.surface_impedance(10e9)
-
-    Attributes:
-        period_x: Unit cell period in x-direction (meters)
-        period_y: Unit cell period in y-direction (meters)
-        substrate_height: Substrate thickness (meters)
-        substrate_eps_r: Substrate relative permittivity
+        R, T = cell.reflection_transmission(10e9)  # not validated
     """
 
     # Physical tag assignments
@@ -82,6 +86,7 @@ class UnitCellDesign:
         air_height_above: Optional[float] = None,
         air_height_below: Optional[float] = None,
         has_ground_plane: bool = True,
+        experimental: bool = False,
     ):
         """
         Initialize unit cell design.
@@ -95,6 +100,9 @@ class UnitCellDesign:
             air_height_above: Air region above substrate. If None, uses lambda/2 at 10 GHz.
             air_height_below: Air region below for FSS (None = no bottom air, has ground)
             has_ground_plane: Whether there's a PEC ground plane at z=0 (default: True)
+            experimental: Allow reflection_transmission() and the methods
+                built on it although their Floquet port is not validated
+                (default: False, which raises NotImplementedError)
         """
         self.period_x = period_x
         self.period_y = period_y
@@ -102,6 +110,7 @@ class UnitCellDesign:
         self.substrate_eps_r = substrate_eps_r
         self.substrate_tan_d = substrate_tan_d
         self.has_ground_plane = has_ground_plane
+        self.experimental = experimental
 
         # Default air heights
         c0 = 299792458.0
@@ -148,17 +157,11 @@ class UnitCellDesign:
             center_y: Y-offset from cell center (meters, default: 0)
             rotation: Rotation angle in degrees (default: 0)
             layer: Which surface ("top" of substrate, or "bottom")
+
+        Raises:
+            NotImplementedError: always, until patches are meshed.
         """
-        self._geometry_elements.append({
-            'type': 'patch',
-            'width': width,
-            'length': length,
-            'center_x': center_x,
-            'center_y': center_y,
-            'rotation': rotation,
-            'layer': layer,
-        })
-        self._invalidate_mesh()
+        raise NotImplementedError(_NOT_MESHED.format(name="add_patch"))
 
     def add_slot(
         self,
@@ -182,17 +185,11 @@ class UnitCellDesign:
             center_y: Y-offset from cell center (meters)
             rotation: Rotation angle in degrees
             layer: Where to cut slot ("ground" plane or specific patch)
+
+        Raises:
+            NotImplementedError: always, until slots are meshed.
         """
-        self._geometry_elements.append({
-            'type': 'slot',
-            'width': width,
-            'length': length,
-            'center_x': center_x,
-            'center_y': center_y,
-            'rotation': rotation,
-            'layer': layer,
-        })
-        self._invalidate_mesh()
+        raise NotImplementedError(_NOT_MESHED.format(name="add_slot"))
 
     def add_via(
         self,
@@ -212,16 +209,11 @@ class UnitCellDesign:
             center_y: Y position (meters)
             top_layer: Top connection layer
             bottom_layer: Bottom connection layer
+
+        Raises:
+            NotImplementedError: always, until vias are meshed.
         """
-        self._geometry_elements.append({
-            'type': 'via',
-            'radius': radius,
-            'center_x': center_x,
-            'center_y': center_y,
-            'top_layer': top_layer,
-            'bottom_layer': bottom_layer,
-        })
-        self._invalidate_mesh()
+        raise NotImplementedError(_NOT_MESHED.format(name="add_via"))
 
     def _invalidate_mesh(self):
         """Invalidate cached mesh and simulation data."""
@@ -708,8 +700,23 @@ class UnitCellDesign:
             pol: Polarization ('TE' or 'TM', default: 'TE')
 
         Returns:
-            Tuple of (R, T) complex coefficients
+            Tuple of (R, T) complex coefficients, referred to the port
+            planes (air_height_above above the substrate, air_height_below
+            below it)
+
+        Raises:
+            NotImplementedError: unless the design was built with
+                experimental=True (the Floquet port is not validated).
+            ValueError: for incidence with k_y != 0; only the x faces are
+                periodic.
         """
+        if not self.experimental:
+            raise NotImplementedError(
+                _NOT_VALIDATED.format(name="reflection_transmission"))
+        if abs(np.sin(np.deg2rad(theta)) * np.sin(np.deg2rad(phi))) > 1e-12:
+            raise ValueError(
+                "UnitCellDesign: only phi = 0 or 180 deg (k_y = 0) is "
+                "supported; the periodic BC is applied on the x faces only")
         if self._mesh is None:
             raise RuntimeError("Mesh not generated. Call generate_mesh() first.")
 
@@ -823,7 +830,9 @@ class UnitCellDesign:
         """
         Extract surface impedance Zs from reflection coefficient.
 
-        Zs = Z0 * (1 + R) / (1 - R) for normal incidence.
+        Zs = Z0 * (1 + R_s) / (1 - R_s) at normal incidence, with R_s the
+        reflection moved from the port plane to the top face of the cell
+        (exp(+j omega t): R_s = R exp(+2 j k0 air_height_above)).
 
         Args:
             freq: Frequency in Hz
@@ -834,7 +843,9 @@ class UnitCellDesign:
         """
         Z0 = 376.730313668  # Free-space impedance
 
-        R, _ = self.reflection_transmission(freq, **kwargs)
+        R_port, _ = self.reflection_transmission(freq, **kwargs)
+        k0 = 2 * np.pi * freq / 299792458.0
+        R = R_port * np.exp(2j * k0 * self.air_height_above)
 
         # Avoid division by zero
         if abs(1 - R) < 1e-10:
@@ -870,41 +881,39 @@ class UnitCellDesign:
 
         c0 = 299792458.0
         R, T = self.reflection_transmission(freq, **kwargs)
-
-        # NRW method
-        # Reference: Nicolson-Ross-Weir (NRW) method for material parameter extraction
-
         k0 = 2 * np.pi * freq / c0
-        d = self.substrate_height  # Effective thickness
+        return self._nrw(R, T, k0, self.substrate_height,
+                         d_top=self.air_height_above,
+                         d_bottom=self.air_height_below or 0.0)
 
-        # Composite S-parameters
-        V1 = R + T
-        V2 = T - R
+    @staticmethod
+    def _nrw(S11, S21, k0, d, d_top=0.0, d_bottom=0.0):
+        """Nicolson-Ross-Weir extraction (exp(+j omega t)) of (eps, mu) for
+        a slab of thickness d from S-parameters referred to port planes
+        d_top above and d_bottom below its faces.
 
-        # Characteristic impedance ratio
+        After moving the reference planes to the faces,
+            V1 = S21 + S11, V2 = S21 - S11, X = (1 - V1 V2) / (V1 - V2),
+            Gamma = X -+ sqrt(X^2 - 1) with |Gamma| <= 1,
+            P = (V1 - Gamma) / (1 - V1 Gamma)      (P = exp(-j n k0 d)),
+            z = (1 + Gamma) / (1 - Gamma),  n = j ln(P) / (k0 d),
+            eps = n / z,  mu = n z.
+        ln is the principal branch, so n is right only for slabs thinner
+        than half a wavelength in the material.
+        """
+        S11 = complex(S11) * np.exp(2j * k0 * d_top)
+        S21 = complex(S21) * np.exp(1j * k0 * (d_top + d_bottom))
+        V1 = S21 + S11
+        V2 = S21 - S11
         X = (1 - V1 * V2) / (V1 - V2)
-
-        # Handle potential numerical issues
-        if abs(X**2 - 1) < 1e-10:
-            X_term = 1.0
-        else:
-            X_term = X - np.sign(X.real) * np.sqrt(X**2 - 1)
-
-        # Propagation factor
-        Gamma = (V1 - X_term) / (1 - V1 * X_term)
-
-        # Refractive index (with branch selection)
-        n_eff_times_d = -1j * np.log(Gamma) / k0
-
-        # Impedance
-        z_rel = np.sqrt((1 + X_term)**2 / (1 - X_term**2 + 1e-30))
-
-        # Extract eps and mu
-        n_eff = n_eff_times_d / d
-        eps_eff = n_eff / z_rel
-        mu_eff = n_eff * z_rel
-
-        return eps_eff, mu_eff
+        root = np.sqrt(X * X - 1)
+        Gamma = X - root
+        if abs(Gamma) > 1:
+            Gamma = X + root
+        P = (V1 - Gamma) / (1 - V1 * Gamma)
+        z = (1 + Gamma) / (1 - Gamma)
+        n = 1j * np.log(P) / (k0 * d)
+        return n / z, n * z
 
     def export_touchstone(
         self,

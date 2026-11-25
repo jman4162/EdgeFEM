@@ -105,18 +105,11 @@ std::vector<NTFPoint2D> stratton_chu_2d(const std::vector<Eigen::Vector3d> &r,
     for (size_t i = 0; i < r.size(); ++i) {
       Eigen::Vector3cd J = cross_c(n[i], H[i]);
       Eigen::Vector3cd M = -cross_c(n[i], E[i]);
-      std::complex<double> phase = std::exp(-j * k0 * rhat.dot(r[i]));
-      // Radiation-integral kernel (r-normalized far field, e^{-jwt}
-      // convention matching the e^{-jk rhat.r'} phase above):
-      //   E_far = (jk0/4pi) * [ Z0 * (rhat x J) x rhat  -  rhat x M ]
-      // Both current terms carry the same jk0/4pi factor; an earlier
-      // version applied jk0 to the M term only (and used M_t instead of
-      // rhat x M), which mis-weighted J against M by ~k0 and distorted
-      // patterns whenever both contribute. Verified against the analytic
-      // Hertzian-dipole far field in tests/test_ntf.cpp.
+      std::complex<double> phase = std::exp(j * k0 * rhat.dot(r[i]));
+      // Radiation-integral kernel, exp(+j omega t) (see stratton_chu_3d).
       Eigen::Vector3cd term =
           Z0 * cross_c(cross_c(rhat, J), rhat) - cross_c(rhat, M);
-      Efar += (j * k0 / (4.0 * M_PI)) * term * phase * area[i];
+      Efar += (-j * k0 / (4.0 * M_PI)) * term * phase * area[i];
     }
 
     NTFPoint2D p;
@@ -181,19 +174,19 @@ FFPattern3D stratton_chu_3d(const std::vector<Eigen::Vector3d> &r,
         Eigen::Vector3cd J = cross_c(n[s], H[s]);  // Electric current
         Eigen::Vector3cd M = -cross_c(n[s], E[s]); // Magnetic current
 
-        // Phase factor for this surface point
-        std::complex<double> phase = std::exp(-j_imag * k0 * rhat.dot(r[s]));
+        // Phase factor for this surface point (exp(+j omega t): the
+        // source at r' is closer to the far point by rhat . r')
+        std::complex<double> phase = std::exp(j_imag * k0 * rhat.dot(r[s]));
 
-        // Radiation-integral kernel (r-normalized far field):
-        //   E_far = (jk0/4pi) * [ Z0 * (rhat x J) x rhat  -  rhat x M ]
-        // Both current terms carry the same jk0/4pi factor; an earlier
-        // version applied jk0 to the M term only (and used M_t instead
-        // of rhat x M), which mis-weighted J against M by ~k0 and
-        // distorted patterns whenever both contribute. Verified against
-        // the analytic Hertzian-dipole far field in tests/test_ntf.cpp.
+        // Radiation-integral kernel, exp(+j omega t), r-normalized (the
+        // factor exp(-j k0 r) / r removed); Balanis 12-10a,b in vector form:
+        //   E_far = (-j k0 / 4 pi) [ Z0 (rhat x J) x rhat - rhat x M ]
+        // Both current terms carry the same factor. Verified against the
+        // analytic Hertzian-dipole far field (magnitude and phase) and a
+        // phase-tilted aperture in tests/test_ntf.cpp.
         Eigen::Vector3cd term =
             Z0 * cross_c(cross_c(rhat, J), rhat) - cross_c(rhat, M);
-        Efar += (j_imag * k0 / (4.0 * M_PI)) * term * phase * area[s];
+        Efar += (-j_imag * k0 / (4.0 * M_PI)) * term * phase * area[s];
       }
 
       // Project onto spherical basis vectors
