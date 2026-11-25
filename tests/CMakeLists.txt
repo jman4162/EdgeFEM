@@ -83,6 +83,11 @@ target_link_libraries(test_coupling PRIVATE edgefem)
 add_test(NAME test_coupling COMMAND test_coupling)
 set_tests_properties(test_coupling PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
 
+add_executable(test_periodic_constraint test_periodic_constraint.cpp)
+target_link_libraries(test_periodic_constraint PRIVATE edgefem)
+add_test(NAME test_periodic_constraint COMMAND test_periodic_constraint)
+set_tests_properties(test_periodic_constraint PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "periodic")
+
 add_executable(test_periodic test_periodic.cpp)
 target_link_libraries(test_periodic PRIVATE edgefem)
 add_test(NAME test_periodic COMMAND test_periodic)

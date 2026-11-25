@@ -131,9 +131,11 @@ At density 12 EdgeFEM puts f_res at 2.3768 GHz, openEMS at 2.389 GHz
 - Periodic/unit-cell reflection against literature; oblique incidence.
   Floquet ports (`build_wave_port` with `calculate_sparams_periodic`) use
   the 1.0.0 modal port terms. Bare grounded slab (eps_r 3.5, 1 mm, port
-  plane 14.99 mm above it, 466 tets): arg(R) -172.15 / -175.12 / -176.70
+  plane 14.99 mm above it, 466 tets): arg(R) -170.59 / -174.06 / -175.97
   deg at 8 / 10 / 12 GHz against the analytic -127.67 / +155.07 / +77.58
-  deg (`test_grounded_slab_reflection_phase`, `known_issue`).
+  deg (`test_grounded_slab_reflection_phase`, `known_issue`). The periodic
+  BC itself is checked by `test_periodic_constraint` (pair orientation,
+  Bloch phase, elimination round trip).
 - Modal-port S-parameters from `calculate_sparams`, `frequency_sweep` and
   `calculate_sparams_periodic` (any port not built by `build_lumped_port`).
   They use the 1.0.0 port terms and are not passive in general: WR-90 with

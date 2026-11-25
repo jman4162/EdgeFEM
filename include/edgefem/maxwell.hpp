@@ -162,9 +162,8 @@ assemble_maxwell(const Mesh &mesh, const MaxwellParams &p, const BC &bc,
                  const std::vector<WavePort> &ports,
                  int active_port_idx = -1); // -1 for no active port
 
-/// Assemble Maxwell system with periodic boundary conditions.
-/// Enforces phase-shifted periodic constraints via direct elimination:
-/// slave DOFs are eliminated, their contributions accumulated to master DOFs.
+/// Assemble Maxwell system with periodic boundary conditions:
+/// assemble_maxwell followed by eliminate_periodic.
 ///
 /// @param mesh Volume mesh with periodic surfaces
 /// @param p Maxwell parameters (frequency, materials, PML)
@@ -178,6 +177,20 @@ MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
                                           const PeriodicBC &pbc,
                                           const std::vector<WavePort> &ports,
                                           int active_port_idx = -1);
+
+/// Eliminate the slave edges of `pbc` from A x = b in place (sparse):
+/// with x = P y, x(slave) = c x(master), c = phase_shift * orient (0 when
+/// the master is PEC), A becomes P^H A P and b becomes P^H b; slave rows
+/// get a unit diagonal and zero RHS. PEC slaves are left as they are.
+/// Throws std::invalid_argument on a slave listed twice or an edge that is
+/// both master and slave.
+void eliminate_periodic(SpMatC &A, VecC &b, const PeriodicBC &pbc,
+                        const BC &bc);
+
+/// Full solution from the solution of an eliminated system: every slave
+/// edge gets c times its master's value.
+VecC expand_periodic(const VecC &x_reduced, const PeriodicBC &pbc,
+                     const BC &bc);
 
 // ---------------------------------------------------------------------------
 // Port network terms used by assemble_maxwell, calculate_sparams,

@@ -10,6 +10,8 @@
 #include <iostream>
 #include <limits>
 #include <set>
+#include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -623,83 +625,90 @@ void normalize_port_weights(const Mesh & /*mesh*/, const MaxwellParams & /*p*/,
   }
 }
 
+namespace {
+// Slave edge -> (master edge, c) with x_slave = c x_master. A slave whose
+// master is PEC gets c = 0; a PEC slave is left out (already zero).
+std::unordered_map<int, std::pair<int, std::complex<double>>>
+periodic_slave_map(const PeriodicBC &pbc, const BC &bc) {
+  std::unordered_map<int, std::pair<int, std::complex<double>>> slaves;
+  std::unordered_set<int> masters;
+  for (const auto &pair : pbc.pairs) {
+    if (bc.dirichlet_edges.count(pair.slave_edge))
+      continue;
+    const double orient =
+        static_cast<double>(pair.master_orient * pair.slave_orient);
+    const std::complex<double> c = bc.dirichlet_edges.count(pair.master_edge)
+                                       ? std::complex<double>(0.0)
+                                       : pbc.phase_shift * orient;
+    if (!slaves.emplace(pair.slave_edge, std::make_pair(pair.master_edge, c))
+             .second)
+      throw std::invalid_argument("periodic BC: slave edge " +
+                                  std::to_string(pair.slave_edge) +
+                                  " appears in two pairs");
+    masters.insert(pair.master_edge);
+  }
+  for (const auto &kv : slaves)
+    if (masters.count(kv.first))
+      throw std::invalid_argument(
+          "periodic BC: edge " + std::to_string(kv.first) +
+          " is both a master and a slave (chained pairs are not supported)");
+  return slaves;
+}
+} // namespace
+
+void eliminate_periodic(SpMatC &A, VecC &b, const PeriodicBC &pbc,
+                        const BC &bc) {
+  if (pbc.pairs.empty())
+    return;
+  // x = P y with P(i, i) = 1 for every edge that is not a slave and
+  // P(s, m) = c for a slave s of master m. The test functions obey the
+  // conjugate relation (for the bilinear FEM form the boundary terms on the
+  // two faces cancel only then), so the reduced system is
+  //   (P^H A P) y = P^H b,
+  // i.e. row m += conj(c) row s, column m += c column s. Slave rows and
+  // columns of P^H A P are zero; they get a unit diagonal and zero RHS.
+  const int n = static_cast<int>(A.rows());
+  const auto slaves = periodic_slave_map(pbc, bc);
+  using T = Eigen::Triplet<std::complex<double>>;
+  std::vector<T> p_trips, d_trips;
+  p_trips.reserve(n);
+  for (int i = 0; i < n; ++i) {
+    auto it = slaves.find(i);
+    if (it == slaves.end()) {
+      p_trips.emplace_back(i, i, 1.0);
+    } else {
+      if (it->second.second != std::complex<double>(0.0))
+        p_trips.emplace_back(i, it->second.first, it->second.second);
+      d_trips.emplace_back(i, i, 1.0);
+    }
+  }
+  SpMatC P(n, n), D(n, n);
+  P.setFromTriplets(p_trips.begin(), p_trips.end());
+  D.setFromTriplets(d_trips.begin(), d_trips.end());
+  const SpMatC PH = P.adjoint();
+  SpMatC reduced = PH * A * P;
+  reduced += D;
+  reduced.prune(std::complex<double>(0.0), 0.0);
+  reduced.makeCompressed();
+  A = std::move(reduced);
+  b = PH * b;
+}
+
+VecC expand_periodic(const VecC &x_reduced, const PeriodicBC &pbc,
+                     const BC &bc) {
+  VecC x = x_reduced;
+  for (const auto &kv : periodic_slave_map(pbc, bc))
+    x(kv.first) = kv.second.second * x_reduced(kv.second.first);
+  return x;
+}
+
 MaxwellAssembly assemble_maxwell_periodic(const Mesh &mesh,
                                           const MaxwellParams &p, const BC &bc,
                                           const PeriodicBC &pbc,
                                           const std::vector<WavePort> &ports,
                                           int active_port_idx) {
-  // First, assemble the standard Maxwell system
   MaxwellAssembly asmbl = assemble_maxwell(mesh, p, bc, ports, active_port_idx);
-
-  if (pbc.pairs.empty()) {
-    return asmbl;
-  }
-
-  const std::complex<double> phi = pbc.phase_shift;
-  const std::complex<double> phi_conj = std::conj(phi);
-
-  // Build set of slave edges for quick lookup
-  std::unordered_set<int> slave_edges;
-  for (const auto &pair : pbc.pairs) {
-    slave_edges.insert(pair.slave_edge);
-  }
-
-  // Apply periodic constraint by direct elimination:
-  // For each pair, we have: E_slave = phi * orient * E_master
-  // We accumulate slave contributions to master DOFs and zero out slave
-  // rows/cols.
-
-  // Copy matrix to dense for easier manipulation (for small systems)
-  // For large systems, a more efficient sparse manipulation would be needed
-  Eigen::MatrixXcd A_dense = Eigen::MatrixXcd(asmbl.A);
-  VecC b_new = asmbl.b;
-
-  for (const auto &pair : pbc.pairs) {
-    int m_edge = pair.master_edge;
-    int s_edge = pair.slave_edge;
-    double orient = static_cast<double>(pair.master_orient * pair.slave_orient);
-    std::complex<double> phase = phi * orient;
-    std::complex<double> phase_conj = phi_conj * orient;
-
-    // Skip if either edge is in PEC BC (already constrained to zero)
-    if (bc.dirichlet_edges.count(m_edge) || bc.dirichlet_edges.count(s_edge)) {
-      continue;
-    }
-
-    // Accumulate slave row to master: A[m,:] += phase * A[s,:]
-    A_dense.row(m_edge) += phase * A_dense.row(s_edge);
-
-    // Accumulate slave column to master: A[:,m] += phase_conj * A[:,s]
-    A_dense.col(m_edge) += phase_conj * A_dense.col(s_edge);
-
-    // Accumulate RHS: b[m] += phase * b[s]
-    b_new(m_edge) += phase * b_new(s_edge);
-  }
-
-  // Zero out slave rows and columns, set diagonal to 1
-  for (const auto &pair : pbc.pairs) {
-    int s_edge = pair.slave_edge;
-
-    if (bc.dirichlet_edges.count(s_edge)) {
-      continue;
-    }
-
-    // Zero row and column
-    A_dense.row(s_edge).setZero();
-    A_dense.col(s_edge).setZero();
-
-    // Set diagonal to 1
-    A_dense(s_edge, s_edge) = std::complex<double>(1.0, 0.0);
-
-    // Set RHS to 0 (slave solution will be computed from master post-solve)
-    b_new(s_edge) = std::complex<double>(0.0, 0.0);
-  }
-
-  // Convert back to sparse
-  asmbl.A = A_dense.sparseView();
-  asmbl.A.makeCompressed();
-  asmbl.b = b_new;
-
+  eliminate_periodic(asmbl.A, asmbl.b, pbc, bc);
   return asmbl;
 }
 
@@ -710,14 +719,6 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
   const int num_ports = static_cast<int>(ports.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
   warn_modal_sparams(ports);
-
-  // Build map of slave to master edges for solution recovery
-  std::unordered_map<int, std::pair<int, std::complex<double>>> slave_to_master;
-  for (const auto &pair : pbc.pairs) {
-    double orient = static_cast<double>(pair.master_orient * pair.slave_orient);
-    std::complex<double> phase = pbc.phase_shift * orient;
-    slave_to_master[pair.slave_edge] = {pair.master_edge, phase};
-  }
 
   for (int i = 0; i < num_ports; ++i) { // active port
     auto asmbl = assemble_maxwell_periodic(mesh, p, bc, pbc, ports, i);
@@ -733,17 +734,7 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
       }
       continue;
     }
-
-    // Recover slave DOF values from master DOFs
-    VecC x_full = res.x;
-    for (const auto &kv : slave_to_master) {
-      int s_edge = kv.first;
-      int m_edge = kv.second.first;
-      std::complex<double> phase = kv.second.second;
-      x_full(s_edge) = phase * x_full(m_edge);
-    }
-
-    fill_sparam_column(S, i, ports, bc, x_full);
+    fill_sparam_column(S, i, ports, bc, expand_periodic(res.x, pbc, bc));
   }
   return S;
 }

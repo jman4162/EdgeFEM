@@ -962,11 +962,14 @@ PYBIND11_MODULE(pyedgefem, m) {
         "Validate periodic BC pairs.", py::arg("mesh"), py::arg("pbc"));
 
   m.def("set_floquet_phase", &set_floquet_phase,
-        "Set Floquet phase shift for transverse wave vector.", py::arg("pbc"),
-        py::arg("k_transverse"));
+        "Set pbc.phase_shift = exp(-j k_t . L) for the transverse wave\n"
+        "vector k_t = [kx, ky] (exp(+j omega t)); the constraint is\n"
+        "x(slave) = phase_shift * orient * x(master).",
+        py::arg("pbc"), py::arg("k_transverse"));
 
   m.def("floquet_phase_from_angle", &floquet_phase_from_angle,
-        "Compute Floquet phase from incidence angles.",
+        "Floquet phase exp(-j k_inc . L) for incidence angles theta, phi\n"
+        "(radians) and free-space wavenumber k0.",
         py::arg("period_vector"), py::arg("theta"), py::arg("phi"),
         py::arg("k0"));
 

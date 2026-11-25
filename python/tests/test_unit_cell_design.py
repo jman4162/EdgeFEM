@@ -125,14 +125,6 @@ class TestUnitCellFSS:
 # z = 15.990 mm.
 _BARE_MESH = str(Path(__file__).parent / "data" / "unit_cell_bare_d8.msh")
 
-# R = S11 from EdgeFEM 1.0.0 (Python 3.12 wheel) on that mesh, 2026-10-15.
-_R_1P0 = {
-    8e9: complex(-0.9906263162642917, -0.13659978596117378),
-    10e9: complex(-0.9963762268305602, -0.08505536201111075),
-    12e9: complex(-0.9983423078818191, -0.057555506193612625),
-}
-
-
 def _bare_cell_from_mesh():
     cell = UnitCellDesign(
         period_x=5e-3,
@@ -169,14 +161,6 @@ class TestFloquetPort1p0:
         with pytest.warns(RuntimeWarning, match="not validated"):
             cell.reflection_transmission(10e9)
 
-    @pytest.mark.filterwarnings("ignore:S-parameters computed with modal")
-    def test_matches_1p0(self):
-        """Branch R equals the 1.0.0 R on the same mesh to 1e-9."""
-        cell = _bare_cell_from_mesh()
-        for f, r_ref in _R_1P0.items():
-            R, _ = cell.reflection_transmission(f)
-            assert abs(R - r_ref) < 1e-9, f"{f/1e9} GHz: R = {R}, 1.0.0 {r_ref}"
-
 
 @pytest.mark.known_issue
 @pytest.mark.xfail(
@@ -192,14 +176,14 @@ def test_grounded_slab_reflection_phase():
     +155.07 deg at 10 GHz (2 k0 d = 360 deg there), +77.58 deg at 12 GHz;
     |R| = 1.
 
-    Measured on 2026-10-15 with this mesh (density 8): -172.15, -175.12 and
-    -176.70 deg, |R| = 1.0000 (the 1.0.0 values; the gap-port terms that
-    briefly applied to Floquet ports gave R = +0.9995 at 0 deg at all three
-    frequencies). The phase errors are 44.5, 29.8 and 105.7 deg, so the
-    test fails; it is marked xfail(strict=True), and a fix of the Floquet
-    port turns it into an XPASS failure that asks for the marks to be
-    removed. The 25 deg tolerance allows for this coarse mesh; R = +1 at
-    0 deg misses by 127.7, 155.1 and 77.6 deg.
+    Measured with this mesh (density 8), after the periodic-pair
+    orientation fix (2026-11): -170.59, -174.06 and -175.97 deg,
+    |R| = 1.0000; phase errors 42.9, 30.9 and 106.4 deg. (1.0.0, with
+    wrongly oriented pairs: -172.15, -175.12, -176.70 deg.) The port terms,
+    not the periodic BC, cause the error. The test is xfail(strict=True); a
+    fix of the Floquet port turns it into an XPASS failure that asks for
+    the marks to be removed. The 25 deg tolerance allows for this coarse
+    mesh; R = +1 at 0 deg misses by 127.7, 155.1 and 77.6 deg.
     """
     cell = _bare_cell_from_mesh()
     d = cell.air_height_above

@@ -33,10 +33,10 @@ void test_floquet_phase_from_angle_scan() {
 
   auto phase = floquet_phase_from_angle(period, theta, phi, k0);
 
-  // kx = k0 * sin(30°) = k0 * 0.5
-  // phase = exp(j * kx * Lx) = exp(j * k0 * 0.5 * 0.015)
+  // kx = k0 * sin(30°) = k0 * 0.5; exp(+j omega t) Bloch phase
+  // exp(-j kx Lx)
   double kx = k0 * std::sin(theta);
-  std::complex<double> expected(std::cos(kx * 0.015), std::sin(kx * 0.015));
+  std::complex<double> expected = std::polar(1.0, -kx * 0.015);
 
   CHECK(std::abs(phase - expected) < 1e-10);
 
@@ -59,7 +59,7 @@ void test_set_floquet_phase() {
 
   // Check phase was set correctly
   double expected_arg = k_trans.x() * pbc.period_vector.x();
-  std::complex<double> expected(std::cos(expected_arg), std::sin(expected_arg));
+  std::complex<double> expected = std::polar(1.0, -expected_arg);
 
   CHECK(std::abs(pbc.phase_shift - expected) < 1e-10);
 
@@ -148,7 +148,7 @@ void test_floquet_phase_grating_lobe() {
 
   auto phase = floquet_phase_from_angle(period_vec, theta, phi, k0);
 
-  // At 90 deg: kx = k0, phase = exp(j * k0 * d) = exp(j * pi) = -1
+  // At 90 deg: kx = k0, phase = exp(-j * k0 * d) = exp(-j * pi) = -1
   std::complex<double> expected(-1.0, 0.0);
 
   // Allow some numerical tolerance
