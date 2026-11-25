@@ -1,12 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-11-25)
 
-From an adversarial review (Nov 2026). Every fix comes with a test that
-failed before it. The code's time convention is exp(+j omega t); several
-modules did not follow it.
+The first release since 1.0.0. The changes from "Breaking changes and known
+limitations" down were ready on 2026-10-15 but not tagged; this release
+adds the fixes from an adversarial review in November 2026 (the first two
+sections). Every review fix comes with a test that failed before it. The
+code's time convention is exp(+j omega t); several modules did not follow
+it.
 
-### Fixed (results change)
+### Fixed in the November 2026 review (results change)
 
 - **PML** stretch was s = 1 + j sigma / omega, a gain medium: a PML section
   terminating WR-90 at 10 GHz gave |S11| = 13.8 (uniform) and 11.6
@@ -61,7 +64,7 @@ modules did not follow it.
   (`std::invalid_argument` / `ValueError`); the fast `frequency_sweep` path
   now matches `calculate_sparams` when `use_port_abc` is set.
 
-### Changed
+### Changed in the November 2026 review
 
 - **Quarantined** (they returned numbers without working):
   `UnitCellDesign.reflection_transmission` and the methods built on it raise
@@ -81,8 +84,6 @@ modules did not follow it.
   a Levy polynomial-ratio fit, not vector fitting.
 - `edgefem.__all__` exports the gap-port, 2D wave-port, sweep and
   fields-returning functions and drops `normalize_port_weights`.
-
-## 1.1.0 (2026-10-15)
 
 ### Breaking changes and known limitations
 
@@ -431,7 +432,7 @@ modules did not follow it.
 - **pytest marker `known_issue`** for known-answer tests that fail on an
   open defect; each is also `xfail(strict=True)`.
 
-## Unreleased (2026-07-14) — assembled port operator, mesh-convergent S-parameters
+## 2026-07-14 (shipped in 1.1.0): assembled port operator, mesh-convergent S-parameters
 
 Wave-port formulation rework in `calculate_sparams_eigenmode`; no API
 breaks (one new builder, one changed default).
@@ -469,7 +470,7 @@ breaks (one new builder, one changed default).
   at ~O(h²).
 - Full CTest suite: 347 s → 62 s.
 
-## Unreleased (2026-07-11) — documentation and validation integrity pass
+## 2026-07-11 (shipped in 1.1.0): documentation and validation integrity pass
 
 Outcome of a full technical review of v1.0.0. No solver physics changed;
 this pass makes the documentation, tests, and examples describe what the
