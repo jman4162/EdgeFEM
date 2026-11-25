@@ -282,7 +282,6 @@ WavePort build_wave_port_from_eigenvector(
   // Extract eigenvector values at port edges
   port.weights.resize(port.edges.size());
   double norm_sq = 0.0;
-  int free_count = 0;
 
   for (size_t i = 0; i < port.edges.size(); ++i) {
     int e = port.edges[i];
@@ -293,7 +292,6 @@ WavePort build_wave_port_from_eigenvector(
       // phase)
       port.weights(i) = std::complex<double>(0.0, eigenvector(e));
       norm_sq += eigenvector(e) * eigenvector(e);
-      free_count++;
     }
   }
 
@@ -330,8 +328,6 @@ Eigen::VectorXd compute_te_eigenvector(const Mesh &mesh,
 
   // Assemble K and M matrices for free DOFs
   // Use very low frequency to get K, and difference method to get M
-  constexpr double c0 = 299792458.0;
-  constexpr double mu0 = 4.0 * M_PI * 1e-7;
 
   // Assemble at low frequency (essentially K matrix)
   Eigen::MatrixXd K_free = Eigen::MatrixXd::Zero(n_free, n_free);

@@ -11,7 +11,7 @@
 
 using namespace edgefem;
 
-int main(int argc, char **argv) {
+int main() {
   Mesh mesh = load_gmsh_v2("examples/rect_waveguide.msh");
   BC bc = build_edge_pec(mesh, 1);
 

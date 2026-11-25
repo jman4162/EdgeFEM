@@ -53,10 +53,10 @@ FitResult vector_fit(const std::vector<double> &freq,
     std::complex<double> num = res.numerator[0];
     std::complex<double> den = res.denominator[0];
     double f = freq[i];
-    for (int k = 1; k < res.numerator.size(); ++k)
-      num += res.numerator[k] * std::pow(f, k);
-    for (int k = 1; k < res.denominator.size(); ++k)
-      den += res.denominator[k] * std::pow(f, k);
+    for (size_t k = 1; k < res.numerator.size(); ++k)
+      num += res.numerator[k] * std::pow(f, static_cast<double>(k));
+    for (size_t k = 1; k < res.denominator.size(); ++k)
+      den += res.denominator[k] * std::pow(f, static_cast<double>(k));
     fit[i] = num / den;
   }
 

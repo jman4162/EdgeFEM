@@ -334,8 +334,9 @@ PYBIND11_MODULE(pyedgefem, m) {
           py::return_value_policy::reference_internal, "RHS vector b.");
 
   m.def("assemble_scalar_helmholtz", &assemble_scalar_helmholtz,
-        "Assembles the scalar Helmholtz system.", py::arg("mesh"),
-        py::arg("params"), py::arg("bc"));
+        "Placeholder (identity matrix; k0 and eps_r ignored), not a "
+        "Helmholtz assembly.",
+        py::arg("mesh"), py::arg("params"), py::arg("bc"));
 
   py::enum_<PortABCType>(
       m, "PortABCType", "ABC formulation variants for port boundary treatment.")

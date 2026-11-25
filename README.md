@@ -243,12 +243,13 @@ default build contain no SuiteSparse code.
 ## Run Tests
 
 ```bash
-ctest --test-dir build -LE known_issue -j  # What CI runs
-ctest --test-dir build -L smoke            # Quick smoke tests
-ctest --test-dir build -L pml              # PML absorption tests
+ctest --test-dir build -j        # All tests (what CI runs)
+ctest --test-dir build -L smoke  # Quick smoke tests
+ctest --test-dir build -L pml    # PML absorption tests
 ```
 
-Tests labelled `known_issue` document open defects and fail by design.
+Tests labelled `known_issue` document open defects; they carry `WILL_FAIL`,
+so they pass while the defect is open and fail once it is fixed.
 
 ## Plotting Module
 

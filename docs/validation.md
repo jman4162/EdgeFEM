@@ -187,6 +187,20 @@ No comparison against commercial solvers (HFSS/CST) or measurement exists.
 
 ## Continuous Validation
 
-CI (`.github/workflows/ci.yml`) builds and runs the full registered CTest
-suite (including the benchmarks above, label `benchmark`) plus
-`pytest python/tests/` on every push and pull request.
+CI (`.github/workflows/ci.yml`) runs on every push and pull request:
+
+- Linux, Release, UMFPACK, library warnings as errors: the full registered
+  CTest suite (benchmarks included; the `known_issue` tests carry
+  `WILL_FAIL` and fail CI once their defect is fixed), `pytest
+  python/tests/`, clang-format and clang-tidy on `src/`.
+- Linux and macOS, Eigen SparseLU (the wheel configuration): every test but
+  the long benchmarks.
+- Linux Debug with AddressSanitizer and UndefinedBehaviorSanitizer: the
+  smoke tests. (Locally the other tests also run clean under both
+  sanitizers, except `test_sparam_accuracy` and the benchmarks, which were
+  not run, and `test_ntf`, which did not finish within 900 s in the Debug
+  sanitizer build.)
+
+`wheels.yml` builds the wheels and the sdist, installs each and runs
+`tools/wheel_smoke.py`, on tags and on pull requests that touch the
+packaging.

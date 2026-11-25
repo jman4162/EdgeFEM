@@ -88,7 +88,7 @@ ctest --test-dir build -j
 ctest --test-dir build -L pml    # PML absorption
 ctest --test-dir build -L abc    # ABC boundary
 ctest --test-dir build -L lumped # lumped-port physics
-ctest --test-dir build -LE known_issue  # skip tests with open known issues
+ctest --test-dir build -L known_issue  # open defects (WILL_FAIL: pass while open)
 
 # Single test binary
 ./build/tests/test_maxwell
@@ -107,7 +107,8 @@ clang-tidy -p build -warnings-as-errors='*' $(git ls-files 'src/*.cpp')
 ## Demo Commands
 
 ```bash
-# Scalar Helmholtz cavity
+# Scalar "prototype" demo (assemble_scalar_helmholtz is a placeholder:
+# it returns the identity matrix)
 ./build/src/edgefem_scalar_demo examples/cube_cavity.msh 1
 
 # Waveguide S-parameters
