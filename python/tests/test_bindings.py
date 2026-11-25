@@ -86,3 +86,17 @@ def test_solves_release_the_gil():
     gaps = np.diff(stamps)
     assert len(gaps) > 0
     assert gaps.max() < 0.5 * one_solve, (gaps.max(), one_solve)
+
+
+def test_embedded_patterns_are_not_implemented():
+    """The embedded-pattern functions summed raw edge DOFs of the whole
+    mesh (no Huygens surface); they refuse to run until a real
+    implementation exists."""
+    mesh, p, bc, ports = _wr90()
+    cfg = em.ArrayPatternConfig()
+    cfg.theta_rad = [0.0, 0.5]
+    cfg.k0 = 2 * np.pi * 10e9 / 299792458.0
+    with pytest.raises(NotImplementedError, match="extract_huygens_surface"):
+        em.compute_embedded_patterns(mesh, p, bc, ports, cfg)
+    with pytest.raises(NotImplementedError, match="extract_huygens_surface"):
+        em.compute_single_embedded_pattern(mesh, p, bc, ports, 0, cfg)

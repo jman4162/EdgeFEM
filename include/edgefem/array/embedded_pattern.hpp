@@ -36,8 +36,11 @@ struct ArrayPatternConfig {
   double huygens_radius = 0.0;     // Radius for Huygens surface (0 = auto)
 };
 
-/// Compute embedded element patterns for all ports.
-/// The embedded pattern includes mutual coupling effects from other elements.
+/// Not implemented: throws std::logic_error (NotImplementedError in Python).
+/// The earlier body was a placeholder (a weighted sum of raw edge DOFs over
+/// the whole mesh). For an embedded pattern, solve with every other port
+/// loaded (calculate_sparams_with_fields), then extract_huygens_surface and
+/// stratton_chu_3d on the active port's field.
 ///
 /// @param mesh Volume mesh
 /// @param params Maxwell parameters
@@ -50,7 +53,7 @@ compute_embedded_patterns(const Mesh &mesh, const MaxwellParams &params,
                           const BC &bc, const std::vector<WavePort> &ports,
                           const ArrayPatternConfig &config);
 
-/// Compute embedded pattern for a single port.
+/// Not implemented: throws std::logic_error (see compute_embedded_patterns).
 /// @param mesh Volume mesh
 /// @param params Maxwell parameters
 /// @param bc Boundary conditions

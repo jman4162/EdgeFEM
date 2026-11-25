@@ -1189,19 +1189,42 @@ PYBIND11_MODULE(pyedgefem, m) {
       .def_readwrite("huygens_radius", &ArrayPatternConfig::huygens_radius,
                      "Radius for Huygens surface (0=auto)");
 
-  // Compute embedded patterns (all ports)
-  m.def("compute_embedded_patterns", &compute_embedded_patterns,
-        "Compute embedded element patterns for all ports.\n"
-        "Includes mutual coupling effects from other elements.",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
-        py::arg("config"));
+  // Embedded patterns: not implemented (the C++ functions throw
+  // std::logic_error); raise NotImplementedError in Python.
+  m.def(
+      "compute_embedded_patterns",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, const ArrayPatternConfig &cfg) {
+        try {
+          return compute_embedded_patterns(mesh, p, bc, ports, cfg);
+        } catch (const std::logic_error &e) {
+          PyErr_SetString(PyExc_NotImplementedError, e.what());
+          throw py::error_already_set();
+        }
+      },
+      "Not implemented (raises NotImplementedError). Use\n"
+      "calculate_sparams_with_fields, extract_huygens_surface and\n"
+      "stratton_chu_3d.",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("config"));
 
-  // Compute single embedded pattern
-  m.def("compute_single_embedded_pattern", &compute_single_embedded_pattern,
-        "Compute embedded pattern for a single port.\n"
-        "Other ports are properly loaded.",
-        py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
-        py::arg("active_port"), py::arg("config"));
+  m.def(
+      "compute_single_embedded_pattern",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, int active_port,
+         const ArrayPatternConfig &cfg) {
+        try {
+          return compute_single_embedded_pattern(mesh, p, bc, ports,
+                                                 active_port, cfg);
+        } catch (const std::logic_error &e) {
+          PyErr_SetString(PyExc_NotImplementedError, e.what());
+          throw py::error_already_set();
+        }
+      },
+      "Not implemented (raises NotImplementedError); see\n"
+      "compute_embedded_patterns.",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"), py::arg("ports"),
+      py::arg("active_port"), py::arg("config"));
 
   // Utility functions
   m.def("to_db", &to_db, "Convert linear magnitude to dB.", py::arg("linear"));
