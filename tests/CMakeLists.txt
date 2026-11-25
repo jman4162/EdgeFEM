@@ -1,10 +1,12 @@
 # Labels:
 #   lumped       tests of the lumped-port path (build_lumped_port,
 #                normalize_port_weights, calculate_sparams, frequency_sweep).
-#   known_issue  tests that fail in Release since assert() became CHECK()
-#                (NDEBUG had compiled the asserts out) for reasons other than
-#                the lumped port or the patch geometry. They stay failing
-#                until fixed; `ctest -LE known_issue` skips them.
+#   known_issue  tests of an open defect. Each also has WILL_FAIL TRUE, so
+#                it reports "Passed" while it fails and "Failed" once the
+#                defect is fixed (then drop both properties). CI runs them:
+#                test_ports (scalar port eigensolver: WR-90 fc 23.4 GHz vs
+#                6.557), test_waveguide_modal and
+#                test_frequency_sweep_passivity (the 1.0.0 modal port terms).
 #   solver       direct solver backends and Dirichlet elimination.
 #   modal        modal (wave/Floquet) port terms kept at their 1.0.0 values.
 
@@ -26,12 +28,12 @@ set_tests_properties(test_maxwell PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_
 add_executable(test_ports test_ports.cpp)
 target_link_libraries(test_ports PRIVATE edgefem)
 add_test(NAME test_ports COMMAND test_ports)
-set_tests_properties(test_ports PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
+set_tests_properties(test_ports PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue" WILL_FAIL TRUE)
 
 add_executable(test_waveguide_modal test_waveguide_modal.cpp)
 target_link_libraries(test_waveguide_modal PRIVATE edgefem)
 add_test(NAME test_waveguide_modal COMMAND test_waveguide_modal)
-set_tests_properties(test_waveguide_modal PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "modal;known_issue")
+set_tests_properties(test_waveguide_modal PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "modal;known_issue" WILL_FAIL TRUE)
 
 add_executable(test_pml_waveguide test_pml_waveguide.cpp)
 target_link_libraries(test_pml_waveguide PRIVATE edgefem)
@@ -51,7 +53,7 @@ set_tests_properties(test_abc PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 add_executable(test_sweep test_sweep.cpp)
 target_link_libraries(test_sweep PRIVATE edgefem)
 add_test(NAME test_sweep COMMAND test_sweep)
-set_tests_properties(test_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "smoke;known_issue")
+set_tests_properties(test_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "smoke")
 
 add_executable(test_vector_fit test_vector_fit.cpp)
 target_link_libraries(test_vector_fit PRIVATE edgefem)
@@ -66,7 +68,7 @@ set_tests_properties(test_ntf PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 add_executable(test_solver_convergence test_solver_convergence.cpp)
 target_link_libraries(test_solver_convergence PRIVATE edgefem)
 add_test(NAME test_solver_convergence COMMAND test_solver_convergence)
-set_tests_properties(test_solver_convergence PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "smoke;known_issue")
+set_tests_properties(test_solver_convergence PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "smoke")
 
 add_executable(test_mesh_loader test_mesh_loader.cpp)
 target_link_libraries(test_mesh_loader PRIVATE edgefem)
@@ -86,7 +88,7 @@ set_tests_properties(test_touchstone_nport PROPERTIES WORKING_DIRECTORY ${PROJEC
 add_executable(test_coupling test_coupling.cpp)
 target_link_libraries(test_coupling PRIVATE edgefem)
 add_test(NAME test_coupling COMMAND test_coupling)
-set_tests_properties(test_coupling PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "known_issue")
+set_tests_properties(test_coupling PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 add_executable(test_periodic_constraint test_periodic_constraint.cpp)
 target_link_libraries(test_periodic_constraint PRIVATE edgefem)
@@ -180,7 +182,7 @@ set_tests_properties(test_frequency_sweep PROPERTIES WORKING_DIRECTORY ${PROJECT
 # Passivity of the 1.0.0 modal port terms (not validated; |S11| = 2.41 at
 # 8 GHz). Fails until the modal ports get a physical formulation.
 add_test(NAME test_frequency_sweep_passivity COMMAND test_frequency_sweep passivity)
-set_tests_properties(test_frequency_sweep_passivity PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "modal;known_issue")
+set_tests_properties(test_frequency_sweep_passivity PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "modal;known_issue" WILL_FAIL TRUE)
 
 # Modal ports keep the 1.0.0 port terms: S-parameters on
 # examples/rect_waveguide.msh pinned to the 1.0.0 values.

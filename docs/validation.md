@@ -107,13 +107,26 @@ Pass criteria: measured attenuation within 35% of analytical, and lossy
 |S21| strictly below lossless |S21|. Tolerance is wide because the lumped
 port ABC interacts with the complex propagation constant.
 
-## Dielectric Slab / Fresnel (analytical reference only)
+## Dielectric Slab, normal incidence (FEM against the analytic slab)
 
-`tests/test_dielectric_slab_fresnel.cpp` checks mesh setup (ports, material
-regions) and verifies the analytical Fabry-Pérot reference satisfies
-R + T = 1. **It does not compare an FEM solve against Fresnel** — that
-requires Floquet ports, which are not implemented.
-`examples/validation_fresnel.py` plots the analytical curves.
+`tests/test_dielectric_slab_fresnel.cpp` solves `examples/dielectric_slab.msh`
+(10 x 10 x 30 mm, eps_r = 4 slab 3 mm thick, 2 mm mesh). PEC on the x
+faces and natural (PMC) y faces make the x-polarized TEM plane wave an exact
+mode of the box, so a TEM port (kc = 0, weights = edge x extent) with the
+eigenmode port operator gives the plane-wave S-parameters. Against the
+analytic slab referred to the port planes:
+
+| f (GHz) | \|S11 - ref\| | \|S21 - ref\| | arg S21 error |
+|---------|---------------|---------------|---------------|
+| 8  | 0.005 | 0.007 | 0.4 deg |
+| 10 | 0.021 | 0.018 | 1.0 deg |
+| 12 | 0.046 | 0.044 | 2.6 deg |
+
+Pass criteria: 0.06 and 4 deg, lossless (|S11|^2 + |S21|^2 within 0.02 of 1)
+and S21 = S12. This is normal incidence only; oblique incidence needs a
+Floquet port. Reproduce: `./build/tests/test_dielectric_slab_fresnel`.
+(The mesh's side-face names were swapped: tags 3/4 are the y faces and 5/6
+the x faces; the names are now correct.)
 
 ## Probe-fed patch (2.45 GHz FR-4)
 
@@ -124,10 +137,16 @@ At density 12 EdgeFEM puts f_res at 2.3768 GHz, openEMS at 2.389 GHz
 
 ## What is NOT validated
 
-- Radiation patterns against an analytical antenna (dipole/aperture); NTF
-  tests are point-source sanity checks only.
-- TEM / coax S-parameters (scalar port eigensolver cannot produce the TEM
-  mode; the coax test is setup-sanity only).
+- Radiation patterns of a solved FEM antenna against a reference (the
+  stacked patch against openEMS NF2FF). The kernels are checked on closed
+  forms: the Hertzian dipole (magnitude, phase, D = 1.5) and a phase-tilted
+  aperture in `test_ntf`, and the aperture model in
+  `python/tests/test_farfield_conventions.py`.
+- TEM ports from the 2D port eigensolver (it is scalar and filters kc ~ 0).
+  A hand-built TEM port works: `test_coax_waveguide` (air coax, port weights
+  ln(r1/r0)) gives |S11| <= 0.028, |S21| >= 0.9995 and phase(S21) within
+  0.7 / 1.8 / 3.9 deg of -k0 L at 2 / 5 / 10 GHz. Until 2026-11 the coax
+  mesh tagged only half of the conductor walls as PEC.
 - Periodic/unit-cell reflection against literature; oblique incidence.
   Floquet ports (`build_wave_port` with `calculate_sparams_periodic`) use
   the 1.0.0 modal port terms. Bare grounded slab (eps_r 3.5, 1 mm, port

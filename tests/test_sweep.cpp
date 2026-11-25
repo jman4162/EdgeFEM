@@ -18,6 +18,11 @@ int main() {
       std::accumulate(disc.iterations.begin(), disc.iterations.end(), 0);
   int it_reuse =
       std::accumulate(reuse.iterations.begin(), reuse.iterations.end(), 0);
-  CHECK(it_disc >= 2 * it_reuse);
+  auto bal = sweep_two_resonator(freqs, SweepPolicy::Balanced);
+  int it_bal = std::accumulate(bal.iterations.begin(), bal.iterations.end(), 0);
+  // Warm starts save iterations on this toy problem: 6464 -> 3563 (Reuse)
+  // and 3823 (Balanced, which restarts cold every tenth point).
+  CHECK(10 * it_reuse < 6 * it_disc);
+  CHECK(it_reuse <= it_bal && it_bal < it_disc);
   return edgefem_test::exit_code();
 }

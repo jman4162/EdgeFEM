@@ -45,27 +45,23 @@ Curve Loop(2) = {5, 6, 7, 8};   // Outer circle
 // Create annular cross-section (dielectric region)
 Plane Surface(1) = {2, 1};      // Outer minus inner = annulus
 
-// Extrude to create coaxial line
-Extrude {0, 0, L} { Surface{1}; }
-
-// Physical groups
-// Note: After extrusion, surface IDs change. These need to be verified with Gmsh GUI
-// Typical assignment:
-// - Original surface (1) becomes Port 1
-// - Extruded end surface becomes Port 2
-// - Lateral surfaces are walls
+// Extrude to create coaxial line. out[0] is the far end face, out[1] the
+// volume, and out[2..9] the lateral faces in the order of the boundary
+// curves of Surface 1: the outer loop (curves 5-8) first, then the inner
+// loop (curves 1-4).
+out[] = Extrude {0, 0, L} { Surface{1}; };
 
 // Inner conductor PEC (lateral surface of inner cylinder)
-Physical Surface("InnerPEC", 1) = {25, 29, 33, 37};
+Physical Surface("InnerPEC", 1) = {out[6], out[7], out[8], out[9]};
 
 // Outer conductor PEC (lateral surface of outer cylinder)
-Physical Surface("OuterPEC", 2) = {26, 30, 34, 38};
+Physical Surface("OuterPEC", 2) = {out[2], out[3], out[4], out[5]};
 
 // Port 1 (z=0, annular region)
 Physical Surface("Port1", 3) = {1};
 
 // Port 2 (z=L, annular region)
-Physical Surface("Port2", 4) = {50};
+Physical Surface("Port2", 4) = {out[0]};
 
 // Dielectric volume (air)
 Physical Volume("Air", 100) = {1};

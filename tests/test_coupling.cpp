@@ -114,12 +114,12 @@ void test_active_reflection_phased() {
 void test_is_passive_true() {
   std::cout << "test_is_passive_true..." << std::endl;
 
-  // Lossless reciprocal network
+  // Lossy reciprocal network. S^H S = 0.9 I (S11 real, S21 imaginary), so
+  // the largest singular value is sqrt(0.9) < 1. (With S11 = 0.3j the
+  // columns are not orthogonal and sigma_max = 1.2: not passive.)
   Eigen::MatrixXcd S(2, 2);
-  S << std::complex<double>(0.0, 0.3), std::complex<double>(0.0, 0.9),
-      std::complex<double>(0.0, 0.9), std::complex<double>(0.0, 0.3);
-
-  // Check |S11|^2 + |S21|^2 = 0.09 + 0.81 = 0.9 < 1
+  S << std::complex<double>(0.3, 0.0), std::complex<double>(0.0, 0.9),
+      std::complex<double>(0.0, 0.9), std::complex<double>(0.3, 0.0);
   CHECK(is_passive(S));
 
   std::cout << "  Network is passive: true" << std::endl;
