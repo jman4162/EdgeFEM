@@ -108,6 +108,11 @@ target_link_libraries(test_sparam_accuracy PRIVATE edgefem)
 add_test(NAME test_sparam_accuracy COMMAND test_sparam_accuracy)
 set_tests_properties(test_sparam_accuracy PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "lumped")
 
+add_executable(test_port_kind_checks test_port_kind_checks.cpp)
+target_link_libraries(test_port_kind_checks PRIVATE edgefem)
+add_test(NAME test_port_kind_checks COMMAND test_port_kind_checks)
+set_tests_properties(test_port_kind_checks PROPERTIES WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} LABELS "modal")
+
 add_executable(test_eigenmode_edge_cases test_eigenmode_edge_cases.cpp)
 target_link_libraries(test_eigenmode_edge_cases PRIVATE edgefem)
 add_test(NAME test_eigenmode_edge_cases COMMAND test_eigenmode_edge_cases)

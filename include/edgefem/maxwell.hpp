@@ -249,9 +249,15 @@ bool has_modal_ports(const std::vector<WavePort> &ports);
 
 /// Prints a warning to stderr, once per process, when `ports` holds a Modal
 /// port: modal and Floquet port S-parameters are not validated in this
-/// release. calculate_sparams(_with_fields), frequency_sweep and
+/// release. assemble_maxwell (so also assemble_maxwell_periodic),
+/// calculate_sparams(_with_fields), frequency_sweep and
 /// calculate_sparams_periodic call it; calculate_sparams_eigenmode does not.
 void warn_modal_sparams(const std::vector<WavePort> &ports);
+
+/// Throws std::invalid_argument when `ports` holds both Lumped and Modal
+/// ports: their S definitions differ, so calculate_sparams(_with_fields),
+/// frequency_sweep and calculate_sparams_periodic refuse a mix.
+void check_port_kinds(const std::vector<WavePort> &ports);
 
 /// N-port S-matrix: the loaded system is assembled and factored once
 /// (direct solver) and solved for one right-hand side per port. The

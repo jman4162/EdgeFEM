@@ -261,12 +261,17 @@ SweepResult frequency_sweep(const Mesh &mesh, const MaxwellParams &p,
   if (num_ports == 0 || frequencies.empty()) {
     return result;
   }
+  check_port_kinds(ports);
   warn_modal_sparams(ports);
 
-  // Check if we can use K/M separation (no PML, no dispersive materials)
+  // K/M separation needs frequency-independent materials and port terms:
+  // no PML, no dispersive materials, and no legacy diagonal port ABC
+  // (assemble_maxwell adds it; the fast path does not), so both paths give
+  // the same S.
   bool has_pml = !p.pml_regions.empty() || !p.pml_tensor_regions.empty();
   bool has_dispersive = !p.eps_models.empty() || !p.mu_models.empty();
-  bool can_separate = !has_pml && !has_dispersive;
+  bool has_port_abc = p.use_port_abc && p.port_abc_type != PortABCType::None;
+  bool can_separate = !has_pml && !has_dispersive && !has_port_abc;
 
   if (can_separate) {
     // Fast path: pre-assemble K and M once

@@ -145,12 +145,24 @@ void warn_modal_sparams(const std::vector<WavePort> &ports) {
   static std::atomic<bool> warned{false};
   if (!has_modal_ports(ports) || warned.exchange(true))
     return;
-  std::cerr << "WARNING: S-parameters computed with modal or Floquet ports "
-               "(any port not built by build_lumped_port). Modal and Floquet "
-               "port S-parameters are not validated in this release; they "
-               "use the 1.0.0 port terms unchanged. calculate_sparams_"
+  std::cerr << "WARNING: modal or Floquet ports (any port not built by "
+               "build_lumped_port) get the 1.0.0 port terms in "
+               "assemble_maxwell, calculate_sparams, frequency_sweep and "
+               "calculate_sparams_periodic. Their S-parameters and fields "
+               "are not validated in this release. calculate_sparams_"
                "eigenmode is the validated modal path."
             << std::endl;
+}
+
+void check_port_kinds(const std::vector<WavePort> &ports) {
+  bool lumped = false, modal = false;
+  for (const auto &port : ports)
+    (is_lumped(port) ? lumped : modal) = true;
+  if (lumped && modal)
+    throw std::invalid_argument(
+        "S-parameters: Lumped and Modal ports in one call. The two kinds "
+        "use different S definitions (gap voltage vs the 1.0.0 modal "
+        "terms), so a mixed matrix is neither; use one kind per call.");
 }
 
 SpMatC modal_port_load_matrix(const std::vector<WavePort> &ports, const BC &bc,
@@ -252,6 +264,7 @@ MaxwellAssembly assemble_maxwell(const Mesh &mesh, const MaxwellParams &p,
                                  const std::vector<WavePort> &ports,
                                  int active_port_idx) {
   const int m = static_cast<int>(mesh.edges.size());
+  warn_modal_sparams(ports);
   MaxwellAssembly asmbl;
   asmbl.A.resize(m, m);
   asmbl.b = VecC::Zero(m);
@@ -568,6 +581,7 @@ SParamSolution calculate_sparams_with_fields(const Mesh &mesh,
   out.S.resize(num_ports, num_ports);
   if (num_ports == 0)
     return out;
+  check_port_kinds(ports);
   warn_modal_sparams(ports);
 
   // One loaded matrix for all ports; port i only changes the RHS. The
@@ -719,6 +733,7 @@ calculate_sparams_periodic(const Mesh &mesh, const MaxwellParams &p,
                            const std::vector<WavePort> &ports) {
   const int num_ports = static_cast<int>(ports.size());
   Eigen::MatrixXcd S(num_ports, num_ports);
+  check_port_kinds(ports);
   warn_modal_sparams(ports);
 
   for (int i = 0; i < num_ports; ++i) { // active port

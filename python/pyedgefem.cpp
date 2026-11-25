@@ -60,18 +60,25 @@ element_nodes(const Mesh &m, const std::vector<Element> &elements, int nverts) {
 }
 
 // RuntimeWarning (each call; Python's filters decide what is shown) when an
-// S-parameter function gets a Modal port. Not used by
+// S-parameter or assembly function gets a Modal port. Not used by
 // calculate_sparams_eigenmode.
-void warn_modal_ports_py(const std::vector<WavePort> &ports) {
+void warn_modal_ports_py(const std::vector<WavePort> &ports,
+                         bool assembly = false) {
   if (!has_modal_ports(ports))
     return;
-  if (PyErr_WarnEx(PyExc_RuntimeWarning,
-                   "S-parameters computed with modal or Floquet ports (any "
-                   "port not built by build_lumped_port). Modal and Floquet "
-                   "port S-parameters are not validated in this release; "
-                   "they use the 1.0.0 port terms unchanged. "
-                   "calculate_sparams_eigenmode is the validated modal path.",
-                   1) < 0)
+  const char *msg =
+      assembly
+          ? "assemble_maxwell with modal or Floquet ports (any port not "
+            "built by build_lumped_port) applies the 1.0.0 port terms; "
+            "fields and S-parameters from them are not validated in this "
+            "release. calculate_sparams_eigenmode is the validated modal "
+            "path."
+          : "S-parameters computed with modal or Floquet ports (any port "
+            "not built by build_lumped_port). Modal and Floquet port "
+            "S-parameters are not validated in this release; they use the "
+            "1.0.0 port terms unchanged. calculate_sparams_eigenmode is the "
+            "validated modal path.";
+  if (PyErr_WarnEx(PyExc_RuntimeWarning, msg, 1) < 0)
     throw py::error_already_set();
 }
 
@@ -675,10 +682,19 @@ PYBIND11_MODULE(pyedgefem, m) {
         "run in this process so far (never reset). Tests take the "
         "difference across a call to count what it costs.");
 
-  m.def("assemble_maxwell", &assemble_maxwell,
-        "Assembles the 3D Maxwell system.", py::arg("mesh"), py::arg("params"),
-        py::arg("bc"), py::arg("ports") = std::vector<WavePort>(),
-        py::arg("active_port_idx") = -1);
+  m.def(
+      "assemble_maxwell",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const std::vector<WavePort> &ports, int active_port_idx) {
+        warn_modal_ports_py(ports, true);
+        return assemble_maxwell(mesh, p, bc, ports, active_port_idx);
+      },
+      "Assembles the 3D Maxwell system. active_port_idx = -1 (default)\n"
+      "builds no source (b = 0). Modal ports get the 1.0.0 port terms\n"
+      "(RuntimeWarning).",
+      py::arg("mesh"), py::arg("params"), py::arg("bc"),
+      py::arg("ports") = std::vector<WavePort>(),
+      py::arg("active_port_idx") = -1);
 
   m.def(
       "calculate_sparams",
@@ -977,11 +993,19 @@ PYBIND11_MODULE(pyedgefem, m) {
         "Count edges on surface with given tag.", py::arg("mesh"),
         py::arg("surface_tag"));
 
-  m.def("assemble_maxwell_periodic", &assemble_maxwell_periodic,
-        "Assemble Maxwell system with periodic BC.", py::arg("mesh"),
-        py::arg("params"), py::arg("bc"), py::arg("pbc"),
-        py::arg("ports") = std::vector<WavePort>(),
-        py::arg("active_port_idx") = -1);
+  m.def(
+      "assemble_maxwell_periodic",
+      [](const Mesh &mesh, const MaxwellParams &p, const BC &bc,
+         const PeriodicBC &pbc, const std::vector<WavePort> &ports,
+         int active_port_idx) {
+        warn_modal_ports_py(ports, true);
+        return assemble_maxwell_periodic(mesh, p, bc, pbc, ports,
+                                         active_port_idx);
+      },
+      "Assemble Maxwell system with periodic BC.", py::arg("mesh"),
+      py::arg("params"), py::arg("bc"), py::arg("pbc"),
+      py::arg("ports") = std::vector<WavePort>(),
+      py::arg("active_port_idx") = -1);
 
   m.def(
       "calculate_sparams_periodic",

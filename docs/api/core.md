@@ -139,7 +139,7 @@ assembly = em.assemble_maxwell(
     params: MaxwellParams,
     bc: BC,
     ports: List[WavePort],
-    active_port: int = 0
+    active_port_idx: int = -1
 ) -> MaxwellAssembly
 ```
 
@@ -151,7 +151,7 @@ Assemble the Maxwell curl-curl FEM system matrix.
 - `params` - Maxwell parameters
 - `bc` - Boundary conditions
 - `ports` - List of wave ports
-- `active_port` - Index of port to excite (default: 0)
+- `active_port_idx` - Index of the port to excite; -1 (default) builds no source (b = 0). Modal ports get the 1.0.0 port terms and emit a `RuntimeWarning`
 
 **Returns:** `MaxwellAssembly` with system matrix A and RHS vector b
 

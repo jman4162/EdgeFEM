@@ -80,3 +80,38 @@ class TestWaveguideFrequencySweep:
         freqs, S_list = wr90.frequency_sweep(8e9, 12e9, n_points=3)
         for S in S_list:
             assert abs(S[1, 0]) > 0.5, "Transmission too low in passband"
+
+
+def test_assemble_maxwell_warns_on_modal_ports():
+    """assemble_maxwell applies the unvalidated 1.0.0 terms to modal ports,
+    so it warns like the S-parameter functions."""
+    import pyedgefem as em
+    mesh = em.load_gmsh("examples/rect_waveguide.msh")
+    bc = em.build_edge_pec(mesh, 1)
+    dims = em.RectWaveguidePort()
+    dims.a, dims.b = 0.02286, 0.01016
+    mode = em.solve_te10_mode(dims, 10e9)
+    port = em.build_wave_port_2d(mesh, 2, mode, set(bc.dirichlet_edges),
+                                 (np.pi / dims.a) ** 2)
+    p = em.MaxwellParams()
+    p.omega = 2 * np.pi * 10e9
+    with pytest.warns(RuntimeWarning, match="not validated"):
+        em.assemble_maxwell(mesh, p, bc, [port], 0)
+
+
+def test_mixed_port_kinds_are_refused():
+    import pyedgefem as em
+    mesh = em.load_gmsh("examples/rect_waveguide.msh")
+    bc = em.build_edge_pec(mesh, 1)
+    dims = em.RectWaveguidePort()
+    dims.a, dims.b = 0.02286, 0.01016
+    mode = em.solve_te10_mode(dims, 10e9)
+    kc_sq = (np.pi / dims.a) ** 2
+    modal = em.build_wave_port_2d(mesh, 2, mode, set(bc.dirichlet_edges), kc_sq)
+    lumped = em.build_wave_port_2d(mesh, 3, mode, set(bc.dirichlet_edges), kc_sq)
+    lumped.kind = em.PortKind.Lumped
+    p = em.MaxwellParams()
+    p.omega = 2 * np.pi * 10e9
+    with pytest.raises(ValueError, match="Lumped and Modal"):
+        with pytest.warns(RuntimeWarning):
+            em.calculate_sparams(mesh, p, bc, [modal, lumped])
