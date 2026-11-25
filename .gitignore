@@ -35,12 +35,18 @@ mesh_convergence.csv
 /papers/theory/
 
 # Generated simulation outputs
+*.s1p
 *.s2p
 *.s3p
 *.s4p
+*.vtu
 /simulations/
 /waveguide.msh
 waveguide_sparams.png
 examples/*.csv
 .pytest_cache/
 dist/
+# Packaging and docs build outputs
+wheelhouse/
+site/
+artifacts/

@@ -61,6 +61,19 @@ EDGEFEM_BUILD_SCALAR = "ON"
 # `uv build --wheel -C cmake.define.EDGEFEM_USE_SUITESPARSE=ON`.
 EDGEFEM_USE_SUITESPARSE = "OFF"
 
+[tool.scikit-build.sdist]
+# The build needs src/, include/, cmake/, python/, tests/ (CMakeLists.txt
+# adds the test directory) and the top-level CMakeLists.txt. Leave out
+# repository material that is not part of the package.
+exclude = [
+    "dist/",
+    "wheelhouse/",
+    "simulations/",
+    "papers/",
+    "edgefem_cad/",
+    ".github/",
+]
+
 [tool.scikit-build.wheel]
 # Install the compiled pyedgefem module at the root level
 install-dir = "."
