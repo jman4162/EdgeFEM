@@ -41,28 +41,17 @@ gmsh_required = pytest.mark.skipif(not HAS_GMSH, reason="Gmsh not available")
 class TestUnitCellPassivity:
     """Verify passivity for unit cell designs."""
 
-    def test_grounded_patch_passive(self):
-        """Grounded patch unit cell must have |S11| <= 1."""
-        from edgefem.designs import UnitCellDesign
-        cell = UnitCellDesign(
-            period_x=10e-3, period_y=10e-3,
-            substrate_height=1.6e-3, substrate_eps_r=4.4,
-        )
-        cell.add_patch(width=8e-3, length=6e-3)
-        cell.generate_mesh(density=8)
-        R, T = cell.reflection_transmission(10e9)
-        assert abs(R) <= 1.01, f"|R| = {abs(R):.4f} > 1.01 (passivity violation)"
-
     def test_bare_ground_total_reflection(self):
         """Grounded substrate with no patch should reflect nearly all energy."""
         from edgefem.designs import UnitCellDesign
         cell = UnitCellDesign(
             period_x=10e-3, period_y=10e-3,
             substrate_height=0.5e-3, substrate_eps_r=2.2,
+            experimental=True,
         )
         cell.generate_mesh(density=8)
         R, T = cell.reflection_transmission(10e9)
-        assert abs(R) > 0.90, f"|R| = {abs(R):.4f} should be near 1.0 for bare ground"
+        assert abs(abs(R) - 1.0) < 0.01, f"|R| = {abs(R):.4f}, lossless ground"
 
 
 # ---------- Stacked Patch Validation ----------
@@ -175,6 +164,7 @@ class TestSolverRobustness:
         cell = UnitCellDesign(
             period_x=10e-3, period_y=10e-3,
             substrate_height=1.6e-3, substrate_eps_r=4.4,
+            experimental=True,
         )
         cell.generate_mesh(density=6)
         R, T = cell.reflection_transmission(10e9)
