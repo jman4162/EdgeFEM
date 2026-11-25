@@ -129,7 +129,7 @@ python3 examples/plot_waveguide_sparams.py
 | `ports/lumped_port.hpp` | Lumped port with surface-integral weight computation |
 | `io/touchstone.hpp` | S-parameter Touchstone export |
 | `post/ntf.hpp` | Near-to-far field via Huygens surface |
-| `mor/vector_fit.hpp` | Rational model fitting for MOR |
+| `mor/vector_fit.hpp` | Single-pass Levy fit of a polynomial ratio to S(f) (not true vector fitting; no pole relocation or passivity enforcement) |
 
 ### Data Flow
 

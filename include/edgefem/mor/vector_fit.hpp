@@ -24,6 +24,14 @@ struct FitResult {
 /// Fit a rational model of a given order to sampled S(f) data and write the
 /// coefficients to a JSON file.
 ///
+/// Despite the name this is not Gustavsen-Semlyen vector fitting: it is one
+/// linearized (Levy) least-squares solve for the polynomial coefficients
+/// below, with no pole relocation, no stability enforcement and complex
+/// coefficients in the real variable f (so the model is not realizable as
+/// a real network). `passive` only checks |H| <= 1 at the sample points.
+/// Throws std::invalid_argument for order < 1, mismatched lengths, or fewer
+/// than 2 * order + 1 samples.
+///
 /// The `order` parameter sets the degree *n* of both the numerator and the
 /// denominator as shown above. Because the implementation forms powers of the
 /// frequency samples directly, the values in `freq` should be scaled so that

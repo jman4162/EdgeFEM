@@ -3,6 +3,8 @@
 #include <Eigen/Dense>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
+#include <string>
 
 namespace edgefem {
 namespace mor {
@@ -11,7 +13,16 @@ FitResult vector_fit(const std::vector<double> &freq,
                      const std::vector<std::complex<double>> &sparam, int order,
                      const std::string &out_path) {
   const size_t N = freq.size();
+  if (order < 1)
+    throw std::invalid_argument("vector_fit: order must be >= 1");
+  if (sparam.size() != N)
+    throw std::invalid_argument("vector_fit: freq and sparam differ in length");
   const int cols = 2 * order + 1; // a1..an, b0..bn
+  if (N < static_cast<size_t>(cols))
+    throw std::invalid_argument("vector_fit: " + std::to_string(N) +
+                                " samples for " + std::to_string(cols) +
+                                " unknowns (order " + std::to_string(order) +
+                                " needs at least 2 * order + 1)");
   Eigen::MatrixXcd A(N, cols);
   Eigen::VectorXcd y(N);
 
