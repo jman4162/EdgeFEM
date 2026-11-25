@@ -33,6 +33,57 @@ class _AperturePattern:
     def total_magnitude(self):
         return np.sqrt(np.abs(self.E_theta)**2 + np.abs(self.E_phi)**2)
 
+    def pattern_dB(self):
+        """Power pattern in dB relative to its maximum (-200 dB floor), as
+        FFPattern3D.pattern_dB()."""
+        pwr = self.power_pattern()
+        peak = np.max(pwr) if pwr.size else 0.0
+        if peak <= 0.0:
+            return np.full(pwr.shape, -200.0)
+        ratio = pwr / peak
+        with np.errstate(divide="ignore"):
+            dB = 10.0 * np.log10(ratio)
+        return np.where(ratio > 1e-20, dB, -200.0)
+
+
+def write_pattern_csv(path, pattern):
+    """Write a far-field pattern as CSV in the layout of
+    em.write_pattern_3d_csv (theta_deg, phi_deg, |E_theta|, arg E_theta,
+    |E_phi|, arg E_phi in degrees, total dB). Takes an em.FFPattern3D or a
+    Python pattern with theta_grid, phi_grid, E_theta, E_phi."""
+    if isinstance(pattern, em.FFPattern3D):
+        em.write_pattern_3d_csv(path, pattern)
+        return
+    E_th = np.asarray(pattern.E_theta)
+    E_ph = np.asarray(pattern.E_phi)
+    pwr = np.abs(E_th) ** 2 + np.abs(E_ph) ** 2
+    peak = np.max(pwr) if pwr.size else 0.0
+    ratio = pwr / peak if peak > 0.0 else np.zeros_like(pwr)
+    with np.errstate(divide="ignore"):
+        dB = np.where(ratio > 1e-20, 10.0 * np.log10(ratio), -200.0)
+    th = np.degrees(np.asarray(pattern.theta_grid))
+    ph = np.degrees(np.asarray(pattern.phi_grid))
+    with open(path, "w") as f:
+        f.write("theta_deg,phi_deg,E_theta_mag,E_theta_phase_deg,"
+                "E_phi_mag,E_phi_phase_deg,total_dB\n")
+        for i in range(E_th.shape[0]):
+            for j in range(E_th.shape[1]):
+                f.write(f"{th[i, j]:.12g},{ph[i, j]:.12g},"
+                        f"{abs(E_th[i, j]):.12g},"
+                        f"{np.degrees(np.angle(E_th[i, j])):.12g},"
+                        f"{abs(E_ph[i, j]):.12g},"
+                        f"{np.degrees(np.angle(E_ph[i, j])):.12g},"
+                        f"{dB[i, j]:.12g}\n")
+
+
+def _renormalize_s11(s11, z_ref, z_new):
+    """Reflection coefficient for reference impedance z_new from s11 at
+    z_ref (Z = z_ref (1 + s11) / (1 - s11), written to stay finite at
+    s11 = 1)."""
+    num = (1 + s11) * z_ref - (1 - s11) * z_new
+    den = (1 + s11) * z_ref + (1 - s11) * z_new
+    return num / den
+
 
 class FrequencySweepResult(tuple):
     """(frequencies, Z_in, S11) from frequency_sweep(), plus the frequency
@@ -701,19 +752,37 @@ class StackedPatchDesign:
             return complex(1e6, 0)  # Open circuit
         return Z0 * (1 + S11) / (1 - S11)
 
-    def return_loss(self, freq: float, z0: float = 50.0) -> float:
+    def return_loss(self, freq: float, z0: Optional[float] = None) -> float:
         """
         Compute return loss |S11| in dB.
 
         Args:
             freq: Frequency in Hz
-            z0: Reference impedance
+            z0: Reference impedance in ohms. None (default) uses the port's
+                z0 from the constructor; another value renormalizes S11
+                to it.
 
         Returns:
             Return loss in dB (negative value)
         """
         S11, _ = self.simulate(freq)
+        if z0 is not None and z0 != self.z0:
+            S11 = _renormalize_s11(S11, self.z0, z0)
         return 20 * np.log10(abs(S11) + 1e-30)
+
+    def load_mesh(self, mesh_path: str) -> None:
+        """Load a mesh written by generate_mesh(output_path=...) for this
+        design (same geometry and physical tags). The air-box height is
+        not known for a loaded mesh, so the lambda/2 warning is off."""
+        self._mesh = em.load_gmsh(mesh_path)
+        self._mesh_path = mesh_path
+        self._air_box_height = None
+        self._air_box_f_min = None
+        self._air_box_warned = False
+        self._bc = None
+        self._ports = None
+        self._solutions = {}
+        self._clear_pattern_cache()
 
     def convergence_check(
         self,
