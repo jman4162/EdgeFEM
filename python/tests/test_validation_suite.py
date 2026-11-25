@@ -99,8 +99,8 @@ class TestStackedPatchValidation:
         freqs, _, S11_sweep = self.design.frequency_sweep(
             freq, freq, n_points=1
         )
-        # Allow some tolerance since sweep uses mid-frequency normalization
-        assert abs(abs(S11_single) - abs(S11_sweep[0])) < 0.15, (
+        # Same assembly and solve: equal to solver tolerance
+        assert abs(S11_single - S11_sweep[0]) < 1e-6, (
             f"|S11| single={abs(S11_single):.4f} vs sweep={abs(S11_sweep[0]):.4f}"
         )
 
@@ -130,8 +130,8 @@ class TestPatchAntennaAnalytical:
         )
         D = patch.directivity(2.4e9)
         D_dBi = 10 * np.log10(D) if D > 0 else -np.inf
-        # Analytical model gives lower directivity than full-wave (simplified aperture)
-        assert 1.0 <= D_dBi <= 10.0, f"Directivity = {D_dBi:.1f} dBi out of range"
+        # Two-slot model over an infinite ground: about 6 dBi
+        assert 5.5 <= D_dBi <= 8.0, f"Directivity = {D_dBi:.1f} dBi out of range"
 
     def test_impedance_positive_resistance(self):
         """Input impedance real part must be positive."""

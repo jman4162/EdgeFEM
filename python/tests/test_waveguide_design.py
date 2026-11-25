@@ -41,28 +41,30 @@ class TestWaveguideSparams:
         """TE10 mode at 10 GHz should propagate with high transmission."""
         S = wr90.sparams_at_freq(10e9)
         S21_mag = abs(S[1, 0])
-        # Coarse mesh won't be perfect, but should show clear propagation
-        assert S21_mag > 0.80, f"|S21| = {S21_mag:.4f}, expected > 0.80"
+        # WR-90 benchmark mesh gives 0.999; this coarse one should be close
+        assert S21_mag > 0.99, f"|S21| = {S21_mag:.4f}, expected > 0.99"
 
     def test_passivity(self, wr90):
         """S-parameter matrix must satisfy passivity: |S11|^2 + |S21|^2 <= 1.01."""
         S = wr90.sparams_at_freq(10e9)
         power = abs(S[0, 0]) ** 2 + abs(S[1, 0]) ** 2
-        assert power <= 1.05, f"|S11|^2 + |S21|^2 = {power:.4f}, violates passivity"
+        assert power <= 1.01, f"|S11|^2 + |S21|^2 = {power:.4f}, violates passivity"
 
     def test_reciprocity(self, wr90):
         """Reciprocal structure: S12 ≈ S21."""
         S = wr90.sparams_at_freq(10e9)
-        assert abs(S[0, 1] - S[1, 0]) < 0.1, (
+        assert abs(S[0, 1] - S[1, 0]) < 0.01, (
             f"S12={S[0,1]:.4f}, S21={S[1,0]:.4f} — not reciprocal"
         )
 
-    def test_s21_phase_progresses(self, wr90):
-        """S21 phase should be negative (wave propagates in +z direction)."""
+    def test_s21_phase_matches_beta_l(self, wr90):
+        """phase(S21) = -beta L (exp(+j omega t)) within 15 deg on this
+        coarse mesh."""
         S = wr90.sparams_at_freq(10e9)
-        phase_deg = np.angle(S[1, 0], deg=True)
-        # Phase should be significantly negative for 50mm waveguide at 10 GHz
-        assert phase_deg < -10, f"S21 phase = {phase_deg:.1f} deg, expected < -10"
+        k0 = 2 * np.pi * 10e9 / 299792458.0
+        beta = np.sqrt(k0**2 - (np.pi / wr90.a) ** 2)
+        err = abs(np.angle(S[1, 0] * np.exp(1j * beta * wr90.length), deg=True))
+        assert err < 15.0, f"phase(S21) off -beta L by {err:.1f} deg"
 
     def test_smatrix_shape(self, wr90):
         S = wr90.sparams_at_freq(10e9)

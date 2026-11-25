@@ -144,9 +144,8 @@ class TestRadiationPattern:
         design.generate_mesh(density=8)
         D = design.directivity(2.4e9)
         D_dBi = 10 * np.log10(D)
-        # Patch antennas typically have 5-10 dBi directivity
-        # Allow wider range for coarse mesh: 2-15 dBi
-        assert 2 <= D_dBi <= 15, f"Directivity = {D_dBi:.1f} dBi out of range"
+        # FR-4 patch over a 3x ground: 6.5 dBi on the density-6 mesh
+        assert 5.0 <= D_dBi <= 8.0, f"Directivity = {D_dBi:.1f} dBi out of range"
 
 
 @gmsh_required

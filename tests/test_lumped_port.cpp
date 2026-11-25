@@ -25,10 +25,9 @@ int main() {
     std::cout << " " << t;
   std::cout << "\n";
 
-  if (tags.surface_tags.empty()) {
-    std::cout << "SKIP: no surface tags in mesh\n";
-    return 0;
-  }
+  CHECK(!tags.surface_tags.empty()); // this mesh has surface tags
+  if (tags.surface_tags.empty())
+    return edgefem_test::exit_code();
 
   // Use the first available surface tag
   int port_tag = *tags.surface_tags.begin();

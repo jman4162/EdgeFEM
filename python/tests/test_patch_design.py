@@ -86,7 +86,7 @@ class TestPatchRadiation:
         """Patch directivity is typically 5-9 dBi."""
         D = patch_2ghz.directivity(2.4e9)
         D_dBi = 10 * np.log10(D)
-        assert 2 < D_dBi < 15, f"Directivity = {D_dBi:.1f} dBi, expected 5-9 dBi"
+        assert 5.0 < D_dBi < 8.0, f"Directivity = {D_dBi:.1f} dBi, expected 5-8 dBi"
 
     def test_pattern_shape(self, patch_2ghz):
         """Pattern should have maximum at broadside (theta=0)."""

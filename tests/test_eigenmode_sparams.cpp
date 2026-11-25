@@ -106,15 +106,14 @@ int main() {
   std::cout << "Phase error = " << phase_error << "° (target: < 10°) "
             << (phase_error < 10 ? "✓ PASS" : "✗ FAIL") << std::endl;
 
-  // Reciprocity check
-  double s12_mag = std::abs(S(0, 1));
-  double s21_s12_diff = std::abs(s21_mag - s12_mag);
+  // Reciprocity check (complex: S12 = S21)
+  double s21_s12_diff = std::abs(S(1, 0) - S(0, 1));
   std::cout << "|S12 - S21| = " << s21_s12_diff << " (target: < 0.05) "
             << (s21_s12_diff < 0.05 ? "✓ PASS" : "✗ FAIL") << std::endl;
 
   // Overall result
   bool all_pass = (s11_mag < 0.1) && (s21_mag > 0.95) && (passivity <= 1.01) &&
-                  (phase_error < 10);
+                  (phase_error < 10) && (s21_s12_diff < 0.05);
 
   std::cout << "\n=== OVERALL: " << (all_pass ? "PASS" : "FAIL")
             << " ===" << std::endl;

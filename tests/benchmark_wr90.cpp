@@ -88,8 +88,10 @@ BenchmarkResult run_benchmark(const Mesh &mesh, const BC &bc,
   if (phase_error > 180)
     phase_error = 360 - phase_error;
 
-  r.passed = (r.s11_mag < 0.15) && (r.s21_mag > 0.90) &&
-             (r.passivity <= 1.05) && (phase_error < 15);
+  // Measured on this mesh (2026-11): |S11| 0.003-0.053, |S21| >= 0.997,
+  // phase error 3-13 deg (mesh dispersion over 50 mm, growing with f).
+  r.passed = (r.s11_mag < 0.08) && (r.s21_mag > 0.99) &&
+             (r.passivity <= 1.01) && (phase_error < 15);
 
   return r;
 }
@@ -129,8 +131,8 @@ int main() {
   // Test 1: Center frequency (10 GHz)
   std::cout << "=== Test 1: Center Frequency (10 GHz) ===" << std::endl;
   auto r10 = run_benchmark(mesh, bc, port1_surf, port2_surf, dims, 10e9, L);
-  std::cout << "  |S11| = " << r10.s11_mag << " (target < 0.15)" << std::endl;
-  std::cout << "  |S21| = " << r10.s21_mag << " (target > 0.90)" << std::endl;
+  std::cout << "  |S11| = " << r10.s11_mag << " (target < 0.08)" << std::endl;
+  std::cout << "  |S21| = " << r10.s21_mag << " (target > 0.99)" << std::endl;
   std::cout << "  Phase(S21) = " << r10.s21_phase_deg << "° (expected "
             << r10.expected_phase_deg << "°)" << std::endl;
   std::cout << "  Passivity = " << r10.passivity << " (target ≤ 1.05)"
@@ -175,9 +177,7 @@ int main() {
   std::cout << "Frequency sweep: " << sweep_passes << "/" << test_freqs.size()
             << " passed" << std::endl;
 
-  bool overall_pass =
-      r10.passed &&
-      (sweep_passes >= test_freqs.size() - 1); // Allow 1 fail in sweep
+  bool overall_pass = r10.passed && (sweep_passes == test_freqs.size());
   std::cout << std::endl;
   std::cout << "OVERALL: " << (overall_pass ? "PASS" : "FAIL") << std::endl;
 
