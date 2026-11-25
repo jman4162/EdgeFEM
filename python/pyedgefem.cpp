@@ -467,7 +467,7 @@ PYBIND11_MODULE(pyedgefem, m) {
                      "a tuning parameter.")
       .def_readwrite("use_eigenmode_excitation",
                      &MaxwellParams::use_eigenmode_excitation,
-                     "Use eigenmode excitation.");
+                     "Unused (no effect); use calculate_sparams_eigenmode.");
 
   py::class_<MaxwellAssembly>(m, "MaxwellAssembly",
                               "Assembled Maxwell system (A, b).")

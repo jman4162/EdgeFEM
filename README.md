@@ -9,7 +9,7 @@
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](https://www.python.org/)
 
-EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and microwave structures: hollow waveguides, probe-fed patch antennas, and periodic unit cells. It computes S-parameters, electromagnetic fields, and radiation patterns using lowest-order Nédélec (edge) tetrahedral elements. Accuracy is validated against analytical benchmarks over roughly 5–26 GHz (see [Validation](docs/validation.md)).
+EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and microwave structures: hollow waveguides and probe-fed patch antennas, with experimental support for periodic unit cells. It computes S-parameters, electromagnetic fields, and radiation patterns using lowest-order Nédélec (edge) tetrahedral elements. Validated so far: WR-90 and WR-42 wave-port S-parameters (7–12 and 20–26 GHz) against analytic TE10 results, and a 2.45 GHz probe-fed patch against openEMS (see [Validation](docs/validation.md)). Unit-cell reflection is not validated (no Floquet port yet).
 
 ## Features
 
@@ -17,8 +17,8 @@ EdgeFEM is an open-source full-wave frequency-domain FEM solver for RF and micro
 |---------|-------------|
 | **S-parameters** | Wave ports with 2D discrete port modes and assembled surface-mass ABC; lumped ports for antenna feeds |
 | **Radiation Patterns** | 3D far-field via Stratton-Chu integration over a Huygens surface |
-| **Periodic Structures** | Phase-shifted (Bloch) periodic BCs along one lattice axis, for small unit cells |
-| **Open Boundaries** | First-order ABC and a graded absorbing layer (see Limitations) |
+| **Periodic Structures** | Phase-shifted (Bloch) periodic BCs along one lattice axis; unit-cell S-parameters experimental (see Limitations) |
+| **Open Boundaries** | First-order ABC; an experimental isotropic graded absorbing layer (see Limitations) |
 | **Dispersive Materials** | Debye, Lorentz, Drude, and DrudeLorentz models |
 | **Python SDK** | Full scriptable API with NumPy integration |
 | **Design Classes** | `RectWaveguideDesign`, `PatchAntennaDesign`, `UnitCellDesign` |
@@ -99,31 +99,30 @@ s11, _ = patch.simulate(2.4e9)
 print(f"|S11| at 2.4 GHz: {abs(s11):.3f}")
 ```
 
-`input_impedance()` and `radiation_pattern()` always use the analytical
-models (and warn accordingly); `simulate()` is the full-wave path. A full
-sweep example is in `examples/run_patch_fullwave.py`.
+`input_impedance()`, `radiation_pattern()` and `directivity()` use the
+full-wave FEM once a mesh exists (`generate_mesh()` or `load_mesh()`), and
+the analytical models (with a warning) before that. The FEM model has
+probe feeds only. A full sweep example is in
+`examples/run_patch_fullwave.py`.
 
-### Unit Cell / Metasurface Example
+### Unit Cell / Metasurface (experimental)
+
+`UnitCellDesign` has no validated Floquet port yet. Its port uses the 1.0.0
+modal terms: on a bare grounded slab |R| = 1 but arg(R) is 30–106 deg off
+the analytic value. The periodic BC is applied on the x faces only, and
+patches, slots and vias are not meshed (`add_patch` and friends raise).
+`reflection_transmission()` and the methods built on it raise
+`NotImplementedError` unless you opt in:
 
 ```python
 from edgefem.designs import UnitCellDesign
 
-# Periodic unit cell
 cell = UnitCellDesign(period_x=5e-3, period_y=5e-3,
-                       substrate_height=0.5e-3, substrate_eps_r=3.5)
-cell.add_patch(width=4e-3, length=4e-3)
+                      substrate_height=0.5e-3, substrate_eps_r=3.5,
+                      experimental=True)
 cell.generate_mesh(density=20)
-
-# Reflection coefficient at normal incidence
-R, T = cell.reflection_transmission(10e9, theta=0, phi=0)
-Zs = cell.surface_impedance(10e9)
+R, T = cell.reflection_transmission(10e9)  # not validated
 ```
-
-Note: the periodic solve currently applies the Bloch phase along the x lattice
-axis only (y walls are natural boundaries), so results are most reliable at
-normal incidence. The port is the cell's dominant waveguide mode, not a
-Floquet harmonic. See Current Limitations. A runnable version of this
-workflow is `examples/unit_cell_demo.py`.
 
 ## Documentation
 
@@ -244,10 +243,12 @@ default build contain no SuiteSparse code.
 ## Run Tests
 
 ```bash
-ctest --test-dir build -j        # All tests
-ctest --test-dir build -L smoke  # Quick smoke tests
-ctest --test-dir build -L pml    # PML absorption tests
+ctest --test-dir build -LE known_issue -j  # What CI runs
+ctest --test-dir build -L smoke            # Quick smoke tests
+ctest --test-dir build -L pml              # PML absorption tests
 ```
+
+Tests labelled `known_issue` document open defects and fail by design.
 
 ## Plotting Module
 
@@ -293,18 +294,19 @@ If you use EdgeFEM in your research, please cite:
 
 ## Current Limitations
 
-EdgeFEM v1.0 targets small-to-medium waveguide, patch antenna, and unit cell problems. Know these limits before relying on results:
+EdgeFEM targets small-to-medium waveguide and patch antenna problems; unit cells are experimental. Know these limits before relying on results:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | True tensor (coordinate-stretched) PML | Planned | Current absorber (experimental) is an isotropic graded layer, eps = mu = 1 - j sigma/omega: matched only at normal plane-wave incidence. Terminating WR-90 at 10 GHz it gives \|S11\| about 0.07-0.10 (`test_pml_waveguide`) |
 | Wave port formulation | First-order single-mode ABC | Assembled surface-mass operator with 2D discrete port modes (no tuned constants); mesh-convergent S-parameters; higher-order port modes not mode-matched; accuracy degrades near cutoff |
-| Floquet ports / harmonic expansion | Planned | Periodic BC applies a Bloch phase along one lattice axis only; the constraint elimination is dense, limiting problem size |
+| Floquet ports / harmonic expansion | Planned | No validated unit-cell port: `UnitCellDesign` results need `experimental=True`. Periodic BC applies a Bloch phase along one lattice axis (sparse elimination, checked by `test_periodic_constraint`) |
+| Embedded element patterns | Not implemented | `compute_embedded_patterns` raises; use `calculate_sparams_with_fields` + `extract_huygens_surface` + `stratton_chu_3d` |
 | Inhomogeneous / TEM ports (coax, microstrip) | Not supported | 2D port eigensolver is scalar (hollow homogeneous guides only) |
-| Higher-order elements (Tet10) | Planned v1.1 | Lowest-order Whitney elements; use finer mesh |
-| Adaptive mesh refinement | Planned v1.1 | Manual mesh refinement in Gmsh |
-| Higher-order modes (TE20, TM) | Planned v1.1 | Single-mode analysis only |
-| Plane wave excitation (RCS) | Planned v1.2 | — |
+| Higher-order elements (Tet10) | Planned | Lowest-order Whitney elements; use finer mesh |
+| Adaptive mesh refinement | Planned | Manual mesh refinement in Gmsh |
+| Higher-order modes (TE20, TM) | Planned | Single TE mode; the port operator j beta M_s is the TE form |
+| Plane wave excitation (RCS) | Planned | — |
 | Anisotropic materials | Not planned | Isotropic (complex scalar) only |
 | Parallelism (threads/MPI/GPU) | Planned | Single-threaded execution; direct-solver memory limits apply |
 | Low-frequency stabilization | Not implemented | Expect conditioning problems well below ~1 GHz |
@@ -315,29 +317,28 @@ For large problems (>1M DOF), adaptive refinement, or reference-plane modal port
 
 ## Roadmap
 
-### v1.0.x (Current)
-- Dispersive materials (Debye, Lorentz, Drude, DrudeLorentz models)
-- pip-installable Python package (`pip install edgefem`)
-- GitHub Actions CI/CD with automated wheel builds
-- Documentation and validation integrity pass, July 2026 — reproducible
-  benchmarks, honest limitations, real mesh QA in CI (see [CHANGELOG](CHANGELOG.md))
-- Assembled port surface-mass ABC with 2D discrete port modes, July 2026 —
-  removes the tuned 0.5 scale factor; S-parameters now mesh-convergent
-  (WR-90 |S11| 0.003-0.053 across band)
+### Current (1.1.x)
+- Wave ports: assembled surface-mass port operator with 2D discrete port
+  modes (WR-90 |S11| 0.003–0.053, |S21| >= 0.997 over 7–12 GHz)
+- Lumped (gap) ports with a physical load and source; probe-fed patch
+  validated against openEMS at 2.45 GHz
+- Sparse direct solves (SuiteSparse UMFPACK optional), one factorization
+  per S-matrix
+- Dispersive materials (Debye, Lorentz, Drude, DrudeLorentz)
+- pip-installable Python package, GitHub Actions CI
 
-### v1.1 (Planned)
+### Next
+- Validated Floquet port for unit cells (TE and TM, oblique incidence),
+  checked against Fresnel results; dual-axis periodicity
+- Eigenmode-port frequency sweep with K/M separation
 - True tensor (coordinate-stretched) PML
-- Sparse periodic constraint elimination; dual-axis periodicity
-- Higher-order waveguide modes (TE20, TE01, TM modes)
-- Higher-order Nédélec elements (Tet10)
-- OpenMP parallelization
-- Adaptive mesh refinement (h-adaptivity)
+- Higher-order waveguide modes (TE20, TE01, TM)
 
-### v1.2 (Planned)
-- Floquet-harmonic ports for oblique-incidence unit cell analysis
-- Plane wave excitation for RCS/scattering
-- Surface impedance BC (SIBC)
-- Direct solver option (MUMPS)
+### Later
+- Higher-order Nédélec elements (Tet10)
+- Adaptive mesh refinement
+- OpenMP parallelization
+- Plane wave excitation for RCS; surface impedance BC
 
 ### v2.0 (Future)
 - MPI distributed solving

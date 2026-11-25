@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EdgeFEM is a 3D finite-element electromagnetics (FEM) simulator for **waveguide, patch antenna, and periodic unit cell RF modeling** (validated ~5–26 GHz). It computes S-parameters, fields, and radiation patterns using lowest-order Nédélec (edge) elements, with single-axis Bloch periodic BCs and a graded absorbing layer for open boundaries. Execution is single-threaded, single-node; direct-solver memory limits apply.
+EdgeFEM is a 3D finite-element electromagnetics (FEM) simulator for **waveguide and patch antenna RF modeling**, with experimental periodic unit cells. Validated: WR-90/WR-42 wave ports (7–12, 20–26 GHz, analytic TE10) and a 2.45 GHz probe-fed patch (openEMS). Unit-cell S-parameters are not validated (no Floquet port; `UnitCellDesign` needs `experimental=True`). It computes S-parameters, fields, and radiation patterns using lowest-order Nédélec (edge) elements, with single-axis Bloch periodic BCs, a first-order ABC and an experimental isotropic graded absorbing layer. Execution is single-threaded, single-node; direct-solver memory limits apply.
+
+**Time convention: exp(+jωt)** everywhere (outgoing wave exp(−jkr), lossy ε has Im < 0, PML stretch 1 − jσ/ω, Bloch phase exp(−j k_t·L), far-field phase exp(+jk r̂·r')). New code must follow it; `tests/test_farfield_conventions.py`, `test_pml_waveguide`, `test_periodic_constraint` and `test_drude_loss_sign` check it.
 
 Development tooling includes small Python CLIs under `tools/` (mesh QA, simulation scaffolding, pattern plotting); see AGENTS.md. There is no MCP server.
 
@@ -135,9 +137,9 @@ python3 examples/plot_waveguide_sparams.py
 
 1. **Mesh** → `load_gmsh_v2()` parses Gmsh file, builds edge connectivity
 2. **BC** → `build_edge_pec()` tags PEC edges from physical groups
-3. **Ports** → `build_wave_port_from_eigenvector()` for wave ports, `build_lumped_port()` for antennas
+3. **Ports** → `build_wave_port_2d()` for wave ports (with `calculate_sparams_eigenmode`), `build_lumped_port()` for antennas
 4. **Assembly** → `assemble_maxwell()` or `assemble_maxwell_km()` (K/M separation for sweeps)
-5. **Solve** → `solve_linear()` via BiCGSTAB+ILUT with auto-fallback to a direct LU; `calculate_sparams*` and `frequency_sweep` factor the system restricted to the non-PEC edges (`FreeDofs`) and expand the fields back to one entry per edge
+5. **Solve** → `solve_linear()` via BiCGSTAB+ILUT with auto-fallback to a direct LU; `calculate_sparams`, `calculate_sparams_eigenmode` (and their `_with_fields` variants) and `frequency_sweep` assemble once, solve on the non-PEC edges (`FreeDofs`) with one RHS per port (one factorization with `SolveOptions.use_direct`), and expand the fields back to one entry per edge
 6. **Post** → `calculate_sparams_eigenmode()` for wave ports, `calculate_sparams()` for lumped ports
 
 ### Key Types
@@ -170,6 +172,33 @@ Python CLIs under `tools/` (see AGENTS.md):
 - Edge canonical form: `(n0 < n1)` stored in `mesh.edges`
 
 ## Known Issues & Critical Fixes
+
+### Convention and correctness review (Nov 2026)
+
+An adversarial review found sign errors against the exp(+jωt) convention
+and features that returned numbers without working. Fixed, each with a test
+that failed before:
+- PML stretch was 1 + jσ/ω (gain; WR-90 terminated by PML gave |S11| = 13.8);
+  now 1 − jσ/ω, graded profile measured from the outer face, per-axis losses
+  summed (`test_pml_waveguide`). Still isotropic, not a UPML: experimental.
+- Drude term had Im(ε) > 0 (gain); now ω² − jγω.
+- Huygens H had the wrong sign and the NTF kernel was exp(−jωt): far fields
+  came out point-reflected. Huygens normals on interior surfaces need
+  `interior_point`.
+- Python aperture far field (stacked patch): electric-current kernel on a
+  magnetic current (polarization rotated 90°), exp(−jωt) phase, spurious
+  cos θ, directivity /2. Analytical patch pattern radiated below the ground.
+- Periodic pairs took edge orientation from triangle-local data (≈20 % of
+  pairs anti-periodic); Floquet phase now exp(−j k_t·L); elimination is the
+  sparse PᴴAP (`eliminate_periodic` / `expand_periodic`).
+- `calculate_sparams_eigenmode`: NaN (not uninitialized memory) below cutoff;
+  port-mode sign fixed so S21 does not depend on the eigensolver's sign.
+- Touchstone 2-port order is S11 S21 S12 S22; N-port rows start new lines.
+- Gmsh loader checks `$MeshFormat`, reads CRLF, refuses MSH 4/binary/Tet10.
+
+Quarantined (raise unless explicitly enabled): `UnitCellDesign` results
+(`experimental=True`), `add_patch/add_slot/add_via` (not meshed),
+`compute_embedded_patterns` (was a placeholder sum of raw DOFs).
 
 ### Wave Port: Assembled Surface Mass Matrix + 2D Discrete Port Mode (July 2026)
 
@@ -287,7 +316,7 @@ P = (1/2)·Re∫∫ E×H* · dS = 1
 
 **Fix** (derivation in `src/assemble_maxwell.cpp`): `build_lumped_port()` returns the voltage functional `v = w / W` (surface-integral weights over the strip width), `V = v^H x`, and sets `WavePort::kind = PortKind::Lumped`. Every lumped port adds the load `j k0 eta0 / Z0 v v^H` (`port_load_matrix()`, scaled by `j k0` per frequency in `frequency_sweep()`); the driven port adds `j k0 eta0 (2 / sqrt(Z0)) v` (`port_excitation()`, incident wave a = 1); `S(j, i) = V_j / sqrt(Z0_j) - delta_ij` (`fill_sparam_column()`). `calculate_sparams()` assembles and factors once and solves one RHS per port. `normalize_port_weights()` is deprecated: it returns the ports unchanged and warns once.
 
-**Modal ports keep the 1.0.0 terms.** Ports from `build_wave_port`, `build_wave_port_2d`, `build_wave_port_from_eigenvector` and hand-built `WavePort`s are `PortKind::Modal` (the default) and get `w w^H / Z0`, `2 w / sqrt(Z0)` and `S(j, i) = V_j / sqrt(Z0_i) - delta_ij` in `assemble_maxwell`, `calculate_sparams*`, `frequency_sweep` and `calculate_sparams_periodic`. These are not validated (WR-90 analytic TE10: |S11| = 2.41 at 8 GHz); the functions warn once on stderr and the bindings emit a `RuntimeWarning`. `test_modal_port_1p0` pins them to 1.0.0; `ctest -L modal`. Use `calculate_sparams_eigenmode` for wave ports.
+**Modal ports keep the 1.0.0 terms.** Ports from `build_wave_port`, `build_wave_port_2d`, `build_wave_port_from_eigenvector` and hand-built `WavePort`s are `PortKind::Modal` (the default) and get `w w^H / Z0`, `2 w / sqrt(Z0)` and `S(j, i) = V_j / sqrt(Z0_i) - delta_ij` in `assemble_maxwell`, `calculate_sparams`, `calculate_sparams_with_fields`, `frequency_sweep` and `calculate_sparams_periodic` (not `calculate_sparams_eigenmode`, which has its own port operator). These are not validated (WR-90 analytic TE10: |S11| = 2.41 at 8 GHz); the functions warn once on stderr and the bindings emit a `RuntimeWarning`. Mixing Lumped and Modal ports in one call raises. `test_modal_port_1p0` pins them to 1.0.0 (`ctest -R test_modal_port_1p0`). Use `build_wave_port_2d` with `calculate_sparams_eigenmode` for wave ports; Floquet ports have no validated path.
 
 **Guidelines for lumped port development**:
 - Do not call `normalize_port_weights()`; pass the ports from `build_lumped_port()` directly

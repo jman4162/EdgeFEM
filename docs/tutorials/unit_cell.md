@@ -1,5 +1,7 @@
 # Tutorial: Periodic Unit Cell Analysis
 
+> **Experimental, not validated.** EdgeFEM has no validated Floquet port yet: `UnitCellDesign` uses the 1.0.0 modal port terms (on a bare grounded slab |R| = 1 but arg(R) is 30–106 deg off), applies the periodic BC on the x faces only, and does not mesh patches, slots or vias (`add_patch` and friends raise). Its results need `experimental=True`. The Floquet phase convention is exp(-j k_t·L) (time convention exp(+jωt)). See [validation](../validation.md).
+
 This tutorial covers analyzing periodic structures (metasurfaces, frequency selective surfaces, phased array unit cells) with EdgeFEM. You'll learn to:
 
 - Create unit cell geometry with periodic boundaries

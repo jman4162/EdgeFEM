@@ -100,3 +100,19 @@ def test_embedded_patterns_are_not_implemented():
         em.compute_embedded_patterns(mesh, p, bc, ports, cfg)
     with pytest.raises(NotImplementedError, match="extract_huygens_surface"):
         em.compute_single_embedded_pattern(mesh, p, bc, ports, 0, cfg)
+
+
+def test_package_all_is_consistent():
+    """Every name in edgefem.__all__ exists, the documented entry points are
+    exported, and the deprecated normalize_port_weights is not."""
+    import edgefem
+    missing = [n for n in edgefem.__all__ if not hasattr(edgefem, n)]
+    assert not missing, missing
+    for name in ("PortKind", "build_lumped_port", "LumpedPortConfig",
+                 "build_wave_port_2d", "frequency_sweep",
+                 "calculate_sparams_with_fields",
+                 "calculate_sparams_eigenmode_with_fields",
+                 "extract_huygens_surface"):
+        assert name in edgefem.__all__, name
+    assert "normalize_port_weights" not in edgefem.__all__
+    assert "110 GHz" not in (edgefem.__doc__ or "")

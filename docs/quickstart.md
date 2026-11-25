@@ -111,76 +111,58 @@ D = patch.directivity(2.4e9)
 print(f"Directivity: {10*np.log10(D):.1f} dBi")
 ```
 
-## Unit Cell / Metasurface Example
+## Unit Cell / Metasurface Example (experimental)
 
-Analyze a periodic unit cell:
+`UnitCellDesign` has no validated Floquet port yet: on a bare grounded slab
+|R| = 1 but arg(R) is 30–106 deg off the analytic value, and the periodic
+BC covers the x faces only. Patches, slots and vias are not meshed. The
+results need an explicit opt-in:
 
 ```python
 from edgefem.designs import UnitCellDesign
 
-# Create unit cell
 cell = UnitCellDesign(
     period_x=5e-3,
     period_y=5e-3,
     substrate_height=1.0e-3,
     substrate_eps_r=3.5,
+    experimental=True,          # results below are not validated
 )
-
-# Add square patch
-cell.add_patch(width=4e-3, length=4e-3)
-
-# Generate mesh with periodic boundaries
 cell.generate_mesh(density=20)
-
-# Compute reflection coefficient at normal incidence
-R, T = cell.reflection_transmission(10e9, theta=0, phi=0, pol='TE')
-print(f"Reflection: {abs(R):.4f} ({20*np.log10(abs(R)+1e-10):.1f} dB)")
-
-# Surface impedance
-Zs = cell.surface_impedance(10e9)
-print(f"Surface impedance: {Zs.real:.1f} + j{Zs.imag:.1f} ohms")
+R, T = cell.reflection_transmission(10e9)
 ```
 
 ## Low-Level API Example
 
-For more control, use the core API directly:
+For more control, use the core API directly. This is the validated
+wave-port path (`build_wave_port_2d` + `calculate_sparams_eigenmode`):
 
 ```python
 import pyedgefem as em
 import numpy as np
 
-# Load mesh from Gmsh file
+# Load mesh from Gmsh file (MSH 2 ASCII: gmsh -format msh2)
 mesh = em.load_gmsh("examples/rect_waveguide.msh")
-print(f"Mesh: {len(mesh.nodes)} nodes, {len(mesh.elements)} elements")
+print(f"Mesh: {mesh.num_nodes()} nodes, {mesh.num_tets()} tets")
 
-# Build boundary conditions (PEC on tag 1)
+# PEC on tag 1
 bc = em.build_edge_pec(mesh, 1)
 
-# Set up Maxwell parameters
 params = em.MaxwellParams()
 params.omega = 2 * np.pi * 10e9  # 10 GHz
 
-# Build ports (extract from physical tags 2 and 3)
+# Ports on tags 2 and 3 from the 2D port-face eigenmode (TE10)
 port_dim = em.RectWaveguidePort()
 port_dim.a = 22.86e-3
 port_dim.b = 10.16e-3
-
 mode = em.solve_te10_mode(port_dim, 10e9)
+kc_sq = (np.pi / port_dim.a) ** 2
+pec = set(bc.dirichlet_edges)
+ports = [em.build_wave_port_2d(mesh, tag, mode, pec, kc_sq) for tag in (2, 3)]
 
-surface1 = em.extract_surface_mesh(mesh, 2)
-em.populate_te10_field(surface1, port_dim, mode)
-port1 = em.build_wave_port(mesh, surface1, mode)
-
-surface2 = em.extract_surface_mesh(mesh, 3)
-em.populate_te10_field(surface2, port_dim, mode)
-port2 = em.build_wave_port(mesh, surface2, mode)
-
-ports = [port1, port2]
-
-# Compute S-parameters
 S = em.calculate_sparams_eigenmode(mesh, params, bc, ports)
-print(f"S11 = {S[0,0]:.4f}")
-print(f"S21 = {S[1,0]:.4f}")
+print(f"|S11| = {abs(S[0,0]):.4f}")   # about 0.013
+print(f"|S21| = {abs(S[1,0]):.4f}")   # about 0.999
 ```
 
 ## VTK Export for ParaView

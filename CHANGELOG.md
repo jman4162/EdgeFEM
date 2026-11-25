@@ -1,5 +1,87 @@
 # Changelog
 
+## Unreleased
+
+From an adversarial review (Nov 2026). Every fix comes with a test that
+failed before it. The code's time convention is exp(+j omega t); several
+modules did not follow it.
+
+### Fixed (results change)
+
+- **PML** stretch was s = 1 + j sigma / omega, a gain medium: a PML section
+  terminating WR-90 at 10 GHz gave |S11| = 13.8 (uniform) and 11.6
+  (graded). Now s = 1 - j sigma / omega (0.073 and 0.097). The graded
+  profile now rises from the inner interface toward the face on the mesh
+  boundary (it peaked at both faces of a slab region). Per-axis losses are
+  summed instead of averaged. `reflection_est` uses c0, not omega.
+  `test_pml_waveguide` is the first test that solves with a PML; `test_pml`
+  leaves `known_issue`. The layer is still isotropic (experimental).
+- **Drude** (`DrudeMaterial`, the Drude term of `DrudeLorentzMaterial`)
+  had Im(eps) > 0 (gain); the denominator is now omega^2 - j gamma omega.
+- **Far field (C++)**: `extract_huygens_surface` computed
+  H = +curl E / (j omega mu), and `stratton_chu_2d/3d` used the
+  exp(-j omega t) kernel; together they returned patterns point-reflected
+  through the origin. Normals on interior Huygens surfaces were arbitrary;
+  pass the new `interior_point`. H is averaged over the two tets of a face.
+  `test_ntf` leaves `known_issue`.
+- **Patch far field (Python)**: `StackedPatchDesign` applied the
+  electric-current kernel to a magnetic current (co- and cross-polarization
+  swapped), used the exp(-j omega t) phase (squint mirrored), added a cos
+  theta factor, and halved the directivity. The analytical
+  `PatchAntennaDesign` pattern radiated below the ground (D 3.0 -> 6.0 dBi
+  for the test patch) and had the wrong polarization.
+- **Periodic BC**: pair orientation came from triangle-local data (on the
+  5 mm test cell 26 of 114 x-pairs were anti-periodic); it is now the sign
+  of the dot product of the edge directions. The Floquet phase is
+  exp(-j k_t . L) (was exp(+j k_t . L)), and the slave recovery uses the
+  same factor as the elimination. The elimination is sparse (P^H A P;
+  public `eliminate_periodic` / `expand_periodic`). Slave edges with no
+  master now throw.
+- **`calculate_sparams_eigenmode`** returned uninitialized memory when a
+  port was below cutoff (now NaN), and S21 carried the arbitrary sign of
+  the port eigenvectors (each port mode's sign is now fixed).
+- **Touchstone**: 2-port lines were S11 S12 S21 S22 (spec: S11 S21 S12
+  S22); N-port rows now start on a new line.
+- **Gmsh loader**: `$MeshFormat` is checked (MSH 4, binary and missing
+  headers throw with the `gmsh -format msh2` hint); CRLF files load
+  (they loaded as an empty mesh); Tet10/Tri6 and truncated files throw
+  instead of being dropped or half-read.
+- **`PatchAntennaDesign`**: edge feeds were simulated as a centre probe
+  (now `NotImplementedError` in FEM); `load_mesh()` never enabled FEM; the
+  `z0` argument was ignored on the FEM path; the analytical Z_in dropped to
+  0 reactance outside +-20 % (bandwidth() 40 % -> 2.4 % for 1.6 mm FR-4,
+  now a parallel RLC with a Jackson-Alexopoulos Q); `export_pattern_csv`
+  raised TypeError.
+- **NRW** (`UnitCellDesign.effective_parameters`): z was sqrt((1+G)/(1-G)),
+  n had the exp(-j omega t) sign, and the port planes were not moved to the
+  slab faces. `surface_impedance` now refers R to the cell surface.
+- **Bindings**: numpy strides were ignored by `VecC(...)` and
+  `evaluate_edge_field` (which also read out of bounds for short input).
+- Mixed Lumped and Modal ports in one S-parameter call now raise
+  (`std::invalid_argument` / `ValueError`); the fast `frequency_sweep` path
+  now matches `calculate_sparams` when `use_port_abc` is set.
+
+### Changed
+
+- **Quarantined** (they returned numbers without working):
+  `UnitCellDesign.reflection_transmission` and the methods built on it raise
+  `NotImplementedError` unless the design is built with `experimental=True`;
+  `add_patch`, `add_slot` and `add_via` raise (never meshed);
+  `compute_embedded_patterns` and `compute_single_embedded_pattern` raise
+  (a placeholder sum of raw edge DOFs).
+- `calculate_sparams_eigenmode` assembles once and solves all ports on the
+  free edges (one factorization with `SolveOptions.use_direct`); new
+  optional `solver_options` argument and
+  `calculate_sparams_eigenmode_with_fields`. `RectWaveguideDesign.
+  export_fields_vtk` exports that field instead of one from the 1.0.0
+  modal terms.
+- `assemble_maxwell` (C++ and Python) warns on Modal ports.
+- The Python bindings release the GIL during solves.
+- `vector_fit` refuses underdetermined input; its documentation says it is
+  a Levy polynomial-ratio fit, not vector fitting.
+- `edgefem.__all__` exports the gap-port, 2D wave-port, sweep and
+  fields-returning functions and drops `normalize_port_weights`.
+
 ## 1.1.0 (2026-10-15)
 
 ### Breaking changes and known limitations
@@ -12,17 +94,25 @@
   `WavePort`s keep the 1.0.0 terms (load w w^H / Z0, source
   2 w / sqrt(Z0), S(j, i) = V_j / sqrt(Z0_i) - delta_ij) in
   `assemble_maxwell`, `calculate_sparams(_with_fields)`, `frequency_sweep`
-  and `calculate_sparams_periodic`. On the same meshes they equal 1.0.0 to
-  1e-13 (`test_modal_port_1p0`, and `test_unit_cell_design.py` to 1e-9).
+  and `calculate_sparams_periodic`. With a direct solver and
+  `use_abc = False` they equal 1.0.0 on the same meshes to 1e-9
+  (`test_modal_port_1p0`).
   Those 1.0.0 values are not physical: WR-90 with analytic TE10 weights
   gives |S11| = 2.41 / 1.63 / 1.33 at 8 / 10 / 12 GHz, and a bare grounded
   slab (eps_r 3.5, 1 mm, port plane 14.99 mm above) gives arg(R) =
   -172.15 / -175.12 / -176.70 deg at 8 / 10 / 12 GHz against the analytic
   -127.67 / +155.07 / +77.58 deg. These functions print a one-time stderr
   warning (C++) and emit a `RuntimeWarning` (Python) when a Modal port is
-  present. `calculate_sparams_eigenmode` is unchanged, validated on WR-90
-  and WR-42, and does not warn. A hand-built `WavePort` meant as a gap port
+  present. `calculate_sparams_eigenmode` is validated on WR-90 and WR-42
+  and does not warn; relative to the 2026-02 1.0.0 release it changed in
+  July 2026 (next item). A hand-built `WavePort` meant as a gap port
   needs `kind = PortKind.Lumped`.
+- **`calculate_sparams_eigenmode` port operator and `port_abc_scale`
+  default (July 2026).** The port ABC is now j beta times the assembled
+  port surface mass matrix with 2D discrete port modes, and
+  `MaxwellParams.port_abc_scale` defaults to 1.0 (1.0.0: a diagonal
+  approximation with the recommended 0.5). Remove any
+  `port_abc_scale = 0.5`: on the assembled operator it degrades S11.
 - **`assemble_maxwell` with a lumped port.** The active port's right-hand
   side is now the gap-port source b = j k0 eta0 (2 / sqrt(Z0)) v, and every
   lumped port adds j k0 eta0 / Z0 v v^H to A. In 1.0.0 it was
@@ -37,8 +127,8 @@
   (`RuntimeError` in Python) when `e_direction` has no extent in the port
   surface.
 - **`normalize_port_weights` is a no-op** for every port kind. It prints a
-  one-time stderr warning (C++) or raises a `DeprecationWarning` (Python)
-  and returns the ports unchanged. In 1.0.0 it rescaled the weights to
+  one-time stderr warning (C++; also shown from Python) and emits a
+  `DeprecationWarning` (Python), and returns the ports unchanged. In 1.0.0 it rescaled the weights to
   w^H A^-1 w = Z0 (in place in C++, as a returned copy in Python). It will
   be removed in a later release.
 - **`StackedPatchDesign` raises on geometry it cannot build.** `ValueError`
@@ -66,11 +156,8 @@
   - Radiation patterns from a Huygens surface change with the Stratton-Chu
     fix (see Fixed): cross-polarization and absolute levels differ from
     1.0.0.
-  - C++: `frequency_sweep` takes a `SweepFieldRequest` (defaulted) and
-    `check_solver_convergence` moved to `solver.hpp`; code built against
-    1.0.0 headers must be recompiled.
-  - The test-only factorization counter is `direct_factorization_count()`
-    (Python `_direct_factorization_count`).
+  - C++: `frequency_sweep` takes a `SweepFieldRequest` (defaulted); code
+    built against 1.0.0 headers must be recompiled.
 
 ### Added
 

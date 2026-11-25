@@ -97,9 +97,8 @@ struct MaxwellParams {
   // knob remains only as a diagnostic. (Before the assembled operator, a
   // diagonal-lumped approximation required an empirical 0.5 here.)
   double port_abc_scale = 1.0;
-  // Use direct eigenmode excitation (more accurate, but slower)
-  // When enabled, ports are excited using 3D FEM eigenvector instead of
-  // analytical mode weights. Requires calling compute_te_eigenvector() first.
+  // Unused: no code path reads it (calculate_sparams_eigenmode is the
+  // eigenmode path). Kept so existing callers that set it still compile.
   bool use_eigenmode_excitation = false;
 
   /// Get effective permittivity for a given physical region tag
