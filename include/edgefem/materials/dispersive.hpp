@@ -11,6 +11,8 @@ namespace materials {
 /// Base class for frequency-dependent (dispersive) material models.
 /// Subclasses implement eval_eps() and optionally eval_mu() to return
 /// the complex permittivity/permeability at a given angular frequency.
+/// Time convention exp(+j omega t), as in the FEM assembly: a lossy model
+/// returns Im(eps) < 0 for omega > 0.
 class DispersiveMaterial {
 public:
   virtual ~DispersiveMaterial() = default;
@@ -152,7 +154,7 @@ private:
 /// The Drude model describes the optical response of free electrons in metals
 /// and plasmas. It produces negative permittivity below the plasma frequency.
 ///
-/// Formula: eps(omega) = 1 - omega_p^2 / (omega^2 + j*gamma*omega)
+/// Formula: eps(omega) = 1 - omega_p^2 / (omega^2 - j*gamma*omega)
 ///
 /// where:
 ///   omega_p = plasma frequency (rad/s)
@@ -180,8 +182,8 @@ public:
   }
 
   std::complex<double> eval_eps(double omega) const override {
-    // eps(omega) = 1 - omega_p^2 / (omega^2 + j*gamma*omega)
-    //            = 1 - omega_p^2 / (omega * (omega + j*gamma))
+    // eps(omega) = 1 - omega_p^2 / (omega^2 - j*gamma*omega)
+    //            = 1 - omega_p^2 / (omega * (omega - j*gamma))
     if (omega == 0.0) {
       // DC limit: eps -> -infinity for pure Drude
       // Return a large negative value to indicate metallic behavior
@@ -189,7 +191,7 @@ public:
     }
     double omega_sq = omega * omega;
     double omega_p_sq = omega_p_ * omega_p_;
-    std::complex<double> denom(omega_sq, gamma_ * omega);
+    std::complex<double> denom(omega_sq, -gamma_ * omega);
     return std::complex<double>(1.0, 0.0) - omega_p_sq / denom;
   }
 
@@ -207,7 +209,7 @@ private:
 /// contributions, which is necessary for accurate modeling of real metals
 /// across a wide frequency range.
 ///
-/// Formula: eps(omega) = eps_inf - omega_p^2/(omega^2 + j*gamma_d*omega)
+/// Formula: eps(omega) = eps_inf - omega_p^2/(omega^2 - j*gamma_d*omega)
 ///                     + Sum_k [ delta_eps_k * omega0_k^2 /
 ///                               (omega0_k^2 - omega^2 + j*gamma_k*omega) ]
 class DrudeLorentzMaterial : public DispersiveMaterial {
@@ -255,7 +257,7 @@ public:
     if (omega != 0.0) {
       double omega_sq = omega * omega;
       double omega_p_sq = omega_p_ * omega_p_;
-      std::complex<double> drude_denom(omega_sq, gamma_d_ * omega);
+      std::complex<double> drude_denom(omega_sq, -gamma_d_ * omega);
       eps -= omega_p_sq / drude_denom;
     } else {
       eps = std::complex<double>(-1e30, 0.0);

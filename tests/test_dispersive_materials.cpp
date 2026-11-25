@@ -339,6 +339,40 @@ void test_silicon_10ghz() {
   std::cout << "  PASSED" << std::endl;
 }
 
+// Under the solver's exp(+j omega t) convention a passive (lossy) medium has
+// Im(eps) < 0 at every omega > 0 (Debye and Lorentz already do). A Drude
+// term with gamma > 0 must obey the same sign, alone and inside the
+// Drude-Lorentz model, or a metal region adds gain to the FEM system.
+void test_drude_loss_sign() {
+  std::cout << "Testing Drude loss sign (exp(+j omega t): Im(eps) < 0)..."
+            << std::endl;
+  const double omega_p = 1.37e16;
+  const double gamma = 4.05e13;
+  DrudeMaterial drude(omega_p, gamma);
+  DrudeLorentzMaterial drude_l(1.0, omega_p, gamma);
+  drude_l.add_lorentz_pole(2.0, 4.0e15, 1e14);
+  LorentzMaterial lorentz_only(1.0);
+  lorentz_only.add_pole(2.0, 4.0e15, 1e14);
+
+  for (double omega : {1e9, 1e12, 1e14, 3e15, 1e16, 5e16}) {
+    const auto eps_d = drude.eval_eps(omega);
+    CHECK(eps_d.imag() < 0.0);
+    // The Drude-Lorentz loss is the Drude loss plus the Lorentz loss.
+    const auto eps_dl = drude_l.eval_eps(omega);
+    const double lorentz_imag = lorentz_only.eval_eps(omega).imag();
+    CHECK(eps_dl.imag() < 0.0);
+    CHECK(std::abs(eps_dl.imag() - (eps_d.imag() + lorentz_imag)) <=
+          1e-9 * std::abs(eps_dl.imag()));
+  }
+  // Closed form at omega = gamma: eps = 1 - omega_p^2 / (gamma^2 (1 - j))
+  //                                   = 1 - omega_p^2 (1 + j) / (2 gamma^2).
+  const auto eps_g = drude.eval_eps(gamma);
+  const double half = omega_p * omega_p / (2.0 * gamma * gamma);
+  CHECK(std::abs(eps_g.real() - (1.0 - half)) <= 1e-9 * half);
+  CHECK(std::abs(eps_g.imag() + half) <= 1e-9 * half);
+  std::cout << "  PASSED" << std::endl;
+}
+
 int main() {
   std::cout << "=== Dispersive Materials Unit Tests ===" << std::endl;
   std::cout << std::endl;
@@ -350,6 +384,7 @@ int main() {
   test_drude_basic();
   test_drude_gold_optical();
   test_drude_lorentz_combined();
+  test_drude_loss_sign();
   test_parameter_validation();
   test_mu_default();
   test_silicon_10ghz();

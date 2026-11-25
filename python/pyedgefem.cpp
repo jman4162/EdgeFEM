@@ -1387,7 +1387,8 @@ PYBIND11_MODULE(pyedgefem, m) {
   py::class_<DrudeMaterial, DispersiveMaterial, std::shared_ptr<DrudeMaterial>>(
       materials, "DrudeMaterial",
       "Drude free-electron model for metals and plasmas.\n\n"
-      "Formula: eps(omega) = 1 - omega_p^2 / (omega^2 + j*gamma*omega)\n\n"
+      "Formula: eps(omega) = 1 - omega_p^2 / (omega^2 - j*gamma*omega)\n"
+      "(exp(+j omega t): Im(eps) < 0 for a lossy metal)\n\n"
       "Example (gold-like):\n"
       "    gold = DrudeMaterial(omega_p=1.37e16, gamma=4.05e13)")
       .def(py::init<double, double>(), py::arg("omega_p"), py::arg("gamma"),
